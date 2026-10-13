@@ -11,7 +11,7 @@ These decisions are binding on all contributors, human or agent. Changing one ne
 | Kernel binding | Thin C ABI shim (`swx-kernel/cpp/occt_shim.cpp`, built with `cc`) linked dynamically against system OCCT 7.6+ (ADR 2026-10-13) | Smallest dependency surface, seconds-long builds, OCCT stays a separate shared library. `unsafe` confined to `swx-kernel::ffi`. |
 | Sketch solver | Our own crate, `swx-sketch` | Newton/Levenberg–Marquardt on a sparse system, with DOF analysis. This keeps the core permissive and fully testable. PlaneGCS (LGPL) is a reference for behavior, not code to copy. |
 | Document model | `swx-core`: parameters plus an ordered feature history, with dirty propagation | Kernel-agnostic, so rebuild logic is unit-testable without geometry. |
-| Native file | `.swx`: UTF-8 RON/JSON of parameters and history (no B-rep cache) | Diffable and mergeable. Geometry is always regenerated. |
+| Native file | `.sltwx` family (part `.sltwx`, assembly `.sltwxa` incl. its exploded views, drawing `.sltwxd`): ZIP container with `manifest.json` + `model.json` (source of truth) and an optional regenerable cache (OCCT BRep, glTF, PNG). Spec: `docs/specs/FILE_FORMAT.md` | Open formats can't store parametric history. The JSON model stays the source of truth; the cache makes large files open fast. The unpacked-folder form keeps git diffs useful. |
 | Exchange | STEP AP242 and STL first, then 3MF, IGES and DXF | Open standards only (see CLEAN_ROOM.md). |
 | UI | `egui` + `eframe` on `wgpu`, with a custom wgpu 3D viewport | Pure Rust, cross-platform, WASM-capable, permissive licenses. |
 
@@ -22,7 +22,7 @@ crates/
   swx-core     document model, parameters, feature history, rebuild ordering   (exists)
   swx-sketch   2D geometry + constraint solver
   swx-kernel   Kernel trait + OCCT implementation (feature "occt")
-  swx-io       .swx, STEP, STL
+  swx-io       .sltwx family, STEP, STL
   swx-render   tessellation upload, camera, picking (wgpu)
   swx-app      desktop application (eframe)
 ```
@@ -56,3 +56,4 @@ Dependency direction: `app → render, io → kernel, sketch → core`. `core` a
 
 - 2026-10-12: initial stack chosen (this document).
 - 2026-10-13 (M1-01): OCCT binding = thin `extern "C"` shim compiled by `cc`, linked with `cargo:rustc-link-lib=dylib=TK*` against system OCCT (Ubuntu 24.04 `libocct-*-dev` 7.6.3; overridable via `OCCT_INCLUDE_DIR`/`OCCT_LIB_DIR`). Measured clean build of `swx-kernel --features occt`: ~2.2 s (only the shim compiles; OCCT is prebuilt). Cache strategy: apt packages + standard cargo `target/` cache; nothing large to cache. Rejected (not measured in this spike): bundled-source `opencascade-sys` (compiles all of OCCT from source on a cold cache, linked statically by default) and `cxx` (extra proc-macro deps; revisit if the API surface grows). Shim functions are `noexcept` and catch all C++ exceptions.
+- 2026-10-13: native format changed from text-only `.swx` to the `.sltwx` family (ZIP + JSON + optional cache, unpacked-folder form for git). See `docs/specs/FILE_FORMAT.md`.
