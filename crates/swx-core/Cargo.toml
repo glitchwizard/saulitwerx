@@ -1,0 +1,13 @@
+[package]
+name = "swx-core"
+version = "0.0.1"
+description = "Saulitwerx document model: parameters and the parametric feature tree (kernel-agnostic)."
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true
