@@ -11,5 +11,7 @@ status: running
 
 ## Log
 
+- 2026-10-13 reviewer: owner merged #4 (M1-01) and #5 (CI); checked off M1-01; planned #7 M1-03, #8 M1-04, #9 M1-05; #6 (FACTORY.md) needs-human
+- 2026-10-13 builder: idle (no ready issues; #1-#3 needs-human, CI pending #5)
 - 2026-10-13 builder: #1 M1-01 → PR #4 (no CI on main, see #3; table-row edit needs-human)
 - 2026-10-12 bootstrap: M0 complete (workspace, swx-core, factory docs); seeded M1 issues
