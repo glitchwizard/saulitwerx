@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  rust:
+    name: fmt · clippy · test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+
+  hygiene:
+    name: attribution & clean-room guard
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: No AI attribution in PR commits
+        if: github.event_name == 'pull_request'
+        run: |
+          if git log --format=%B ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} \
+             | grep -Eiq 'co-authored-by:.*(claude|anthropic|noreply@anthropic)|generated with \[?claude'; then
+            echo "::error::AI attribution found in commit messages (see CLAUDE.md)"; exit 1
+          fi
+      - name: No vendor branding or proprietary formats in source
+        run: |
+          if grep -RInE 'solidworks|dassault|\.sldprt|\.sldasm|\.slddrw' \
+               --include='*.rs' --include='*.toml' --include='*.wgsl' --include='*.json' --include='*.ron' . ; then
+            echo "::error::Vendor names or proprietary formats found in source (see CLEAN_ROOM.md)"; exit 1
+          fi
