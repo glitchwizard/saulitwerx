@@ -25,40 +25,76 @@ Milestones are sequential. Don't start M(n+1) items while M(n) has unchecked ite
 - [ ] M2-04 Constraints: parallel, perpendicular, tangent (line–arc, arc–arc), equal, midpoint, symmetric.
 - [ ] M2-05 DOF analysis: report under-, fully- and over-constrained states, and conflicting constraints.
 - [ ] M2-06 Profile extraction: closed loops → regions with holes, ready for the kernel.
-- [ ] M2-07 Dimensions bound to document parameters (`swx-core` integration).
+- [ ] M2-07 Dimensions bound to document parameters (`swx-core` integration). Every dimension auto-creates a model parameter `d0`, `d1`, … (PRODUCT §2.2).
+- [ ] M2-08 Parameter expressions with units (`d3 = d1 / 2 + 5 mm`), user parameters, dependency ordering and cycle detection.
+- [ ] M2-09 Sketch inference: auto-apply coincident/horizontal/vertical/tangent/perpendicular/parallel while drawing (solver-level API, no UI).
 
 ## M3: Part features
 
-- [ ] M3-01 Sketch → kernel face; extrude (blind, symmetric) as a new body.
-- [ ] M3-02 Extrude cut, through-all, and up-to-depth.
+- [ ] M3-01 Sketch → kernel face; extrude (distance, symmetric) with join / cut / intersect / new solid.
+- [ ] M3-02 Extrude extents: through all, to face, between faces.
 - [ ] M3-03 Revolve and revolve cut.
 - [ ] M3-04 Topological naming v1: persistent face/edge references across rebuilds. Write a design doc first in `docs/specs/`.
 - [ ] M3-05 Fillet and chamfer on referenced edges.
 - [ ] M3-06 Shell, draft, and hole (simple, counterbore).
 - [ ] M3-07 Full rebuild pipeline: parameter edit → dirty features → regenerate → regression test.
+- [ ] M3-08 Part origin (3 planes, 3 axes, center point) and work features: work planes, axes, points.
+- [ ] M3-09 End-of-part marker: roll back and insert features above it.
+- [ ] M3-10 Multi-body parts and combine (join/cut/intersect between bodies).
+- [ ] M3-11 Sweep and loft.
+- [ ] M3-12 Hole feature v2: countersink, tapped, thread table data.
 
 ## M4: Files
 
-- [ ] M4-01 `.swx` native format (versioned, RON or JSON) with save/load round-trip tests.
+- [ ] M4-01 Native `.sltwx` part files per `docs/specs/FILE_FORMAT.md`: ZIP container, `manifest.json`, `model.json`, stable IDs, round-trip tests, plus the unpacked-folder form.
+- [ ] M4-04 Derived cache (`cache/*.brep`, `display.glb`, `thumbnail.png`) with `model_hash` staleness check.
+- [ ] M4-05 `sltwx pack` / `unpack` CLI and the published JSON Schema for format v0.1.
 - [ ] M4-02 STL export with tolerance options.
 - [ ] M4-03 STEP import as a dumb solid feature.
 
 ## M5: Desktop app
 
 - [ ] M5-01 `swx-app` shell: eframe window, menus, open/save.
-- [ ] M5-02 wgpu viewport: orbit/pan/zoom, shaded + edges, view cube.
-- [ ] M5-03 Feature tree panel: select, rename, suppress, edit (opens the property panel), rollback bar.
+- [ ] M5-02 wgpu viewport: shaded + edges, orientation cube, home view. Default mouse: wheel zooms to cursor, middle-drag pans, Shift + middle-drag orbits (PRODUCT §8).
+- [ ] M5-03 Model browser: origin folder, features, end-of-part marker; select, rename, suppress, edit.
 - [ ] M5-04 Sketch mode: draw tools, snapping, constraint glyphs, dimension editing.
 - [ ] M5-05 Face/edge picking, wired to feature inputs.
-- [ ] M5-06 Property panel for extrude, revolve and fillet, with live preview.
+- [ ] M5-06 Property panels for extrude, revolve and fillet, with live preview and OK / Apply / Cancel.
+- [ ] M5-07 Ribbon with per-environment tabs (part, sketch) and a contextual sketch tab with Finish sketch.
+- [ ] M5-08 Right-click radial menu and selection mini-toolbar.
+- [ ] M5-09 Single-letter command aliases and a remappable shortcut/mouse-preset system.
 
 ## M6: Productivity
 
-- [ ] M6-01 Linear/circular pattern and mirror.
-- [ ] M6-02 Reference geometry: planes, axes, points.
-- [ ] M6-03 Equations / global variables editor.
+- [ ] M6-01 Rectangular / circular / path patterns and mirror (features and bodies).
+- [ ] M6-02 Shell, face draft, thread, split.
+- [ ] M6-03 Parameters dialog: model + user parameters, units, expressions, comments.
 - [ ] M6-04 Measure tool and mass properties.
 
-## Later (not yet scheduled)
+## M7: Assemblies (joint-first, PRODUCT §4)
 
-Assemblies with mates, 2D drawings with dimensions, a WASM/browser build, sheet metal, and configurations.
+- [ ] M7-01 Assembly document (`.sltwxa`): place parts and subassemblies; first component grounded.
+- [ ] M7-02 Joints: rigid, rotational, slider; DOF solver for assemblies.
+- [ ] M7-03 Joints: cylindrical, planar, ball; joint limits.
+- [ ] M7-04 Constraints: mate/flush, angle, tangent, insert, symmetry.
+- [ ] M7-05 Drag components within remaining DOF; interference check.
+- [ ] M7-06 Component patterns/mirror, replace component, BOM structure.
+- [ ] M7-07 Edit a part in place within the assembly.
+
+## M8: Drawings (PRODUCT §5)
+
+- [ ] M8-01 Drawing document (`.sltwxd`), sheets, template title block.
+- [ ] M8-02 Base and projected views with hidden-line removal.
+- [ ] M8-03 Section and detail views.
+- [ ] M8-04 Retrieved model dimensions plus drawing dimensions, center marks and centerlines.
+- [ ] M8-05 Parts list and balloons from the BOM.
+- [ ] M8-06 PDF and DXF export.
+
+## M9: Exploded views (PRODUCT §6, stored in the assembly)
+
+- [ ] M9-01 Named exploded views in `.sltwxa`: tweaks (translate/rotate) with trail lines, applied on top of the solved assembly.
+- [ ] M9-02 Ordered steps with animation playback; drawing views can use an exploded view.
+
+## Later (not yet scheduled; see PRODUCT §7)
+
+Parameters automation (rules), part families, sheet metal, structural frames, standard parts library, design calculators, simulation, photoreal rendering, and a WASM/browser build.

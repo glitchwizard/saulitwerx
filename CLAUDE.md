@@ -4,6 +4,8 @@ You are working on Saulitwerx, an open-source parametric CAD modeler written in 
 
 **Before doing anything, read `docs/factory/FACTORY.md` and follow it.** It defines your role, the issue queue, the git rules, and the budget limits. If `docs/factory/STATE.md` does not say `status: running`, stop.
 
+**What we're building:** `docs/specs/PRODUCT.md` defines the product. Its workflows follow a mainstream commercial MCAD tool's behavior, with generic names only. When planning or implementing a feature, make it behave as PRODUCT.md describes.
+
 ## Binding rules (summary; FACTORY.md has the detail)
 
 - Never commit or push to `main`. Use branches `feat/…`, `fix/…`, `docs/…` or `chore/…` and open PRs.
