@@ -8,7 +8,7 @@ These decisions are binding on all contributors, human or agent. Changing one ne
 |---|---|---|
 | Language | Rust (stable) | Memory safety in a large codebase, a first-class WASM target, and strict compiler feedback, which keeps unattended agent work honest. |
 | Geometry kernel | OpenCascade (OCCT) 7.x behind a `swx-kernel` trait | The only mature open B-rep kernel: booleans, fillets, shelling, STEP. Writing a B-rep kernel is out of scope. The trait keeps a pure-Rust kernel (e.g. `truck`) possible later. |
-| Kernel binding | Decided in roadmap item M1-01 (spike) | Candidates: `opencascade-sys` (bundled build), the same crate against a system OCCT, or a thin `cxx` bridge. Requirements: CI under 15 minutes with caching, and dynamic linking for license reasons. |
+| Kernel binding | Thin C ABI shim (`swx-kernel/cpp/occt_shim.cpp`, built with `cc`) linked dynamically against system OCCT 7.6+ (ADR 2026-10-13) | Smallest dependency surface, seconds-long builds, OCCT stays a separate shared library. `unsafe` confined to `swx-kernel::ffi`. |
 | Sketch solver | Our own crate, `swx-sketch` | Newton/Levenberg–Marquardt on a sparse system, with DOF analysis. This keeps the core permissive and fully testable. PlaneGCS (LGPL) is a reference for behavior, not code to copy. |
 | Document model | `swx-core`: parameters plus an ordered feature history, with dirty propagation | Kernel-agnostic, so rebuild logic is unit-testable without geometry. |
 | Native file | `.swx`: UTF-8 RON/JSON of parameters and history (no B-rep cache) | Diffable and mergeable. Geometry is always regenerated. |
