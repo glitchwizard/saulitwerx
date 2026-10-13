@@ -29,6 +29,8 @@ The owner wants **slow, steady progress on a tight token budget**. When in doubt
 | `factory:changes` | Reviewer asked for changes. The Builder fixes these **before** taking new work. |
 | `factory:blocked` | Can't proceed. The reason is in a comment. |
 | `needs-human` | Requires an owner decision. The factory skips these until the label is removed. |
+| `owner-merge` | PR changes `.github/`; only the owner merges it. |
+| `priority` | Builder takes this before roadmap order. |
 | `size:S` / `size:M` | S is about ≤150 changed lines, M about ≤400. Nothing larger exists: split it. |
 | `M0`…`M6` | Milestone. |
 
@@ -39,9 +41,10 @@ Issue title format: `M2-03: Solver constraints: coincident, horizontal, …`. Th
 1. Kill-switch check (§0). Read `CLAUDE.md`, `docs/ARCHITECTURE.md` and `CLEAN_ROOM.md`.
 2. Pick work in this order, and take only one item:
    1. If `main` CI is red, fix `main`. This is the only case where work starts without an issue: open a `fix:` PR.
-   2. The oldest open issue labeled `factory:changes`. Continue on its existing PR branch.
-   3. The lowest-numbered roadmap item among open `factory:ready` issues, skipping any labeled `needs-human` or `factory:blocked`.
-   4. If nothing qualifies, log "idle" in STATE and stop.
+   2. The oldest open issue labeled both `priority` and `factory:ready`.
+   3. The oldest open issue labeled `factory:changes`. Continue on its existing PR branch.
+   4. The lowest-numbered roadmap item among open `factory:ready` issues, skipping any labeled `needs-human` or `factory:blocked`.
+   5. If nothing qualifies, log "idle" in STATE and stop.
 3. Claim the issue: add `factory:wip`, remove `factory:ready` or `factory:changes`.
 4. Branch: `feat/<issue#>-<short-slug>` (or `fix/…`). **Never commit to `main`.**
 5. Implement the smallest change that meets the acceptance criteria. Add tests that would fail without the change. Locally, run all of:
@@ -112,12 +115,14 @@ Commits are authored as `glitchwizard <glitchwizard@gmail.com>`.
 The factory must **never** modify these files. A PR that touches them is labeled `needs-human` and is never merged by the Reviewer:
 
 - `docs/factory/FACTORY.md`, `CLAUDE.md`, `CLEAN_ROOM.md`, `LICENSE-*`
-- anything under `.github/` (CI is the quality gate; the factory doesn't move its own goalposts)
+- anything under `.github/` may only change through an `owner-merge` PR (CI is the quality gate; the factory doesn't move its own goalposts)
 - `docs/ARCHITECTURE.md`, except for appending rows to the dependency register and new ADR lines
 
 The factory **may** edit `docs/factory/STATE.md`, check items off and add sub-items in `docs/ROADMAP.md`, and add files under `docs/specs/`.
 
-If CI itself needs to change (e.g. adding the OCCT job in M1-02), note that the factory's GitHub access **cannot push files under `.github/workflows/`** at all. Instead, put the full proposed workflow YAML in a comment on the issue, label the issue `needs-human`, and move on. The owner applies it by hand.
+Changes under `.github/` are **owner-merge only**:
+- The Builder may implement them on a branch and open a PR labeled `owner-merge`. If GitHub rejects the push (workflow files need the `workflows` permission), post the full file as an issue comment, label the issue `needs-human`, and stop.
+- The Reviewer reviews `owner-merge` PRs like any other and comments its verdict, but **never merges them**. The owner merges.
 
 ## 9. Hard stops (every role, every run)
 
