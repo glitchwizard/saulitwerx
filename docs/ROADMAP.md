@@ -12,7 +12,7 @@ Milestones are sequential. Don't start M(n+1) items while M(n) has unchecked ite
 ## M1: Kernel spike (OCCT)
 
 - [x] M1-01 Spike: choose the OCCT binding approach. Compare build time, CI cacheability and dynamic linking. Record an ADR in ARCHITECTURE.md. Deliverable: a `swx-kernel` crate that makes a box and reports its volume in a test. OCCT code sits behind the cargo feature `occt`, off by default, so the current CI stays green until M1-02.
-- [ ] M1-02 CI job for `swx-kernel` with OCCT cached (separate workflow job, feature `occt`). Touches `.github/`, so the owner merges it (FACTORY §8).
+- [x] M1-02 CI job for `swx-kernel` with OCCT cached (separate workflow job, feature `occt`). Touches `.github/`, so the owner merges it (FACTORY §8).
 - [ ] M1-03 `Kernel` trait: primitives (box, cylinder, sphere), boolean union/cut/intersect, and volume/area/bbox queries. Regression tests with tolerances.
 - [ ] M1-04 Tessellation: `Shape → Mesh` (positions, normals, indices) with deflection control and tests.
 - [ ] M1-05 STEP export plus round-trip import. Golden tests compare volume and face count.
