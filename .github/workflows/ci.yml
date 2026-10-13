@@ -49,3 +49,23 @@ jobs:
                --include='*.rs' --include='*.toml' --include='*.wgsl' --include='*.json' --include='*.ron' . ; then
             echo "::error::Vendor names or proprietary formats found in source (see CLEAN_ROOM.md)"; exit 1
           fi
+
+  kernel-occt:
+    name: swx-kernel (occt)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install OCCT (system packages, dynamic)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libocct-foundation-dev libocct-modeling-data-dev libocct-modeling-algorithms-dev
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: occt-7.6
+      - run: cargo clippy -p swx-kernel --all-targets --features occt -- -D warnings
+      - run: cargo test -p swx-kernel --features occt
