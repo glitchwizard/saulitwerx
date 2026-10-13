@@ -1,0 +1,21 @@
+[package]
+name = "swx-kernel"
+version = "0.0.1"
+description = "Saulitwerx geometry kernel: B-rep operations, with OpenCascade behind the optional `occt` feature."
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+# Links the system OpenCascade (OCCT) shared libraries through a small C ABI shim.
+occt = ["dep:cc"]
+
+[dependencies]
+
+[build-dependencies]
+cc = { version = "1", optional = true }
+
+[lints]
+workspace = true

@@ -11,4 +11,5 @@ status: running
 
 ## Log
 
+- 2026-10-13 builder: #1 M1-01 → PR #4 (no CI on main, see #3; table-row edit needs-human)
 - 2026-10-12 bootstrap: M0 complete (workspace, swx-core, factory docs); seeded M1 issues
