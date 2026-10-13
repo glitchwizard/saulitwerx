@@ -47,7 +47,12 @@ Dependency direction: `app → render, io → kernel, sketch → core`. `core` a
 | Dependency | License | Used by | Notes |
 |---|---|---|---|
 | _(none yet)_ | | | |
+| `cc` 1.x | MIT OR Apache-2.0 | swx-kernel (build, feature `occt`) | Compiles the OCCT C ABI shim. |
+| `shlex` 2.x | MIT OR Apache-2.0 | swx-kernel (build, via `cc`) | Transitive. |
+| `find-msvc-tools` 0.1 | MIT OR Apache-2.0 | swx-kernel (build, via `cc`) | Transitive. |
+| OpenCascade (OCCT) 7.6.3, system packages | LGPL-2.1 with OCCT exception | swx-kernel (feature `occt`) | Dynamic only (`libTK*.so`); not vendored. |
 
 ## ADR log
 
 - 2026-10-12: initial stack chosen (this document).
+- 2026-10-13 (M1-01): OCCT binding = thin `extern "C"` shim compiled by `cc`, linked with `cargo:rustc-link-lib=dylib=TK*` against system OCCT (Ubuntu 24.04 `libocct-*-dev` 7.6.3; overridable via `OCCT_INCLUDE_DIR`/`OCCT_LIB_DIR`). Measured clean build of `swx-kernel --features occt`: ~2.2 s (only the shim compiles; OCCT is prebuilt). Cache strategy: apt packages + standard cargo `target/` cache; nothing large to cache. Rejected (not measured in this spike): bundled-source `opencascade-sys` (compiles all of OCCT from source on a cold cache, linked statically by default) and `cxx` (extra proc-macro deps; revisit if the API surface grows). Shim functions are `noexcept` and catch all C++ exceptions.
