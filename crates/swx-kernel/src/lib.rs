@@ -1,17 +1,26 @@
 //! Saulitwerx geometry kernel.
 //!
-//! The B-rep backend is OpenCascade (OCCT), enabled by the `occt` cargo
-//! feature (off by default). OCCT is reached through a small C ABI shim in
-//! `cpp/occt_shim.cpp` and linked dynamically against the system libraries;
-//! see the M1-01 ADR in `docs/ARCHITECTURE.md`.
+//! [`Kernel`] is the backend-neutral interface the rest of Saulitwerx uses for
+//! solid modeling. Its public signatures carry no backend types, so a
+//! different kernel can be swapped in later.
 //!
-//! The full `Kernel` trait arrives in M1-03. For now this crate exposes the
-//! minimum needed to prove the binding: build a box and measure its volume.
+//! The B-rep backend is OpenCascade (OCCT), enabled by the `occt` cargo
+//! feature (off by default) as [`OcctKernel`]. OCCT is reached through a small
+//! C ABI shim in `cpp/occt_shim.cpp` and linked dynamically against the system
+//! libraries; see the M1-01 ADR in `docs/ARCHITECTURE.md`.
 
 use std::fmt;
 
 #[cfg(feature = "occt")]
 mod ffi;
+#[cfg(feature = "occt")]
+mod occt;
+
+#[cfg(feature = "occt")]
+pub use occt::{OcctKernel, OcctShape};
+
+/// A point or vector in model space, `[x, y, z]`.
+pub type Point3 = [f64; 3];
 
 /// Errors reported by kernel operations.
 #[derive(Debug, Clone, PartialEq)]
@@ -33,26 +42,70 @@ impl fmt::Display for KernelError {
 
 impl std::error::Error for KernelError {}
 
-/// Checks that box dimensions are finite and strictly positive.
-#[cfg(any(feature = "occt", test))]
-fn validate_box_dims(dx: f64, dy: f64, dz: f64) -> Result<(), KernelError> {
-    for (name, v) in [("dx", dx), ("dy", dy), ("dz", dz)] {
-        if !v.is_finite() || v <= 0.0 {
-            return Err(KernelError::InvalidInput(format!(
-                "box dimension {name} must be finite and > 0, got {v}"
-            )));
-        }
+/// Axis-aligned bounding box.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BoundingBox {
+    /// Minimum corner.
+    pub min: Point3,
+    /// Maximum corner.
+    pub max: Point3,
+}
+
+/// Backend-neutral solid modeling operations.
+///
+/// Constructors validate their inputs before reaching the backend: sizes must
+/// be finite and strictly positive, positions must be finite.
+pub trait Kernel {
+    /// The backend's solid shape. Opaque to callers.
+    type Shape;
+
+    /// Axis-aligned box with its minimum corner at `corner` and edge lengths `size`.
+    fn make_box(&self, corner: Point3, size: Point3) -> Result<Self::Shape, KernelError>;
+    /// Cylinder along +Z whose base circle is centered at `base`.
+    fn make_cylinder(
+        &self,
+        base: Point3,
+        radius: f64,
+        height: f64,
+    ) -> Result<Self::Shape, KernelError>;
+    /// Sphere centered at `center`.
+    fn make_sphere(&self, center: Point3, radius: f64) -> Result<Self::Shape, KernelError>;
+
+    /// Boolean union `a ∪ b`.
+    fn union(&self, a: &Self::Shape, b: &Self::Shape) -> Result<Self::Shape, KernelError>;
+    /// Boolean difference `a − b`.
+    fn cut(&self, a: &Self::Shape, b: &Self::Shape) -> Result<Self::Shape, KernelError>;
+    /// Boolean intersection `a ∩ b`.
+    fn intersect(&self, a: &Self::Shape, b: &Self::Shape) -> Result<Self::Shape, KernelError>;
+
+    /// Enclosed volume.
+    fn volume(&self, s: &Self::Shape) -> Result<f64, KernelError>;
+    /// Total area of all faces.
+    fn surface_area(&self, s: &Self::Shape) -> Result<f64, KernelError>;
+    /// Tight axis-aligned bounding box.
+    fn bounding_box(&self, s: &Self::Shape) -> Result<BoundingBox, KernelError>;
+}
+
+/// Rejects a size that is not finite or not strictly positive.
+#[cfg_attr(not(feature = "occt"), allow(dead_code))]
+pub(crate) fn validate_size(name: &str, v: f64) -> Result<(), KernelError> {
+    if !v.is_finite() || v <= 0.0 {
+        return Err(KernelError::InvalidInput(format!(
+            "{name} must be finite and > 0, got {v}"
+        )));
     }
     Ok(())
 }
 
-/// Builds an axis-aligned `dx × dy × dz` box with OCCT and returns its volume,
-/// computed by OCCT's mass-properties integration (not by multiplying sides).
-#[cfg(feature = "occt")]
-pub fn box_volume(dx: f64, dy: f64, dz: f64) -> Result<f64, KernelError> {
-    validate_box_dims(dx, dy, dz)?;
-    ffi::box_volume(dx, dy, dz)
-        .ok_or_else(|| KernelError::Backend("box construction failed".into()))
+/// Rejects a position with a non-finite coordinate.
+#[cfg_attr(not(feature = "occt"), allow(dead_code))]
+pub(crate) fn validate_point(name: &str, p: Point3) -> Result<(), KernelError> {
+    if p.iter().any(|c| !c.is_finite()) {
+        return Err(KernelError::InvalidInput(format!(
+            "{name} must have finite coordinates, got {p:?}"
+        )));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -60,31 +113,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn rejects_non_positive_or_non_finite_dims() {
-        assert!(validate_box_dims(1.0, 2.0, 3.0).is_ok());
-        for bad in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+    fn rejects_non_positive_or_non_finite_sizes() {
+        assert!(validate_size("dx", 1.0).is_ok());
+        for bad in [0.0, -1.0, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
             assert!(matches!(
-                validate_box_dims(bad, 1.0, 1.0),
+                validate_size("dx", bad),
                 Err(KernelError::InvalidInput(_))
             ));
-            assert!(validate_box_dims(1.0, bad, 1.0).is_err());
-            assert!(validate_box_dims(1.0, 1.0, bad).is_err());
         }
     }
 
-    #[cfg(feature = "occt")]
     #[test]
-    fn occt_box_10x20x30_has_volume_6000() {
-        let v = box_volume(10.0, 20.0, 30.0).expect("box should build");
-        assert!((v - 6000.0).abs() <= 1e-6, "volume was {v}");
-    }
-
-    #[cfg(feature = "occt")]
-    #[test]
-    fn occt_box_rejects_zero_dimension() {
-        assert!(matches!(
-            box_volume(0.0, 1.0, 1.0),
-            Err(KernelError::InvalidInput(_))
-        ));
+    fn rejects_non_finite_points() {
+        assert!(validate_point("corner", [0.0, -5.0, 1e9]).is_ok());
+        for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert!(validate_point("corner", [bad, 0.0, 0.0]).is_err());
+            assert!(validate_point("corner", [0.0, bad, 0.0]).is_err());
+            assert!(validate_point("corner", [0.0, 0.0, bad]).is_err());
+        }
     }
 }
