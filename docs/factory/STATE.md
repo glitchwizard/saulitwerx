@@ -11,7 +11,7 @@ status: running
 
 ## Log
 
-- 2026-10-14 builder: #7 M1-03 → PR #17 (CI pending)
+- 2026-10-14 builder: #7 M1-03 → PR #17 (CI green; 3 checks)
 - 2026-10-13 reviewer: no open PRs; owner merged #15 (M1-02); checked off M1-02; #7 #8 #9 already factory:ready, no new issues needed
 - 2026-10-13 builder: #2 M1-02 → PR #15 (CI green; kernel-occt job 34 s; owner-merge)
 - 2026-10-13 reviewer: owner merged #4 (M1-01) and #5 (CI); checked off M1-01; planned #7 M1-03, #8 M1-04, #9 M1-05; #6 (FACTORY.md) needs-human
