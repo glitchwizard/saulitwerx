@@ -11,11 +11,14 @@
 
 use std::fmt;
 
+mod mesh;
+
 #[cfg(feature = "occt")]
 mod ffi;
 #[cfg(feature = "occt")]
 mod occt;
 
+pub use mesh::Mesh;
 #[cfg(feature = "occt")]
 pub use occt::{OcctKernel, OcctShape};
 
@@ -84,6 +87,12 @@ pub trait Kernel {
     fn surface_area(&self, s: &Self::Shape) -> Result<f64, KernelError>;
     /// Tight axis-aligned bounding box.
     fn bounding_box(&self, s: &Self::Shape) -> Result<BoundingBox, KernelError>;
+
+    /// Triangulates the boundary of `s` into a [`Mesh`].
+    ///
+    /// `deflection` is the maximum distance between the mesh and the exact
+    /// surface, in model units; it must be finite and strictly positive.
+    fn tessellate(&self, s: &Self::Shape, deflection: f64) -> Result<Mesh, KernelError>;
 }
 
 /// Rejects a size that is not finite or not strictly positive.
