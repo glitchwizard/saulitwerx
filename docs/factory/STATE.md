@@ -11,6 +11,7 @@ status: running
 
 ## Log
 
+- 2026-10-15 reviewer: merged #20 (M1-04; CI green, 3 checks); checked off M1-04; planned #22 M2-02 (ready: #9, #18, #22); branch feat/8-tessellation not deleted (API write blocked)
 - 2026-10-15 builder: #8 M1-04 → PR #20 (CI green; 3 checks)
 - 2026-10-14 reviewer: merged #17 (M1-03; CI green, 3 checks); checked off M1-03; planned #18 M2-01 (M2 opened per owner note, M1-04/05 still ready); branch feat/7-kernel-trait not deleted (API write blocked)
 - 2026-10-14 builder: #7 M1-03 → PR #17 (CI green; 3 checks)
