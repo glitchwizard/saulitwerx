@@ -71,6 +71,20 @@ Milestones are sequential. Don't start M(n+1) items while M(n) has unchecked ite
 - [ ] M6-03 Parameters dialog: model + user parameters, units, expressions, comments.
 - [ ] M6-04 Measure tool and mass properties.
 
+## MB: Benchmark parts through the UI (`docs/specs/BENCHMARK_PARTS.md`)
+
+The project goal: an agent models three real catalog parts (an M8 hex nut and an M8 hex head screw, both with modeled threads, and an 8 mm clamp-on shaft collar) from scratch, using only the UI, checked in CI.
+
+- [ ] MB-00 _(owner)_ Confirm the three catalog parts and their drawing dimensions in BENCHMARK_PARTS §2. The Planner skips this item and doesn't start MB-05 to MB-07 until it's checked.
+- [ ] MB-01 _(parallel ok, after M5-01)_ UI test harness: run `swx-app` headless in a test, drive it only through UI input addressed by accessible label, and take screenshots. ADR for the harness crate, and add it to the dependency register.
+- [ ] MB-02 _(parallel ok, after MB-01)_ Agent driver: a mode that takes one UI action per line on stdin and replies with an accessibility-tree summary and a screenshot path. It records the session as a replayable `benchmarks/<part>/build.ui.json`.
+- [ ] MB-03 _(parallel ok, after M3-11)_ Helix feature and modeled threads (external on a cylindrical face, internal in a hole) with the ISO 68-1 profile and 6g/6H offsets from BENCHMARK_PARTS §3. Tests check the pitch diameter and the nut-on-screw interference test from §5.
+- [ ] MB-04 CI job that replays every `benchmarks/*/build.ui.json`, runs the §5 checks, and uploads screenshots and STL as artifacts. Touches `.github/`, so the owner merges it (FACTORY §8).
+- [ ] MB-05 BP-1 hex nut M8 × 1.25, modeled through the UI and passing BENCHMARK_PARTS §5.
+- [ ] MB-06 BP-2 hex head screw M8 × 1.25 × 40, modeled through the UI and passing §5, including the nut-on-screw thread check.
+- [ ] MB-07 BP-3 clamp-on shaft collar, 8 mm bore with a tapped M3 clamp hole, modeled through the UI and passing §5.
+- [ ] MB-08 _(owner, stretch)_ Pick three random Thingiverse objects per BENCHMARK_PARTS §6 and write their briefs. The Planner skips this item. Once it's checked, the Planner adds one modeling item per object.
+
 ## M7: Assemblies (joint-first, PRODUCT §4)
 
 - [ ] M7-01 Assembly document (`.sltwxa`): place parts and subassemblies; first component grounded.
