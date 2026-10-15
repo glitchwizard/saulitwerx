@@ -6,12 +6,20 @@
 
 #![allow(unsafe_code)]
 
-use std::os::raw::{c_double, c_int};
+use std::os::raw::{c_double, c_float, c_int};
 use std::ptr::{self, NonNull};
+
+use crate::Mesh;
 
 /// Opaque C++ shape record (`struct SwxShape` in the shim).
 #[repr(C)]
 struct RawShape {
+    _private: [u8; 0],
+}
+
+/// Opaque C++ mesh record (`struct SwxMesh` in the shim).
+#[repr(C)]
+struct RawMesh {
     _private: [u8; 0],
 }
 
@@ -50,6 +58,19 @@ extern "C" {
     fn swx_occt_surface_area(s: *const RawShape, out: *mut c_double) -> c_int;
     fn swx_occt_bounding_box(s: *const RawShape, out: *mut c_double) -> c_int;
     fn swx_occt_shape_free(s: *mut RawShape);
+    fn swx_occt_tessellate(
+        s: *const RawShape,
+        deflection: c_double,
+        out: *mut *mut RawMesh,
+    ) -> c_int;
+    fn swx_occt_mesh_sizes(m: *const RawMesh, vertices: *mut usize, indices: *mut usize) -> c_int;
+    fn swx_occt_mesh_copy(
+        m: *const RawMesh,
+        positions: *mut c_float,
+        normals: *mut c_float,
+        indices: *mut u32,
+    ) -> c_int;
+    fn swx_occt_mesh_free(m: *mut RawMesh);
 }
 
 /// Owning handle to a shim-allocated shape. Freed exactly once on drop.
@@ -139,4 +160,53 @@ pub(crate) fn bounding_box(s: &ShapeHandle) -> Option<[f64; 6]> {
     // writable array of exactly the 6 doubles the shim writes.
     let status = unsafe { swx_occt_bounding_box(s.0.as_ptr(), out.as_mut_ptr()) };
     (status == 0).then_some(out)
+}
+
+/// Owning handle to a shim-allocated mesh, freed on drop.
+struct MeshHandle(NonNull<RawMesh>);
+
+impl Drop for MeshHandle {
+    fn drop(&mut self) {
+        // SAFETY: the pointer came from a successful `swx_occt_tessellate`, is
+        // uniquely owned by this handle, and is freed only here.
+        unsafe { swx_occt_mesh_free(self.0.as_ptr()) }
+    }
+}
+
+pub(crate) fn tessellate(s: &ShapeHandle, deflection: f64) -> Option<Mesh> {
+    let mut raw = ptr::null_mut();
+    // SAFETY: `s` is a live handle for the call; the shim only replaces its
+    // cached triangulation and does not retain the pointer. `raw` is a valid
+    // out-pointer that receives a new, independently owned mesh on success.
+    let status = unsafe { swx_occt_tessellate(s.0.as_ptr(), deflection, &mut raw) };
+    if status != 0 {
+        return None;
+    }
+    let handle = MeshHandle(NonNull::new(raw)?);
+
+    let (mut nv, mut ni) = (0usize, 0usize);
+    // SAFETY: `handle` is live; both out-pointers are valid `usize`s on our
+    // stack (`size_t` and `usize` have the same layout on supported targets).
+    let status = unsafe { swx_occt_mesh_sizes(handle.0.as_ptr(), &mut nv, &mut ni) };
+    if status != 0 {
+        return None;
+    }
+
+    let mut mesh = Mesh {
+        positions: vec![[0.0; 3]; nv],
+        normals: vec![[0.0; 3]; nv],
+        indices: vec![0; ni],
+    };
+    // SAFETY: `handle` is live. Each buffer is allocated with exactly the
+    // length the shim writes: `[f32; 3]` is three contiguous `f32`s, so
+    // `positions`/`normals` hold `3 * nv` floats and `indices` holds `ni` u32s.
+    let status = unsafe {
+        swx_occt_mesh_copy(
+            handle.0.as_ptr(),
+            mesh.positions.as_mut_ptr().cast::<c_float>(),
+            mesh.normals.as_mut_ptr().cast::<c_float>(),
+            mesh.indices.as_mut_ptr(),
+        )
+    };
+    (status == 0).then_some(mesh)
 }

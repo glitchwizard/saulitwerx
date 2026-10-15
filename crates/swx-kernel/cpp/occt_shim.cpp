@@ -7,24 +7,49 @@
 // Shapes cross the boundary as opaque `SwxShape*` handles that own a heap
 // `TopoDS_Shape`. Rust frees each handle exactly once with `swx_occt_shape_free`.
 
+#include <BRepAdaptor_Surface.hxx>
 #include <BRepAlgoAPI_Common.hxx>
 #include <BRepAlgoAPI_Cut.hxx>
 #include <BRepAlgoAPI_Fuse.hxx>
 #include <BRepBndLib.hxx>
 #include <BRepGProp.hxx>
+#include <BRepLProp_SLProps.hxx>
+#include <BRepMesh_IncrementalMesh.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <BRepPrimAPI_MakeCylinder.hxx>
 #include <BRepPrimAPI_MakeSphere.hxx>
+#include <BRepTools.hxx>
+#include <BRep_Tool.hxx>
 #include <Bnd_Box.hxx>
 #include <GProp_GProps.hxx>
+#include <Poly_Triangulation.hxx>
 #include <Standard_Failure.hxx>
+#include <TopExp_Explorer.hxx>
+#include <TopLoc_Location.hxx>
+#include <TopoDS.hxx>
+#include <TopoDS_Face.hxx>
 #include <TopoDS_Shape.hxx>
 #include <gp_Ax2.hxx>
 #include <gp_Dir.hxx>
 #include <gp_Pnt.hxx>
+#include <gp_Trsf.hxx>
+
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <limits>
+#include <utility>
+#include <vector>
 
 struct SwxShape {
     TopoDS_Shape shape;
+};
+
+// Triangle mesh: xyz triples for positions and normals, three indices per triangle.
+struct SwxMesh {
+    std::vector<float> positions;
+    std::vector<float> normals;
+    std::vector<uint32_t> indices;
 };
 
 namespace {
@@ -170,6 +195,112 @@ int swx_occt_bounding_box(const SwxShape* s, double* out) noexcept {
     } catch (...) {
         return -1;
     }
+}
+
+// Triangulates every face with BRepMesh_IncrementalMesh at the given linear
+// deflection (absolute, model units) and an angular deflection of 0.5 rad.
+// Existing triangulations are cleared first so the result always reflects
+// `deflection`. Nodes are not shared between faces. Normals come from the
+// exact surface at each node's UV parameters, falling back to the
+// triangle-averaged normal where the surface normal is undefined (e.g. at a
+// sphere pole). Reversed faces get flipped winding and normals so that every
+// triangle is counter-clockwise seen from outside.
+int swx_occt_tessellate(const SwxShape* s, double deflection, SwxMesh** out) noexcept {
+    if (s == nullptr || out == nullptr || !(deflection > 0.0)) {
+        return -1;
+    }
+    try {
+        BRepTools::Clean(s->shape);
+        BRepMesh_IncrementalMesh mesher(s->shape, deflection, Standard_False, 0.5, Standard_False);
+        if (!mesher.IsDone()) {
+            return -1;
+        }
+        SwxMesh mesh;
+        for (TopExp_Explorer ex(s->shape, TopAbs_FACE); ex.More(); ex.Next()) {
+            const TopoDS_Face& face = TopoDS::Face(ex.Current());
+            TopLoc_Location loc;
+            Handle(Poly_Triangulation) tri = BRep_Tool::Triangulation(face, loc);
+            if (tri.IsNull()) {
+                return -1;
+            }
+            const bool reversed = face.Orientation() == TopAbs_REVERSED;
+            const gp_Trsf trsf = loc.Transformation();
+            tri->ComputeNormals();
+            BRepAdaptor_Surface surface(face, Standard_False);
+            BRepLProp_SLProps props(surface, 1, 1e-9);
+
+            const size_t base = mesh.positions.size() / 3;
+            if (base + tri->NbNodes() > std::numeric_limits<uint32_t>::max()) {
+                return -1;
+            }
+            for (Standard_Integer i = 1; i <= tri->NbNodes(); ++i) {
+                const gp_Pnt p = tri->Node(i).Transformed(trsf);
+                gp_Dir n = tri->Normal(i).Transformed(trsf);
+                if (tri->HasUVNodes()) {
+                    const gp_Pnt2d uv = tri->UVNode(i);
+                    props.SetParameters(uv.X(), uv.Y());
+                    if (props.IsNormalDefined()) {
+                        // BRepAdaptor_Surface already includes the face location.
+                        n = props.Normal();
+                    } else if (reversed) {
+                        // Fallback normal is in triangle order; undo the flip below.
+                        n.Reverse();
+                    }
+                }
+                if (reversed) {
+                    n.Reverse();
+                }
+                mesh.positions.insert(mesh.positions.end(),
+                                      {static_cast<float>(p.X()), static_cast<float>(p.Y()),
+                                       static_cast<float>(p.Z())});
+                mesh.normals.insert(mesh.normals.end(),
+                                    {static_cast<float>(n.X()), static_cast<float>(n.Y()),
+                                     static_cast<float>(n.Z())});
+            }
+            for (Standard_Integer t = 1; t <= tri->NbTriangles(); ++t) {
+                Standard_Integer a, b, c;
+                tri->Triangle(t).Get(a, b, c);
+                if (reversed) {
+                    std::swap(b, c);
+                }
+                for (Standard_Integer k : {a, b, c}) {
+                    mesh.indices.push_back(static_cast<uint32_t>(base + k - 1));
+                }
+            }
+        }
+        *out = new SwxMesh(std::move(mesh));
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+// Writes the vertex count and index count of a mesh.
+int swx_occt_mesh_sizes(const SwxMesh* m, size_t* vertices, size_t* indices) noexcept {
+    if (m == nullptr || vertices == nullptr || indices == nullptr) {
+        return -1;
+    }
+    *vertices = m->positions.size() / 3;
+    *indices = m->indices.size();
+    return 0;
+}
+
+// Copies a mesh into caller buffers sized by swx_occt_mesh_sizes: positions and
+// normals hold 3 * vertices floats each, indices holds `indices` values.
+int swx_occt_mesh_copy(const SwxMesh* m, float* positions, float* normals,
+                       uint32_t* indices) noexcept {
+    if (m == nullptr || positions == nullptr || normals == nullptr || indices == nullptr) {
+        return -1;
+    }
+    std::copy(m->positions.begin(), m->positions.end(), positions);
+    std::copy(m->normals.begin(), m->normals.end(), normals);
+    std::copy(m->indices.begin(), m->indices.end(), indices);
+    return 0;
+}
+
+// Frees a mesh returned by swx_occt_tessellate. Null is a no-op.
+void swx_occt_mesh_free(SwxMesh* m) noexcept {
+    delete m;
 }
 
 // Frees a handle returned by any constructor above. Null is a no-op.
