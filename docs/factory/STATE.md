@@ -11,6 +11,7 @@ status: running
 
 ## Log
 
+- 2026-10-15 builder: #8 M1-04 → PR (pending CI)
 - 2026-10-14 reviewer: merged #17 (M1-03; CI green, 3 checks); checked off M1-03; planned #18 M2-01 (M2 opened per owner note, M1-04/05 still ready); branch feat/7-kernel-trait not deleted (API write blocked)
 - 2026-10-14 builder: #7 M1-03 → PR #17 (CI green; 3 checks)
 - 2026-10-13 reviewer: no open PRs; owner merged #15 (M1-02); checked off M1-02; #7 #8 #9 already factory:ready, no new issues needed
