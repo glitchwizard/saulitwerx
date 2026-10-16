@@ -15,7 +15,7 @@ Milestones are sequential. Don't start M(n+1) items while M(n) has unchecked ite
 - [x] M1-02 CI job for `swx-kernel` with OCCT cached (separate workflow job, feature `occt`). Touches `.github/`, so the owner merges it (FACTORY §8).
 - [x] M1-03 `Kernel` trait: primitives (box, cylinder, sphere), boolean union/cut/intersect, and volume/area/bbox queries. Regression tests with tolerances.
 - [x] M1-04 Tessellation: `Shape → Mesh` (positions, normals, indices) with deflection control and tests.
-- [ ] M1-05 STEP export plus round-trip import. Golden tests compare volume and face count.
+- [x] M1-05 STEP export plus round-trip import. Golden tests compare volume and face count.
 
 ## M2: Sketcher
 
