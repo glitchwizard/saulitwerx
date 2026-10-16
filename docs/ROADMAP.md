@@ -15,7 +15,7 @@ Milestones are sequential. Don't start M(n+1) items while M(n) has unchecked ite
 - [x] M1-02 CI job for `swx-kernel` with OCCT cached (separate workflow job, feature `occt`). Touches `.github/`, so the owner merges it (FACTORY §8).
 - [x] M1-03 `Kernel` trait: primitives (box, cylinder, sphere), boolean union/cut/intersect, and volume/area/bbox queries. Regression tests with tolerances.
 - [x] M1-04 Tessellation: `Shape → Mesh` (positions, normals, indices) with deflection control and tests.
-- [ ] M1-05 STEP export plus round-trip import. Golden tests compare volume and face count.
+- [x] M1-05 STEP export plus round-trip import. Golden tests compare volume and face count.
 
 ## M2: Sketcher
 
@@ -111,4 +111,4 @@ The project goal: an agent models three real catalog parts (an M8 hex nut and an
 
 ## Later (not yet scheduled; see PRODUCT §7)
 
-Parameters automation (rules), part families, sheet metal, structural frames, standard parts library, design calculators, simulation, photoreal rendering, and a WASM/browser build.
+Parameters automation (rules), part families, sketch metal, structural frames, standard parts library, design calculators, simulation, photoreal rendering, and a WASM/browser build.
