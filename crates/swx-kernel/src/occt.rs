@@ -1,7 +1,12 @@
 //! OpenCascade-backed [`Kernel`] implementation (feature `occt`).
 
+use std::path::Path;
+
 use crate::ffi::{self, BooleanOp, ShapeHandle};
-use crate::{validate_point, validate_size, BoundingBox, Kernel, KernelError, Mesh, Point3};
+use crate::{
+    input_file_cstring, path_to_cstring, validate_point, validate_size, BoundingBox, Kernel,
+    KernelError, Mesh, Point3,
+};
 
 /// [`Kernel`] backed by the system OpenCascade libraries.
 #[derive(Debug, Default, Clone, Copy)]
@@ -88,12 +93,36 @@ impl Kernel for OcctKernel {
         validate_size("deflection", deflection)?;
         ffi::tessellate(&s.0, deflection).ok_or_else(|| backend("tessellate"))
     }
+
+    fn face_count(&self, s: &OcctShape) -> Result<usize, KernelError> {
+        ffi::face_count(&s.0).ok_or_else(|| backend("face_count"))
+    }
+
+    fn export_step(&self, s: &OcctShape, path: &Path) -> Result<(), KernelError> {
+        let c_path = path_to_cstring(path)?;
+        if ffi::export_step(&s.0, &c_path) {
+            Ok(())
+        } else {
+            Err(KernelError::Backend(format!(
+                "export_step to {} failed",
+                path.display()
+            )))
+        }
+    }
+
+    fn import_step(&self, path: &Path) -> Result<OcctShape, KernelError> {
+        let c_path = input_file_cstring(path)?;
+        ffi::import_step(&c_path).map(OcctShape).ok_or_else(|| {
+            KernelError::Backend(format!("import_step from {} failed", path.display()))
+        })
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::f64::consts::PI;
+    use std::path::PathBuf;
 
     const K: OcctKernel = OcctKernel;
 
@@ -255,5 +284,82 @@ mod tests {
         assert!(invalid(K.make_cylinder([0.0; 3], -1.0, 1.0)));
         assert!(invalid(K.make_cylinder([0.0; 3], 1.0, f64::INFINITY)));
         assert!(invalid(K.make_sphere([0.0; 3], 0.0)));
+    }
+
+    /// A fresh per-test scratch directory under the system temp dir.
+    fn scratch_dir(test: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("swx-kernel-{}-{test}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// Exports `shape`, re-imports it, and checks volume and face count.
+    fn assert_step_round_trip(test: &str, shape: &OcctShape, volume: f64, faces: usize) {
+        assert_close(K.volume(shape).unwrap(), volume);
+        assert_eq!(K.face_count(shape).unwrap(), faces);
+        let dir = scratch_dir(test);
+        let path = dir.join("shape.step");
+        K.export_step(shape, &path).unwrap();
+        let back = K.import_step(&path).unwrap();
+        assert_close(K.volume(&back).unwrap(), volume);
+        assert_eq!(K.face_count(&back).unwrap(), faces);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn step_round_trip_box() {
+        let b = K.make_box([0.0; 3], [10.0, 20.0, 30.0]).unwrap();
+        assert_step_round_trip("box", &b, 6000.0, 6);
+    }
+
+    #[test]
+    fn step_round_trip_cylinder() {
+        let c = K.make_cylinder([0.0; 3], 5.0, 10.0).unwrap();
+        assert_step_round_trip("cylinder", &c, 250.0 * PI, 3);
+    }
+
+    #[test]
+    fn step_round_trip_box_with_hole() {
+        let block = unit_box([0.0; 3], 10.0);
+        let pin = K.make_cylinder([5.0, 5.0, 0.0], 2.0, 10.0).unwrap();
+        let holed = K.cut(&block, &pin).unwrap();
+        assert_step_round_trip("holed", &holed, 1000.0 - 40.0 * PI, 7);
+    }
+
+    /// Golden STEP file produced by our own `export_step`. Set
+    /// `SWX_BLESS_GOLDEN=1` to regenerate it.
+    #[test]
+    fn step_golden_box_10x20x30() {
+        let golden =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/golden/box_10x20x30.step");
+        if std::env::var_os("SWX_BLESS_GOLDEN").is_some() {
+            let b = K.make_box([0.0; 3], [10.0, 20.0, 30.0]).unwrap();
+            std::fs::create_dir_all(golden.parent().unwrap()).unwrap();
+            K.export_step(&b, &golden).unwrap();
+        }
+        let s = K.import_step(&golden).unwrap();
+        assert_close(K.volume(&s).unwrap(), 6000.0);
+        assert_eq!(K.face_count(&s).unwrap(), 6);
+    }
+
+    #[test]
+    fn step_import_rejects_missing_and_garbage_files() {
+        let dir = scratch_dir("bad-import");
+        assert!(K.import_step(&dir.join("missing.step")).is_err());
+        let garbage = dir.join("garbage.step");
+        std::fs::write(&garbage, "this is not an ISO 10303-21 file\n").unwrap();
+        assert!(K.import_step(&garbage).is_err());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn step_export_to_missing_directory_fails() {
+        let dir = scratch_dir("bad-export");
+        let b = unit_box([0.0; 3], 1.0);
+        assert!(K
+            .export_step(&b, &dir.join("no/such/dir/out.step"))
+            .is_err());
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

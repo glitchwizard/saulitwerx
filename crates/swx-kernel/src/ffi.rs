@@ -6,7 +6,8 @@
 
 #![allow(unsafe_code)]
 
-use std::os::raw::{c_double, c_float, c_int};
+use std::ffi::CStr;
+use std::os::raw::{c_char, c_double, c_float, c_int};
 use std::ptr::{self, NonNull};
 
 use crate::Mesh;
@@ -58,6 +59,9 @@ extern "C" {
     fn swx_occt_surface_area(s: *const RawShape, out: *mut c_double) -> c_int;
     fn swx_occt_bounding_box(s: *const RawShape, out: *mut c_double) -> c_int;
     fn swx_occt_shape_free(s: *mut RawShape);
+    fn swx_occt_face_count(s: *const RawShape, out: *mut usize) -> c_int;
+    fn swx_occt_export_step(s: *const RawShape, path: *const c_char) -> c_int;
+    fn swx_occt_import_step(path: *const c_char, out: *mut *mut RawShape) -> c_int;
     fn swx_occt_tessellate(
         s: *const RawShape,
         deflection: c_double,
@@ -160,6 +164,30 @@ pub(crate) fn bounding_box(s: &ShapeHandle) -> Option<[f64; 6]> {
     // writable array of exactly the 6 doubles the shim writes.
     let status = unsafe { swx_occt_bounding_box(s.0.as_ptr(), out.as_mut_ptr()) };
     (status == 0).then_some(out)
+}
+
+pub(crate) fn face_count(s: &ShapeHandle) -> Option<usize> {
+    let mut out = 0usize;
+    // SAFETY: `s` is a live handle read-only for the call; `out` is a valid
+    // writable `usize` on our stack (`size_t` and `usize` share a layout).
+    let status = unsafe { swx_occt_face_count(s.0.as_ptr(), &mut out) };
+    (status == 0).then_some(out)
+}
+
+/// Writes `s` as STEP to `path`. Returns `false` on any failure.
+pub(crate) fn export_step(s: &ShapeHandle, path: &CStr) -> bool {
+    // SAFETY: `s` is a live handle read-only for the call; `path` is a valid
+    // NUL-terminated string that outlives the call and is not retained.
+    unsafe { swx_occt_export_step(s.0.as_ptr(), path.as_ptr()) == 0 }
+}
+
+pub(crate) fn import_step(path: &CStr) -> Option<ShapeHandle> {
+    let mut raw = ptr::null_mut();
+    // SAFETY: `path` is a valid NUL-terminated string that outlives the call
+    // and is not retained; `raw` is a valid out-pointer that receives a new,
+    // independently owned handle on success.
+    let status = unsafe { swx_occt_import_step(path.as_ptr(), &mut raw) };
+    take(status, raw)
 }
 
 /// Owning handle to a shim-allocated mesh, freed on drop.

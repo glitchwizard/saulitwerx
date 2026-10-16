@@ -9,7 +9,9 @@
 //! C ABI shim in `cpp/occt_shim.cpp` and linked dynamically against the system
 //! libraries; see the M1-01 ADR in `docs/ARCHITECTURE.md`.
 
+use std::ffi::CString;
 use std::fmt;
+use std::path::Path;
 
 mod mesh;
 
@@ -93,6 +95,17 @@ pub trait Kernel {
     /// `deflection` is the maximum distance between the mesh and the exact
     /// surface, in model units; it must be finite and strictly positive.
     fn tessellate(&self, s: &Self::Shape, deflection: f64) -> Result<Mesh, KernelError>;
+
+    /// Number of distinct faces in `s`.
+    fn face_count(&self, s: &Self::Shape) -> Result<usize, KernelError>;
+
+    /// Writes `s` to a STEP (ISO 10303-21) file at `path`, replacing any
+    /// existing file. Lengths are written in millimetres.
+    fn export_step(&self, s: &Self::Shape, path: &Path) -> Result<(), KernelError>;
+    /// Reads every shape in the STEP file at `path` as one shape.
+    ///
+    /// A missing, unreadable or malformed file is an error.
+    fn import_step(&self, path: &Path) -> Result<Self::Shape, KernelError>;
 }
 
 /// Rejects a size that is not finite or not strictly positive.
@@ -115,6 +128,29 @@ pub(crate) fn validate_point(name: &str, p: Point3) -> Result<(), KernelError> {
         )));
     }
     Ok(())
+}
+
+/// Converts a file path to the NUL-terminated UTF-8 string the backend takes.
+#[cfg_attr(not(feature = "occt"), allow(dead_code))]
+pub(crate) fn path_to_cstring(path: &Path) -> Result<CString, KernelError> {
+    let utf8 = path.to_str().ok_or_else(|| {
+        KernelError::InvalidInput(format!("path is not valid UTF-8: {}", path.display()))
+    })?;
+    CString::new(utf8)
+        .map_err(|_| KernelError::InvalidInput(format!("path contains NUL: {}", path.display())))
+}
+
+/// Checks that `path` names an existing regular file, then converts it as
+/// [`path_to_cstring`] does.
+#[cfg_attr(not(feature = "occt"), allow(dead_code))]
+pub(crate) fn input_file_cstring(path: &Path) -> Result<CString, KernelError> {
+    if !path.is_file() {
+        return Err(KernelError::InvalidInput(format!(
+            "no such file: {}",
+            path.display()
+        )));
+    }
+    path_to_cstring(path)
 }
 
 #[cfg(test)]
@@ -140,5 +176,32 @@ mod tests {
             assert!(validate_point("corner", [0.0, bad, 0.0]).is_err());
             assert!(validate_point("corner", [0.0, 0.0, bad]).is_err());
         }
+    }
+
+    #[test]
+    fn input_file_must_exist() {
+        let missing = std::env::temp_dir().join("swx-kernel-no-such-file.step");
+        assert!(matches!(
+            input_file_cstring(&missing),
+            Err(KernelError::InvalidInput(_))
+        ));
+        assert!(matches!(
+            input_file_cstring(&std::env::temp_dir()),
+            Err(KernelError::InvalidInput(_))
+        ));
+        let manifest = Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
+        assert!(input_file_cstring(&manifest).is_ok());
+    }
+
+    #[test]
+    fn path_with_nul_is_rejected() {
+        assert!(matches!(
+            path_to_cstring(Path::new("a\0b.step")),
+            Err(KernelError::InvalidInput(_))
+        ));
+        assert_eq!(
+            path_to_cstring(Path::new("out/a.step")).unwrap().as_bytes(),
+            b"out/a.step"
+        );
     }
 }

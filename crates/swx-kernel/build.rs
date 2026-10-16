@@ -16,8 +16,14 @@ fn main() {
 #[cfg(feature = "occt")]
 mod occt {
     /// OCCT toolkits needed for primitives, booleans, bounding boxes, mass
-    /// properties and meshing, in link order.
+    /// properties, meshing and STEP exchange, in link order.
     const TOOLKITS: &[&str] = &[
+        "TKSTEP",
+        "TKSTEP209",
+        "TKSTEPAttr",
+        "TKSTEPBase",
+        "TKXSBase",
+        "TKShHealing",
         "TKMesh",
         "TKBO",
         "TKPrim",

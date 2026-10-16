@@ -22,13 +22,18 @@
 #include <BRep_Tool.hxx>
 #include <Bnd_Box.hxx>
 #include <GProp_GProps.hxx>
+#include <IFSelect_ReturnStatus.hxx>
 #include <Poly_Triangulation.hxx>
+#include <STEPControl_Reader.hxx>
+#include <STEPControl_Writer.hxx>
 #include <Standard_Failure.hxx>
+#include <TopExp.hxx>
 #include <TopExp_Explorer.hxx>
 #include <TopLoc_Location.hxx>
 #include <TopoDS.hxx>
 #include <TopoDS_Face.hxx>
 #include <TopoDS_Shape.hxx>
+#include <TopTools_IndexedMapOfShape.hxx>
 #include <gp_Ax2.hxx>
 #include <gp_Dir.hxx>
 #include <gp_Pnt.hxx>
@@ -38,6 +43,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <mutex>
 #include <utility>
 #include <vector>
 
@@ -62,6 +68,10 @@ int emit(const TopoDS_Shape& shape, SwxShape** out) {
     *out = new SwxShape{shape};
     return 0;
 }
+
+// OCCT's data-exchange layer keeps process-global state (static controllers
+// and parameter tables), so STEP reads and writes are serialized.
+std::mutex step_mutex;
 
 }  // namespace
 
@@ -296,6 +306,60 @@ int swx_occt_mesh_copy(const SwxMesh* m, float* positions, float* normals,
     std::copy(m->normals.begin(), m->normals.end(), normals);
     std::copy(m->indices.begin(), m->indices.end(), indices);
     return 0;
+}
+
+// Number of distinct faces (shared faces counted once).
+int swx_occt_face_count(const SwxShape* s, size_t* out) noexcept {
+    if (s == nullptr || out == nullptr) {
+        return -1;
+    }
+    try {
+        TopTools_IndexedMapOfShape faces;
+        TopExp::MapShapes(s->shape, TopAbs_FACE, faces);
+        *out = static_cast<size_t>(faces.Extent());
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+// Writes a shape to a STEP (ISO 10303-21) file at `path` (UTF-8, NUL-terminated)
+// using OCCT's default application protocol and length unit (mm).
+int swx_occt_export_step(const SwxShape* s, const char* path) noexcept {
+    if (s == nullptr || path == nullptr) {
+        return -1;
+    }
+    try {
+        std::lock_guard<std::mutex> lock(step_mutex);
+        STEPControl_Writer writer;
+        if (writer.Transfer(s->shape, STEPControl_AsIs) != IFSelect_RetDone) {
+            return -1;
+        }
+        return writer.Write(path) == IFSelect_RetDone ? 0 : -1;
+    } catch (...) {
+        return -1;
+    }
+}
+
+// Reads a STEP file and returns all its root shapes as one shape (a compound
+// when there are several). Fails if the file is unreadable or yields nothing.
+int swx_occt_import_step(const char* path, SwxShape** out) noexcept {
+    if (path == nullptr || out == nullptr) {
+        return -1;
+    }
+    try {
+        std::lock_guard<std::mutex> lock(step_mutex);
+        STEPControl_Reader reader;
+        if (reader.ReadFile(path) != IFSelect_RetDone) {
+            return -1;
+        }
+        if (reader.TransferRoots() <= 0 || reader.NbShapes() <= 0) {
+            return -1;
+        }
+        return emit(reader.OneShape(), out);
+    } catch (...) {
+        return -1;
+    }
 }
 
 // Frees a mesh returned by swx_occt_tessellate. Null is a no-op.

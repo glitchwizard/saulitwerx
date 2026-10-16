@@ -62,7 +62,7 @@ jobs:
           # NCollection_AliasedArray.hxx (needed by foundation headers) ships in visualization-dev.
           sudo apt-get install -y --no-install-recommends \
             libocct-foundation-dev libocct-modeling-data-dev libocct-modeling-algorithms-dev \
-            libocct-visualization-dev
+            libocct-visualization-dev libocct-data-exchange-dev
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
