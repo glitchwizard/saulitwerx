@@ -111,4 +111,4 @@ The project goal: an agent models three real catalog parts (an M8 hex nut and an
 
 ## Later (not yet scheduled; see PRODUCT §7)
 
-Parameters automation (rules), part families, sketch metal, structural frames, standard parts library, design calculators, simulation, photoreal rendering, and a WASM/browser build.
+Parameters automation (rules), part families, sheet metal, structural frames, standard parts library, design calculators, simulation, photoreal rendering, and a WASM/browser build.
