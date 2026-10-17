@@ -1,6 +1,6 @@
 # Plan: think-and-ship in the factory
 
-Status: **proposal**, waiting on owner decisions (bottom of this file). Written 2026-10-16.
+Status: **phase 1 adopted** (FACTORY §6c). Written 2026-10-16. Phase 1 needs the owner's setup-script step below; until then runs use the §6c fallback.
 
 ## What it is
 
