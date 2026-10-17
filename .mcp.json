@@ -4,7 +4,7 @@
       "command": "think-and-ship",
       "args": ["serve"],
       "env": {
-        "THINK_AND_SHIP_FAMILIES": "ship",
+        "THINK_AND_SHIP_FAMILIES": "ship,think",
         "THINK_AND_SHIP_PERSIST": "true",
         "THINK_AND_SHIP_AUTO_IMPORT": "false",
         "THINK_AND_SHIP_CALL_COUNTS": "off"

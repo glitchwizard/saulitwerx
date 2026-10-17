@@ -1,6 +1,6 @@
 # Plan: think-and-ship in the factory
 
-Status: **phase 1 adopted** (FACTORY §6c). Written 2026-10-16. Phase 1 needs the owner's setup-script step below; until then runs use the §6c fallback.
+Status: **phases 1 and 2 adopted** (FACTORY §6c and the §4 retro). Written 2026-10-16, updated 2026-10-17. Both need the owner's setup-script step below; until then runs use the §6c fallback.
 
 ## What it is
 
@@ -95,9 +95,17 @@ TAS_TGZ="think-and-ship-v${TAS_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
 
 **Cost:** 28 KB of tool schemas per run (Claude Code defers large tool sets behind tool search), about 8 small calls per issue, and no extra test time: the gates run anyway, now through the server.
 
+## Phase 2: the factory iterates on itself
+
+The owner asked for the factory to improve itself with think-and-ship, the way think-and-ship's own repo is developed with its own tools.
+
+- **Reasoning traces.** Builder and Reviewer runs record their decisions with `think_record_step` and export the trace to `qa-artifacts/runs/<night>-<role>-<HHMM>/think-trace.md`. The export is plain markdown with no model attribution (checked with 0.6.0).
+- **Weekly retro.** Each Monday night the Reviewer reads the week's traces, ship reports, outcome comments and send-backs. It opens one `needs-human` PR with at most three FACTORY.md changes, each backed by evidence and an expected effect. Next week's retro checks whether each change worked.
+- **The owner stays the gate.** FACTORY.md stays protected; the retro PR is the one exception, and only the owner merges it.
+- **Cost.** `.mcp.json` now enables `ship,think`: 71 KB of tool schemas instead of 28 KB, plus about 6 short steps per item. Persisting native state across runs was rejected: the server starts before a run could restore it, and the exports carry what the retro needs.
+
 ## Not now
 
-- **`think_*` traces.** A possible phase 2: export each PR's trace to `qa-artifacts` with `think_export_trace`, never mirrored into the code branches. It adds 43 KB of schemas and a call per reasoning step. Decide after phase 1 has run for a week.
 - **`roadmap_*`, `signal_*`, tracker sync, cloud `connect`, and the bundled skills:** no, for the reasons above.
 
 ## Owner decisions
