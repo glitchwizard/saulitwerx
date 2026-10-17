@@ -53,7 +53,7 @@ Issue title format: `M2-03: Solver constraints: coincident, horizontal, …`. Th
 
    Take the first item. Take a second one, the next in the same order, only if this run may take two and the two are **independent**: neither depends on the other, directly or through another open issue, and they don't change the same crate. If they're dependent, take only the first. A later Builder slot takes the second after the Reviewer has merged the first.
 4. Claim each issue: add `factory:wip`, remove `factory:ready` or `factory:changes`.
-5. **Two items run in parallel**, one subagent per issue. Each gets its own git worktree (`git worktree add ../wt-<issue#> -b <branch> origin/main`), its own branch, and its own `CARGO_TARGET_DIR` (`<worktree>/target`). Each subagent runs steps 6–12 and the QA report of step 13 for its issue, then returns its PR number, CI result, QA report and outcome. The parent run posts the outcome comments. With one item, do everything yourself.
+5. **Two items run in parallel**, one subagent per issue. Each gets its own git worktree (`git worktree add ../wt-<issue#> -b <branch> origin/main`), its own branch, and its own `CARGO_TARGET_DIR` (`<worktree>/target`). Each subagent runs steps 6–12 for its issue and drafts its QA report without section (b), then returns its PR number, CI result, draft report and outcome. The parent records the gates (§6c) for each issue in turn, completes section (b), and posts both QA reports and the outcome comments. With one item, do everything yourself.
 6. Branch: `feat/<issue#>-<short-slug>` (or `fix/…`). **Never commit to `main`.**
 7. Implement the smallest change that meets the acceptance criteria. Add tests that would fail without the change. Locally, run all of:
    `cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace`
@@ -62,7 +62,7 @@ Issue title format: `M2-03: Solver constraints: coincident, horizontal, …`. Th
 10. **Check off acceptance criteria in the issue as you go, not at the end.** After each commit that satisfies a criterion and passes its tests, edit the issue body right away: change that line's `- [ ]` to `- [x]` and append the short commit SHA, e.g. `- [x] With --features occt: … (5074e53)`. Check only what is implemented *and* verified in this run, never on intent. Leave the rest unchecked. If a criterion is met in a different way than written, check it and explain in the outcome comment. If a later commit breaks a checked criterion, uncheck it.
 11. Push and open a PR titled like the issue, with a body that includes `Closes #N`, a summary, how it was tested, and any follow-up issues. Label the issue `factory:review` and remove `factory:wip`.
 12. Wait for CI. If it fails, fix it, up to **3 attempts**. If it still fails, label the issue `factory:blocked`, comment the failure summary, and stop.
-13. Run QA and post the QA report (§6b), then record your STATE line (§6), post the outcome comments (§6a), and stop. **At most two items per run and `issues_per_night` per night, no exceptions.**
+13. Record the gates (§6c), run QA and post the QA report (§6b), then record your STATE line (§6), post the outcome comments (§6a), and stop. **At most two items per run and `issues_per_night` per night, no exceptions.**
 
 ## 4. Reviewer + Planner protocol
 
@@ -153,7 +153,7 @@ Every Builder PR gets a QA report: hands-on evidence that the change works, beyo
 **Contents**, sections (a) to (f) in this order:
 
 - **(a) Acceptance criteria.** Every criterion from the issue, each with how it was verified: a test name, a scenario from (c), or a CI job. A criterion verified only by reading code says so.
-- **(b) Tests and CI.** The exact commands run in this run, with the passed / failed / ignored counts from their `test result:` lines. Then each CI check on the head commit, with its result and the short SHA.
+- **(b) Tests and CI.** The exact commands run in this run, with the passed / failed / ignored counts from their `test result:` lines. Each gate's command, exit code and `verified` flag come from its `ship_check` response (§6c), with a link to the ship report. Then each CI check on the head commit, with its result and the short SHA.
 - **(c) Scenario checks.** At least 2 hands-on checks, chosen from: typical use, an edge case, invalid input. Hands-on means you exercised the change yourself outside the committed test suite (a CLI run, a scratch program, a one-off test) and report the command, the input, and the output you actually observed. Re-quoting a committed test doesn't count. A scratch check may be committed as a test afterwards.
 - **(d) Visuals.** Images that show the change:
   - geometry (solids, meshes, STEP): `swx-qa render` (roadmap QA-01). The usual path: a scratch program or test writes the change's result to a STEP file, and `swx-qa render --step` renders it;
@@ -166,7 +166,7 @@ Every Builder PR gets a QA report: hands-on evidence that the change works, beyo
 
 **Images:**
 
-- PNG only, each under 500 KB, at most 4 per report, with descriptive names (`l-bracket-iso.png`). A fix run adds new names (`l-bracket-iso-r2.png`) rather than replacing files.
+- PNG images only, plus the ship report from §6c. Each image under 500 KB, at most 4 per report, with descriptive names (`l-bracket-iso.png`). A fix run adds new names (`l-bracket-iso-r2.png`) rather than replacing files.
 - Commit them to the branch `qa-artifacts` under `pr-<N>/`, where N is the PR number. Touch nothing outside your own `pr-<N>/`.
 - `qa-artifacts` is an orphan branch with no code. It only ever gets new commits: never merge it, never open a PR from it, never force-push it, never delete or edit files already on it.
 - If it doesn't exist yet, create it with `git switch --orphan qa-artifacts` in a separate worktree, commit only `pr-<N>/…`, and push it. If it exists, fetch it, add your files in a separate worktree, commit and push. If the push is rejected as non-fast-forward, fetch, rebase your one unpushed commit onto `origin/qa-artifacts`, and push again, up to 3 attempts. Commit message: `qa: pr-<N> <what>`, no AI attribution.
@@ -177,7 +177,26 @@ Every Builder PR gets a QA report: hands-on evidence that the change works, beyo
 
 - Open every embedded image: `git fetch origin qa-artifacts`, then view each `pr-<N>/*.png` with an image-capable file read. Check that it shows what its caption and the report claim.
 - Check that the test names in (a) exist in the diff, and that the CI results in (b) match the checks on the head commit.
+- Open the ship report (`pr-<N>/ship-report.json`, §6c). Every required check must show `verified: true` and `passed: true`, and (b) must list the same checks. A gate result without a server-run command behind it is a fail, unless (b) and (e) say the server was unavailable.
 - Fail the PR (§4 step 4) for: no report, a missing section, a report for an older head, a claim that isn't true, an image that doesn't show what its caption says, or a `pass` verdict with open gaps. Name the specific mismatch in the review comment.
+
+## 6c. Gate records (think-and-ship)
+
+The Builder records its gates through the think-and-ship MCP server's `ship_*` tools. The server runs each gate command itself and records the real exit code, so a gate result can't be typed in. `.mcp.json` enables only the `ship_*` tools, and their state stays in the run's container. Background: `docs/factory/THINK_AND_SHIP_PLAN.md`.
+
+For each item, after CI has finished (§3 step 12):
+
+1. Warm the build in Bash: `cargo test --workspace --no-run`. The server kills a check after 900 s.
+2. `ship_set_objective` with the issue title as `description` and its acceptance criteria copied verbatim. Then `ship_plan` (add one task) and `ship_start`.
+3. `ship_check` for each gate, always passing `command` and never `passed`: `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo test --workspace`. Add the commands of CI's `swx-kernel (occt)` job when the change touches `swx-kernel` or builds anything with its `occt` feature. In a two-item run, prefix each command with `cd <worktree> && CARGO_TARGET_DIR=<worktree>/target `.
+4. `ship_complete` the task, then `ship_finalize` with the PR as an artifact.
+5. `ship_export` with `format: json`, and commit its `trace` to `qa-artifacts` as `pr-<N>/ship-report.json`, together with the QA images (§6b). Export before the next item's `ship_set_objective`, which clears the previous tasks.
+
+Ship state is one per project, so a two-item run records its items one after the other, in the parent run.
+
+If the `ship_*` tools aren't available, say so in QA report section (b), list it in (e), and report the gates as before. The verdict is then at most `pass with gaps`.
+
+Never run `think-and-ship init`, `connect` or `trace promote`, and never set `THINK_AND_SHIP_SYNC_TARGET`, `THINK_AND_SHIP_SHARED` or `THINK_AND_SHIP_MODEL_ID`. They write into the repo, add AI attribution, or send records to a third-party service.
 
 ## 7. GitHub access
 
@@ -214,6 +233,7 @@ A run uses only the connectors listed for its role, even when more are attached,
 The factory must **never** modify these files. A PR that touches them is labeled `needs-human` and is never merged by the Reviewer:
 
 - `docs/factory/FACTORY.md`, `CLAUDE.md`, `CLEAN_ROOM.md`, `LICENSE-*`
+- `.mcp.json`, `.claude/` and `.think-and-ship/`, which decide what the think-and-ship server may do (§6c)
 - anything under `.github/` may only change through an `owner-merge` PR (CI is the quality gate; the factory doesn't move its own goalposts)
 - `docs/ARCHITECTURE.md`, except for appending rows to the dependency register and new ADR lines
 
