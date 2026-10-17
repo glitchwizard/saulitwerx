@@ -11,6 +11,7 @@ status: running
 
 ## Log
 
+- 2026-10-17 builder: #18 M2-01 → PR #27 (CI pending at log time)
 - 2026-10-16 reviewer: no open PRs; owner merged #24 (M1-05); checked off M1-05; planned #25 M2-03 (ready: #18, #22, #25)
 - 2026-10-16 builder: #9 M1-05 → PR #24 (CI green; 3 checks; owner-merge: adds libocct-data-exchange-dev to CI)
 - 2026-10-15 reviewer: merged #20 (M1-04; CI green, 3 checks); checked off M1-04; planned #22 M2-02 (ready: #9, #18, #22); branch feat/8-tessellation not deleted (API write blocked)
