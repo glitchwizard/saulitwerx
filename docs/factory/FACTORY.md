@@ -9,14 +9,14 @@ The owner wants **slow, steady progress on a tight token budget**. When in doubt
 ## 0. Kill switch & state
 
 1. Read `docs/factory/STATE.md`. If the line `status:` says anything other than `running`, **stop immediately**. Do nothing else and write nothing.
-2. Every run that does work ends by updating `STATE.md` (see §6).
+2. Every run that does work ends by recording its STATE line (see §6).
 
 ## 1. Roles
 
 | Role | Schedule | Does |
 |---|---|---|
-| **Builder** | nightly | Implements exactly **one** issue → one PR. |
-| **Reviewer + Planner** | nightly, after Builder | Reviews and merges up to **2** factory PRs, then tops up the issue queue. |
+| **Builder** | 12:17am and 2:17am ET | Implements up to `issues_per_night` issues per night (`STATE.md`), at most **two** per run, one PR per issue (§3). |
+| **Reviewer + Planner** | 1:17am and 3:17am ET, an hour after each Builder slot | Reviews and merges up to **2** factory PRs per run, then tops up the issue queue. |
 | **Reporter** | weekly | Read-only summary for the owner. Changes nothing except the STATE log. |
 
 ## 2. Work queue (GitHub issues)
@@ -34,27 +34,35 @@ The owner wants **slow, steady progress on a tight token budget**. When in doubt
 | `size:S` / `size:M` | S is about ≤150 changed lines, M about ≤400. Nothing larger exists: split it. |
 | `M0`…`M9`, `MB`, `QA` | Roadmap section (milestone). |
 
-Issue title format: `M2-03: Solver constraints: coincident, horizontal, …`. The body must contain **Context**, **Acceptance criteria** (a checklist), **Test plan**, and **Out of scope**.
+Issue title format: `M2-03: Solver constraints: coincident, horizontal, …`. The body must contain **Context**, **Acceptance criteria** (a checklist), **Test plan**, and **Out of scope**. The acceptance criteria end with `- [ ] QA report (FACTORY §6b) posted on the PR.`
+
+**Dependencies:** when an issue needs another issue merged first, the first line of its body is `Depends on: #N` (several: `Depends on: #N, #M`). An issue is ready only when every issue it depends on is closed. The Builder skips it until then.
 
 ## 3. Builder protocol
 
+**Night, cap and time box.** A night is the America/New_York date on which a run starts. `issues_per_night` in `STATE.md` caps how many items the Builder takes per night, across all its runs. Note the time when the run starts (`date`). Start no new item after 40 minutes, and wrap up by 60. An item that isn't done by then: push its branch, open its PR as a draft if it has none, label the issue `factory:changes`, comment what's left, and record it as `partial`. The next run continues it and marks the PR ready for review when it's done.
+
 1. Kill-switch check (§0). Read `CLAUDE.md`, `docs/ARCHITECTURE.md` and `CLEAN_ROOM.md`.
-2. Pick work in this order, and take only one item:
-   1. If `main` CI is red, fix `main`. This is the only case where work starts without an issue: open a `fix:` PR.
+2. **Nightly cap.** Count tonight's non-idle Builder outcome comments on the run log (§6a posts one per item). If the count has reached `issues_per_night`, post an `idle (nightly cap reached)` run-log comment and stop. Otherwise this run may take up to `min(2, issues_per_night − count)` items.
+3. Pick work in this order. Skip any issue labeled `needs-human` or `factory:blocked`, and any issue whose `Depends on:` line names an issue that is still open (§2).
+   1. If `main` CI is red, fix `main`. This is the only case where work starts without an issue: open a `fix:` PR. It is the run's only item.
    2. The oldest open issue labeled both `priority` and `factory:ready`.
-   3. The oldest open issue labeled `factory:changes`. Continue on its existing PR branch.
-   4. The lowest-numbered roadmap item among open `factory:ready` issues, skipping any labeled `needs-human` or `factory:blocked`.
-   5. If nothing qualifies, log "idle" in STATE and stop.
-3. Claim the issue: add `factory:wip`, remove `factory:ready` or `factory:changes`.
-4. Branch: `feat/<issue#>-<short-slug>` (or `fix/…`). **Never commit to `main`.**
-5. Implement the smallest change that meets the acceptance criteria. Add tests that would fail without the change. Locally, run all of:
+   3. The oldest open issue labeled `factory:changes`. Continue on its existing PR branch. If the PR conflicts with `main`, merge `main` into the branch; never rebase or force-push.
+   4. The lowest-numbered roadmap item among open `factory:ready` issues.
+   5. If nothing qualifies, post an `idle` run-log comment and stop.
+
+   Take the first item. Take a second one, the next in the same order, only if this run may take two and the two are **independent**: neither depends on the other, directly or through another open issue, and they don't change the same crate. If they're dependent, take only the first. A later Builder slot takes the second after the Reviewer has merged the first.
+4. Claim each issue: add `factory:wip`, remove `factory:ready` or `factory:changes`.
+5. **Two items run in parallel**, one subagent per issue. Each gets its own git worktree (`git worktree add ../wt-<issue#> -b <branch> origin/main`), its own branch, and its own `CARGO_TARGET_DIR` (`<worktree>/target`). Each subagent runs steps 6–12 and the QA report of step 13 for its issue, then returns its PR number, CI result, QA report and outcome. The parent run posts the outcome comments. With one item, do everything yourself.
+6. Branch: `feat/<issue#>-<short-slug>` (or `fix/…`). **Never commit to `main`.**
+7. Implement the smallest change that meets the acceptance criteria. Add tests that would fail without the change. Locally, run all of:
    `cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace`
-6. If it turns out bigger than `size:M`: implement a coherent first slice, open new `factory:ready` issues for the rest (same milestone, IDs like `M2-03b`), and say so in the PR.
-7. Commit using Conventional Commits (`feat(sketch): …`). **No AI attribution of any kind**: no `Co-Authored-By` trailers, no "Generated with" lines, in commits or PRs.
-8. **Check off acceptance criteria in the issue as you go, not at the end.** After each commit that satisfies a criterion and passes its tests, edit the issue body right away: change that line's `- [ ]` to `- [x]` and append the short commit SHA, e.g. `- [x] With --features occt: … (5074e53)`. Check only what is implemented *and* verified in this run, never on intent. Leave the rest unchecked. If a criterion is met in a different way than written, check it and explain in the outcome comment. If a later commit breaks a checked criterion, uncheck it.
-9. Push and open a PR titled like the issue, with a body that includes `Closes #N`, a summary, how it was tested, and any follow-up issues. Label the issue `factory:review` and remove `factory:wip`.
-10. Wait for CI. If it fails, fix it, up to **3 attempts**. If it still fails, label the issue `factory:blocked`, comment the failure summary, and stop.
-11. Run QA and post the QA report (§6b). Then update STATE (§6), post the outcome comments (§6a), and stop. **One issue per run, no exceptions.**
+8. If it turns out bigger than `size:M`: implement a coherent first slice, open new `factory:ready` issues for the rest (same milestone, IDs like `M2-03b`), and say so in the PR.
+9. Commit using Conventional Commits (`feat(sketch): …`). **No AI attribution of any kind**: no `Co-Authored-By` trailers, no "Generated with" lines, in commits or PRs.
+10. **Check off acceptance criteria in the issue as you go, not at the end.** After each commit that satisfies a criterion and passes its tests, edit the issue body right away: change that line's `- [ ]` to `- [x]` and append the short commit SHA, e.g. `- [x] With --features occt: … (5074e53)`. Check only what is implemented *and* verified in this run, never on intent. Leave the rest unchecked. If a criterion is met in a different way than written, check it and explain in the outcome comment. If a later commit breaks a checked criterion, uncheck it.
+11. Push and open a PR titled like the issue, with a body that includes `Closes #N`, a summary, how it was tested, and any follow-up issues. Label the issue `factory:review` and remove `factory:wip`.
+12. Wait for CI. If it fails, fix it, up to **3 attempts**. If it still fails, label the issue `factory:blocked`, comment the failure summary, and stop.
+13. Run QA and post the QA report (§6b), then record your STATE line (§6), post the outcome comments (§6a), and stop. **At most two items per run and `issues_per_night` per night, no exceptions.**
 
 ## 4. Reviewer + Planner protocol
 
@@ -62,7 +70,7 @@ Issue title format: `M2-03: Solver constraints: coincident, horizontal, …`. Th
 
 For each open PR whose issue is labeled `factory:review`, oldest first:
 
-1. CI must be green. If it isn't, label the issue `factory:changes`, comment why, and go to the next PR. **A PR with no CI checks at all counts as red.** If `.github/workflows/ci.yml` is missing on `main`, merge nothing, open (or keep open) one `needs-human` issue titled "CI workflow missing", and skip to Plan.
+1. CI must be green. If it isn't, label the issue `factory:changes`, comment why, and go to the next PR. **A PR with no CI checks at all counts as red, and so does a PR that conflicts with `main`** (comment: merge `main` into the branch). If `.github/workflows/ci.yml` is missing on `main`, merge nothing, open (or keep open) one `needs-human` issue titled "CI workflow missing", and skip to Plan.
 2. Read the issue and the full diff. Check:
    - every acceptance criterion is met and tested, and every box the Builder checked is actually true (uncheck any that aren't and send the PR back);
    - the PR has a QA report (§6b) for its current head commit, with all six sections. Open every image it embeds and check that it shows what the report claims (§6b, *Reviewer checks*);
@@ -71,7 +79,7 @@ For each open PR whose issue is labeled `factory:review`, oldest first:
    - `CLEAN_ROOM.md` is respected (no vendor names or assets, no proprietary formats);
    - there is no AI attribution;
    - no unrelated changes.
-3. **Pass** → make sure every box in the issue is checked, squash-merge with the PR title as the commit subject, delete the branch, remove all `factory:*` workflow labels from the issue (it closes via `Closes #N`), and check off the roadmap item in `docs/ROADMAP.md`. Commit that roadmap change through a small `docs/` PR merged in the same run. Combine all roadmap check-offs from this run into one PR.
+3. **Pass** → make sure every box in the issue is checked, squash-merge with the PR title as the commit subject, delete the branch, remove all `factory:*` workflow labels from the issue (it closes via `Closes #N`), and check off the roadmap item in `docs/ROADMAP.md`. Commit that roadmap change through a small `docs/` PR merged in the same run. Combine all roadmap check-offs from this run into one PR. The same PR carries the STATE lines (§6).
 4. **Fail** → leave a review comment with a numbered list of required changes, then label the issue `factory:changes`. A missing, incomplete or false QA report is a fail.
 5. Anything legally or architecturally ambiguous → label it `needs-human`, comment the question, and don't merge.
 
@@ -80,14 +88,16 @@ For each open PR whose issue is labeled `factory:review`, oldest first:
 After reviewing, if fewer than **3** issues are labeled `factory:ready`:
 
 1. Take the next unchecked items from `docs/ROADMAP.md`, in order, that have no open issue yet. Search the issue titles for the item ID.
-2. Create issues until there are 3 ready, using the format in §2. Make the acceptance criteria concrete and testable, with numbers and tolerances where geometry is involved.
-3. If an item needs a design decision first (e.g. M3-04 topological naming), create a `docs/specs/<id>.md` spec issue first.
+2. Create issues until there are 3 ready, using the format in §2: a `Depends on:` line when an issue needs another open issue merged first, and the QA item last in the acceptance criteria. Make the acceptance criteria concrete and testable, with numbers and tolerances where geometry is involved.
+3. Prefer keeping at least **2** ready issues that are independent of each other (§3), so a Builder run can take two. When the next roadmap items form a dependency chain, also create the next _(parallel ok)_ item whose prerequisites are met.
+4. If an item needs a design decision first (e.g. M3-04 topological naming), create a `docs/specs/<id>.md` spec issue first.
 
 Finish the run with outcome comments (§6a).
 
 ## 5. Budget rules (hard)
 
-- Builder: one issue. Reviewer: two PRs and at most three new issues. Reporter: read-only.
+- Builder: at most `issues_per_night` issues per night (`STATE.md`), at most two per run, inside the §3 time box. Reviewer: two PRs and at most three new issues per run. Reporter: read-only.
+- A subagent gets its issue and the files the issue touches, plus the docs listed in §3 step 1. Nothing else.
 - Don't explore the codebase broadly. Read only what the issue touches, plus the docs listed above.
 - Don't vendor or build large C++ dependencies from source inside a run unless the issue requires it and caching is in place.
 - If a run hits something that would take a lot of extra work (toolchain breakage, an ambiguous spec), write it down (`factory:blocked` or `needs-human` plus a comment) and stop. Don't push through.
@@ -101,7 +111,7 @@ Add one line at the top of the `## Log` section and keep only the newest 30 line
 - 2026-10-13 builder: #12 M2-01 → PR #15 (CI green)
 ```
 
-Commit the STATE change on the same branch as the run's PR. If the run opened no PR, the Reviewer's docs PR carries it. A Builder that is idle or blocked records its line in the issue comment instead; the Reviewer copies it into STATE.
+Only the Reviewer commits `STATE.md`, through its `docs/` PR (§4). Builders never touch `STATE.md`, because two Builder PRs editing it would conflict. A Builder puts one line per item, or one `idle` line, in its run-log comments (§6a). The Reviewer copies every Builder line posted since its previous run into `STATE.md`, then adds its own.
 
 ## 6a. Outcome comments (every run that acts)
 
@@ -109,9 +119,9 @@ Every Builder and Reviewer run ends by posting outcome comments, so the owner ca
 
 **Where:**
 
-- **Builder:** one comment on the issue it worked on. For a red-`main` fix with no issue, comment on the PR.
+- **Builder:** one comment on each issue it worked on. For a red-`main` fix with no issue, comment on the PR.
 - **Reviewer:** one comment on each PR it reviewed (this is the verdict), plus one run summary covering merges, send-backs and issues created.
-- **Every run, including idle ones:** one run-summary comment on the **factory run log** issue (label `factory:log`). If that issue doesn't exist, create it, titled "Factory run log".
+- **Every run, including idle ones:** run-summary comments on the **factory run log** issue (label `factory:log`): one per item for the Builder (so §3 step 2 can count items), one per run for the Reviewer, one for an idle run. If that issue doesn't exist, create it, titled "Factory run log".
 
 **Format** (plain Markdown, at most about 200 words):
 
@@ -123,7 +133,10 @@ Every Builder and Reviewer run ends by posting outcome comments, so the owner ca
 **Stalled because:** (partial/stalled only) the concrete blocker and what was tried, at most 3 bullets.
 **Recommended fix:** the specific next action and who owns it: `owner` or `factory`.
 **Next:** what the factory will do on its next run.
+**STATE:** the run's `STATE.md` log line (Builder only, §6).
 ```
+
+`YYYY-MM-DD` is the night the run belongs to (§3), not the UTC date.
 
 **Rules:**
 
@@ -135,7 +148,7 @@ Every Builder and Reviewer run ends by posting outcome comments, so the owner ca
 
 Every Builder PR gets a QA report: hands-on evidence that the change works, beyond CI. The Reviewer checks it (§4). A PR without a true QA report goes back.
 
-**When and where:** after CI has finished on the PR's head commit (§3 step 10), post one PR comment whose first line is `## QA report`. Repeat the same report in the run's final chat message. A `factory:changes` fix run posts a new report for its new head; the newest report counts. The Reviewer's own `docs/` PRs don't need one.
+**When and where:** after CI has finished on the PR's head commit (§3 step 12), post one PR comment whose first line is `## QA report`. Repeat the same report in the run's final chat message. A `factory:changes` fix run posts a new report for its new head; the newest report counts. The Reviewer's own `docs/` PRs don't need one.
 
 **Contents**, sections (a) to (f) in this order:
 
