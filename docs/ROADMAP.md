@@ -19,7 +19,7 @@ Milestones are sequential. Don't start M(n+1) items while M(n) has unchecked ite
 
 ## M2: Sketcher
 
-- [ ] M2-01 `swx-sketch` geometry: point, line segment, circle, arc. Parameter vector layout.
+- [x] M2-01 `swx-sketch` geometry: point, line segment, circle, arc. Parameter vector layout.
 - [ ] M2-02 Solver core: residual/Jacobian assembly, damped Newton / LM, convergence reporting.
 - [ ] M2-03 Constraints: coincident, horizontal, vertical, fixed, distance, radius/diameter.
 - [ ] M2-04 Constraints: parallel, perpendicular, tangent (line–arc, arc–arc), equal, midpoint, symmetric.
