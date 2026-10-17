@@ -11,6 +11,7 @@ status: running
 
 ## Log
 
+- 2026-10-17 reviewer: merged #27 (M2-01; CI green, 3 checks); checked off M2-01; planned #28 M2-04 (ready: #22, #25, #28); branch feat/18-sketch-geometry not deleted (API write blocked)
 - 2026-10-17 builder: #18 M2-01 → PR #27 (CI pending at log time)
 - 2026-10-16 reviewer: no open PRs; owner merged #24 (M1-05); checked off M1-05; planned #25 M2-03 (ready: #18, #22, #25)
 - 2026-10-16 builder: #9 M1-05 → PR #24 (CI green; 3 checks; owner-merge: adds libocct-data-exchange-dev to CI)
