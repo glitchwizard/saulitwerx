@@ -16,7 +16,7 @@ The owner wants **slow, steady progress on a tight token budget**. When in doubt
 | Role | Schedule | Does |
 |---|---|---|
 | **Builder** | 12:17am and 2:17am ET | Implements up to `issues_per_night` issues per night (`STATE.md`), at most **two** per run, one PR per issue (§3). |
-| **Reviewer + Planner** | 1:17am and 3:17am ET, an hour after each Builder slot | Reviews and merges up to **2** factory PRs per run, then tops up the issue queue. |
+| **Reviewer + Planner** | 1:17am and 3:17am ET, an hour after each Builder slot | Reviews and merges up to **2** factory PRs per run, then tops up the issue queue. On Monday nights it also runs the weekly retro (§4). |
 | **Reporter** | Mondays 7:56am ET | Weekly summary for the owner. Read-only on GitHub; writes only its weekly section of the status doc (§7a). |
 
 ## 2. Work queue (GitHub issues)
@@ -92,11 +92,22 @@ After reviewing, if fewer than **3** issues are labeled `factory:ready`:
 3. Prefer keeping at least **2** ready issues that are independent of each other (§3), so a Builder run can take two. When the next roadmap items form a dependency chain, also create the next _(parallel ok)_ item whose prerequisites are met.
 4. If an item needs a design decision first (e.g. M3-04 topological naming), create a `docs/specs/<id>.md` spec issue first.
 
+### Retro (weekly): the factory improves itself
+
+The first Reviewer run of each Monday night (§3) runs a retro after Plan, over the last 7 nights. This is how the factory iterates on its own rules, using its own records.
+
+1. **Gather:** the run-log outcome comments, the Reviewer's send-back comments, the known gaps (e) of the week's QA reports, and the `think-trace.md` and `ship-report.json` files under `qa-artifacts` for those nights (§6c). Also last week's retro PR and whether it merged.
+2. **Reason with `think_*`:** one step per candidate problem, naming its evidence (links) and what it cost: a wasted run, a send-back, a red `main`, extra tokens.
+3. **Keep at most 3 changes.** Each fixes a problem seen at least twice that week, or once at a real cost. Prefer tightening or deleting a rule over adding one. Never loosen a §5 budget rule, a §8 protection or a §9 hard stop.
+4. **Open one PR** from `docs/factory-retro-<night>` that changes only `docs/factory/FACTORY.md`. Its body lists each change with its evidence, the effect expected, and how next week's retro will tell whether it worked. Label it `needs-human`. The factory never merges it; the owner does.
+5. **Check last week's changes.** If last week's retro PR merged, say in this week's PR, or in the run-log comment, whether each change had its expected effect. Propose reverting one that didn't help.
+6. **Nothing qualifies:** open no PR, and the run-log comment says `retro: no change` and why.
+
 Finish the run with outcome comments (§6a).
 
 ## 5. Budget rules (hard)
 
-- Builder: at most `issues_per_night` issues per night (`STATE.md`), at most two per run, inside the §3 time box. Reviewer: two PRs and at most three new issues per run. Reporter: read-only on GitHub, one status-doc section per week.
+- Builder: at most `issues_per_night` issues per night (`STATE.md`), at most two per run, inside the §3 time box. Reviewer: two PRs and at most three new issues per run, plus one retro PR with at most three changes on Monday nights. Reporter: read-only on GitHub, one status-doc section per week.
 - A subagent gets its issue and the files the issue touches, plus the docs listed in §3 step 1. Nothing else.
 - Don't explore the codebase broadly. Read only what the issue touches, plus the docs listed above.
 - Don't vendor or build large C++ dependencies from source inside a run unless the issue requires it and caching is in place.
@@ -166,8 +177,8 @@ Every Builder PR gets a QA report: hands-on evidence that the change works, beyo
 
 **Images:**
 
-- PNG images only, plus the ship report from §6c. Each image under 500 KB, at most 4 per report, with descriptive names (`l-bracket-iso.png`). A fix run adds new names (`l-bracket-iso-r2.png`) rather than replacing files.
-- Commit them to the branch `qa-artifacts` under `pr-<N>/`, where N is the PR number. Touch nothing outside your own `pr-<N>/`.
+- PNG images only, plus the §6c records. Each image under 500 KB, at most 4 per report, with descriptive names (`l-bracket-iso.png`). A fix run adds new names (`l-bracket-iso-r2.png`) rather than replacing files.
+- Commit them to the branch `qa-artifacts` under `pr-<N>/`, where N is the PR number. Touch nothing outside your own `pr-<N>/`, and `runs/` for the §6c reasoning traces.
 - `qa-artifacts` is an orphan branch with no code. It only ever gets new commits: never merge it, never open a PR from it, never force-push it, never delete or edit files already on it.
 - If it doesn't exist yet, create it with `git switch --orphan qa-artifacts` in a separate worktree, commit only `pr-<N>/…`, and push it. If it exists, fetch it, add your files in a separate worktree, commit and push. If the push is rejected as non-fast-forward, fetch, rebase your one unpushed commit onto `origin/qa-artifacts`, and push again, up to 3 attempts. Commit message: `qa: pr-<N> <what>`, no AI attribution.
 - Embed each image as `![<caption>](https://raw.githubusercontent.com/glitchwizard/saulitwerx/qa-artifacts/pr-<N>/<name>.png)`.
@@ -180,11 +191,11 @@ Every Builder PR gets a QA report: hands-on evidence that the change works, beyo
 - Open the ship report (`pr-<N>/ship-report.json`, §6c). Every required check must show `verified: true` and `passed: true`, and (b) must list the same checks. A gate result without a server-run command behind it is a fail, unless (b) and (e) say the server was unavailable.
 - Fail the PR (§4 step 4) for: no report, a missing section, a report for an older head, a claim that isn't true, an image that doesn't show what its caption says, or a `pass` verdict with open gaps. Name the specific mismatch in the review comment.
 
-## 6c. Gate records (think-and-ship)
+## 6c. Run records (think-and-ship)
 
-The Builder records its gates through the think-and-ship MCP server's `ship_*` tools. The server runs each gate command itself and records the real exit code, so a gate result can't be typed in. `.mcp.json` enables only the `ship_*` tools, and their state stays in the run's container. Background: `docs/factory/THINK_AND_SHIP_PLAN.md`.
+Runs record their gates (`ship_*`) and their reasoning (`think_*`) through the think-and-ship MCP server. The server runs each gate command itself and records the real exit code, so a gate result can't be typed in. The reasoning traces are what the weekly retro (§4) learns from. `.mcp.json` enables only these two tool families. Their state stays in the run's container, so the exports below are what persists. Background: `docs/factory/THINK_AND_SHIP_PLAN.md`.
 
-For each item, after CI has finished (§3 step 12):
+**Gates (Builder).** For each item, after CI has finished (§3 step 12):
 
 1. Warm the build in Bash: `cargo test --workspace --no-run`. The server kills a check after 900 s.
 2. `ship_set_objective` with the issue title as `description` and its acceptance criteria copied verbatim. Then `ship_plan` (add one task) and `ship_start`.
@@ -194,7 +205,16 @@ For each item, after CI has finished (§3 step 12):
 
 Ship state is one per project, so a two-item run records its items one after the other, in the parent run.
 
-If the `ship_*` tools aren't available, say so in QA report section (b), list it in (e), and report the gates as before. The verdict is then at most `pass with gaps`.
+**Reasoning (Builder and Reviewer).** Record a `think_record_step` at each decision, and only there:
+
+- Builder: which items it took and why, the approach, any deviation from the issue, each failed attempt and what changed, and the QA verdict.
+- Reviewer: each PR verdict and its deciding reason, each planning choice, and the retro's analysis.
+
+About 6 steps per item at most: decisions, not narration. Set `execution_ref` to the issue (`issue:#32`) and mark the run's last step `is_final_step`. Subagents record their own steps. Never put secrets, tokens or long logs in a step.
+
+At the end of the run, `think_export_trace` with `format: markdown`, and commit the output to `qa-artifacts` as `runs/<night>-<role>-<HHMM>/think-trace.md` (`<HHMM>` = the run's ET start time). It is text, so the Reviewer may push it through the GitHub connector. Builder QA reports link it in (b). A run that stops at the kill switch or is idle records nothing.
+
+**Without the server.** If the tools aren't available, say so in the outcome comment, and for a Builder also in QA report sections (b) and (e), and report the gates as before. The verdict is then at most `pass with gaps`.
 
 Never run `think-and-ship init`, `connect` or `trace promote`, and never set `THINK_AND_SHIP_SYNC_TARGET`, `THINK_AND_SHIP_SHARED` or `THINK_AND_SHIP_MODEL_ID`. They write into the repo, add AI attribution, or send records to a third-party service.
 
@@ -236,6 +256,8 @@ The factory must **never** modify these files. A PR that touches them is labeled
 - `.mcp.json`, `.claude/` and `.think-and-ship/`, which decide what the think-and-ship server may do (§6c)
 - anything under `.github/` may only change through an `owner-merge` PR (CI is the quality gate; the factory doesn't move its own goalposts)
 - `docs/ARCHITECTURE.md`, except for appending rows to the dependency register and new ADR lines
+
+The one exception is the weekly retro (§4): its PR may change `docs/factory/FACTORY.md`, and nothing else on the list. It is labeled `needs-human`, and only the owner merges it.
 
 The factory **may** edit `docs/factory/STATE.md`, check items off and add sub-items in `docs/ROADMAP.md`, and add files under `docs/specs/`.
 
