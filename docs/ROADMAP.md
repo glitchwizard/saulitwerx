@@ -17,6 +17,13 @@ Milestones are sequential. Don't start M(n+1) items while M(n) has unchecked ite
 - [x] M1-04 Tessellation: `Shape → Mesh` (positions, normals, indices) with deflection control and tests.
 - [x] M1-05 STEP export plus round-trip import. Golden tests compare volume and face count.
 
+## QA tooling
+
+Tools the Builder uses for the visuals in its QA reports (FACTORY §6b).
+
+- [ ] QA-01 _(parallel ok)_ `swx-qa render`: a headless CPU renderer (no GPU, deterministic) that renders a built-in fixture or a STEP file to an isometric, flat-shaded PNG with feature edges.
+- [ ] QA-02 _(parallel ok, after M2-03)_ `swx-qa sketch`: plot a solved sketch (geometry, points, dimension values) to a PNG.
+
 ## M2: Sketcher
 
 - [x] M2-01 `swx-sketch` geometry: point, line segment, circle, arc. Parameter vector layout.

@@ -32,7 +32,7 @@ The owner wants **slow, steady progress on a tight token budget**. When in doubt
 | `owner-merge` | PR changes `.github/`; only the owner merges it. |
 | `priority` | Builder takes this before roadmap order. |
 | `size:S` / `size:M` | S is about ≤150 changed lines, M about ≤400. Nothing larger exists: split it. |
-| `M0`…`M6` | Milestone. |
+| `M0`…`M9`, `MB`, `QA` | Roadmap section (milestone). |
 
 Issue title format: `M2-03: Solver constraints: coincident, horizontal, …`. The body must contain **Context**, **Acceptance criteria** (a checklist), **Test plan**, and **Out of scope**.
 
@@ -54,7 +54,7 @@ Issue title format: `M2-03: Solver constraints: coincident, horizontal, …`. Th
 8. **Check off acceptance criteria in the issue as you go, not at the end.** After each commit that satisfies a criterion and passes its tests, edit the issue body right away: change that line's `- [ ]` to `- [x]` and append the short commit SHA, e.g. `- [x] With --features occt: … (5074e53)`. Check only what is implemented *and* verified in this run, never on intent. Leave the rest unchecked. If a criterion is met in a different way than written, check it and explain in the outcome comment. If a later commit breaks a checked criterion, uncheck it.
 9. Push and open a PR titled like the issue, with a body that includes `Closes #N`, a summary, how it was tested, and any follow-up issues. Label the issue `factory:review` and remove `factory:wip`.
 10. Wait for CI. If it fails, fix it, up to **3 attempts**. If it still fails, label the issue `factory:blocked`, comment the failure summary, and stop.
-11. Update STATE (§6), post the outcome comments (§6a), and stop. **One issue per run, no exceptions.**
+11. Run QA and post the QA report (§6b). Then update STATE (§6), post the outcome comments (§6a), and stop. **One issue per run, no exceptions.**
 
 ## 4. Reviewer + Planner protocol
 
@@ -65,13 +65,14 @@ For each open PR whose issue is labeled `factory:review`, oldest first:
 1. CI must be green. If it isn't, label the issue `factory:changes`, comment why, and go to the next PR. **A PR with no CI checks at all counts as red.** If `.github/workflows/ci.yml` is missing on `main`, merge nothing, open (or keep open) one `needs-human` issue titled "CI workflow missing", and skip to Plan.
 2. Read the issue and the full diff. Check:
    - every acceptance criterion is met and tested, and every box the Builder checked is actually true (uncheck any that aren't and send the PR back);
+   - the PR has a QA report (§6b) for its current head commit, with all six sections. Open every image it embeds and check that it shows what the report claims (§6b, *Reviewer checks*);
    - no test was weakened, deleted, or `#[ignore]`d to get green;
    - the `ARCHITECTURE.md` dependency direction and allowed licenses are respected, and any new dependency is in the register;
    - `CLEAN_ROOM.md` is respected (no vendor names or assets, no proprietary formats);
    - there is no AI attribution;
    - no unrelated changes.
 3. **Pass** → make sure every box in the issue is checked, squash-merge with the PR title as the commit subject, delete the branch, remove all `factory:*` workflow labels from the issue (it closes via `Closes #N`), and check off the roadmap item in `docs/ROADMAP.md`. Commit that roadmap change through a small `docs/` PR merged in the same run. Combine all roadmap check-offs from this run into one PR.
-4. **Fail** → leave a review comment with a numbered list of required changes, then label the issue `factory:changes`.
+4. **Fail** → leave a review comment with a numbered list of required changes, then label the issue `factory:changes`. A missing, incomplete or false QA report is a fail.
 5. Anything legally or architecturally ambiguous → label it `needs-human`, comment the question, and don't merge.
 
 ### Plan
@@ -129,6 +130,41 @@ Every Builder and Reviewer run ends by posting outcome comments, so the owner ca
 - Facts only. Don't claim tests passed unless they ran in this run, and say which.
 - `stalled` with fix owner `factory` → label the issue `factory:blocked`. `stalled` with fix owner `owner` → label it `needs-human`. `completed` → `factory:review`, as in §3.
 - No AI attribution, session links, secrets, or tokens. If the environment appends a footer, edit the comment to remove it.
+
+## 6b. QA report (every Builder PR)
+
+Every Builder PR gets a QA report: hands-on evidence that the change works, beyond CI. The Reviewer checks it (§4). A PR without a true QA report goes back.
+
+**When and where:** after CI has finished on the PR's head commit (§3 step 10), post one PR comment whose first line is `## QA report`. Repeat the same report in the run's final chat message. A `factory:changes` fix run posts a new report for its new head; the newest report counts. The Reviewer's own `docs/` PRs don't need one.
+
+**Contents**, sections (a) to (f) in this order:
+
+- **(a) Acceptance criteria.** Every criterion from the issue, each with how it was verified: a test name, a scenario from (c), or a CI job. A criterion verified only by reading code says so.
+- **(b) Tests and CI.** The exact commands run in this run, with the passed / failed / ignored counts from their `test result:` lines. Then each CI check on the head commit, with its result and the short SHA.
+- **(c) Scenario checks.** At least 2 hands-on checks, chosen from: typical use, an edge case, invalid input. Hands-on means you exercised the change yourself outside the committed test suite (a CLI run, a scratch program, a one-off test) and report the command, the input, and the output you actually observed. Re-quoting a committed test doesn't count. A scratch check may be committed as a test afterwards.
+- **(d) Visuals.** Images that show the change:
+  - geometry (solids, meshes, STEP): `swx-qa render` (roadmap QA-01). The usual path: a scratch program or test writes the change's result to a STEP file, and `swx-qa render --step` renders it;
+  - solved sketches: PNG plots from `swx-qa sketch` (QA-02);
+  - UI, once `swx-app` exists (M5-01): screenshots of the real app window, taken under Xvfb or with the MB-01 harness once that exists.
+
+  Each image gets a one-line caption saying what it should show. If the change has nothing visual, write `Nothing visual: <reason>`. If the tool it needs doesn't exist yet, write `No visual: <tool> not available yet` and list that in (e).
+- **(e) Known gaps.** Everything QA did not cover or could not verify, and anything deferred, with follow-up issue numbers. Write `None` if there are none.
+- **(f) Verdict.** `pass`: every criterion is met and verified, and (e) is `None`. `pass with gaps`: every criterion is met, and (e) lists what QA could not cover. An unmet criterion is not a gap: fix it before posting. If you can't fix it in this run, post no verdict; the run is `stalled` (§6a).
+
+**Images:**
+
+- PNG only, each under 500 KB, at most 4 per report, with descriptive names (`l-bracket-iso.png`). A fix run adds new names (`l-bracket-iso-r2.png`) rather than replacing files.
+- Commit them to the branch `qa-artifacts` under `pr-<N>/`, where N is the PR number. Touch nothing outside your own `pr-<N>/`.
+- `qa-artifacts` is an orphan branch with no code. It only ever gets new commits: never merge it, never open a PR from it, never force-push it, never delete or edit files already on it.
+- If it doesn't exist yet, create it with `git switch --orphan qa-artifacts` in a separate worktree, commit only `pr-<N>/…`, and push it. If it exists, fetch it, add your files in a separate worktree, commit and push. If the push is rejected as non-fast-forward, fetch, rebase your one unpushed commit onto `origin/qa-artifacts`, and push again, up to 3 attempts. Commit message: `qa: pr-<N> <what>`, no AI attribution.
+- Embed each image as `![<caption>](https://raw.githubusercontent.com/glitchwizard/saulitwerx/qa-artifacts/pr-<N>/<name>.png)`.
+- If the push to `qa-artifacts` is refused (permissions, proxy), write `Images not published: <error>` in (d), give the exact command that produces each image, and list it in (e). The Reviewer then runs those commands on the PR branch and looks at the output itself.
+
+**Reviewer checks:**
+
+- Open every embedded image: `git fetch origin qa-artifacts`, then view each `pr-<N>/*.png` with an image-capable file read. Check that it shows what its caption and the report claim.
+- Check that the test names in (a) exist in the diff, and that the CI results in (b) match the checks on the head commit.
+- Fail the PR (§4 step 4) for: no report, a missing section, a report for an older head, a claim that isn't true, an image that doesn't show what its caption says, or a `pass` verdict with open gaps. Name the specific mismatch in the review comment.
 
 ## 7. GitHub access
 
