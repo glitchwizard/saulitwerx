@@ -17,7 +17,7 @@ The owner wants **slow, steady progress on a tight token budget**. When in doubt
 |---|---|---|
 | **Builder** | 12:17am and 2:17am ET | Implements up to `issues_per_night` issues per night (`STATE.md`), at most **two** per run, one PR per issue (§3). |
 | **Reviewer + Planner** | 1:17am and 3:17am ET, an hour after each Builder slot | Reviews and merges up to **2** factory PRs per run, then tops up the issue queue. |
-| **Reporter** | weekly | Read-only summary for the owner. Changes nothing except the STATE log. |
+| **Reporter** | Mondays 7:56am ET | Weekly summary for the owner. Read-only on GitHub; writes only its weekly section of the status doc (§7a). |
 
 ## 2. Work queue (GitHub issues)
 
@@ -96,7 +96,7 @@ Finish the run with outcome comments (§6a).
 
 ## 5. Budget rules (hard)
 
-- Builder: at most `issues_per_night` issues per night (`STATE.md`), at most two per run, inside the §3 time box. Reviewer: two PRs and at most three new issues per run. Reporter: read-only.
+- Builder: at most `issues_per_night` issues per night (`STATE.md`), at most two per run, inside the §3 time box. Reviewer: two PRs and at most three new issues per run. Reporter: read-only on GitHub, one status-doc section per week.
 - A subagent gets its issue and the files the issue touches, plus the docs listed in §3 step 1. Nothing else.
 - Don't explore the codebase broadly. Read only what the issue touches, plus the docs listed above.
 - Don't vendor or build large C++ dependencies from source inside a run unless the issue requires it and caching is in place.
@@ -189,6 +189,25 @@ Use whatever works, in this order:
 If neither can write to the repo, stop, and report "no GitHub write access" as the run's final message.
 
 Commits are authored as `glitchwizard <glitchwizard@gmail.com>`.
+
+## 7a. Connectors
+
+A run uses only the connectors listed for its role, even when more are attached, and no more often than listed. Every connector call costs tokens.
+
+| Role | Connector | Use | How often |
+|---|---|---|---|
+| Builder | GitHub | §7 | Every run |
+| Builder | Figma, read only | View the mockup linked in an M5 issue | M5 issues only |
+| Reviewer + Planner | GitHub | §7 | Every run |
+| Reviewer + Planner | Figma | Draw one mockup per M5 issue; compare it with the QA screenshot in review | M5 issues only |
+| Reporter | GitHub, read only | Gather the week's facts | Weekly |
+| Reporter | Claude Docs | Add the week's section to the status doc | Weekly |
+
+**UI mockups (M5 items).** Before creating an M5 issue, the Planner draws one frame for it in the Saulitwerx UI Figma file and links the frame in the issue's Context. The owner records that file's link here before M5 starts. The frame shows the behavior `PRODUCT.md` describes, in our own layout, built from plain shapes and text. Clean room: never use another product's screenshots, layouts, icons or names as input, reference or label, and never import community files, kits or plugins. The Builder implements against the frame. In review, the Reviewer compares the QA report's app screenshot with the frame; a difference the PR doesn't explain is a fail.
+
+**Status doc (Reporter).** [Saulitwerx factory status](https://claude.ai/code/artifact/d487078d-495e-4a8f-9c38-0d6553458b6c), doc id `d487078d-495e-4a8f-9c38-0d6553458b6c`. Each week the Reporter adds one section at the top: **Needs you**, **Shipped**, **Progress** (one native chart: roadmap items checked per milestone) and **Health**. It changes nothing else in the doc and writes nothing to GitHub. The owner's comments in the doc are for the owner's control session; the Reporter only lists unresolved ones under **Needs you**.
+
+**System map.** `docs/SYSTEM_MAP.md` holds the crate and data-flow diagrams as Mermaid, which GitHub renders. Runs don't read it. The Reporter flags it under **Health** when its crate list differs from `crates/`.
 
 ## 8. Protected files (the factory's guardrails)
 
