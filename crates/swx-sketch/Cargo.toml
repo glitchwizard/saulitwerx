@@ -1,0 +1,13 @@
+[package]
+name = "swx-sketch"
+version = "0.0.1"
+description = "Saulitwerx 2D sketch geometry and constraint solver (kernel-agnostic)."
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true
