@@ -1,0 +1,21 @@
+[package]
+name = "swx-qa"
+version = "0.0.1"
+description = "Saulitwerx QA tooling: headless CPU renders of kernel meshes for review evidence."
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+[features]
+default = []
+# Enables `swx-qa render --step`, which imports and tessellates through OCCT.
+occt = ["swx-kernel/occt"]
+
+[dependencies]
+png = "0.17"
+swx-kernel = { path = "../swx-kernel" }
+
+[lints]
+workspace = true
