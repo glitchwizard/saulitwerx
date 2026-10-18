@@ -53,7 +53,7 @@ TAS_TGZ="think-and-ship-v${TAS_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
   && echo "${TAS_SHA256}  ${TAS_TGZ}" | sha256sum -c - \
   && tar xzf "${TAS_TGZ}" think-and-ship \
   && install -m 0755 think-and-ship /usr/local/bin/think-and-ship \
-) || echo "think-and-ship install failed; runs fall back per FACTORY §6b"
+) || echo "think-and-ship install failed; runs fall back per FACTORY §6c"
 ```
 
 **Config (committed, in the same PR as the FACTORY change):**
