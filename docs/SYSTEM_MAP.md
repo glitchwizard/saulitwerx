@@ -6,7 +6,7 @@ Update this file when a crate is added or the data flow changes. The weekly repo
 
 ## Crates and dependency direction
 
-An arrow means "may depend on", per the layering in `ARCHITECTURE.md`: app, then render and io, then kernel and sketch, then core. `swx-core` and `swx-sketch` never depend on the kernel. Solid boxes exist on `main`; dashed boxes are planned. Today no workspace crate depends on another.
+An arrow means "may depend on", per the layering in `ARCHITECTURE.md`: app, then render and io, then kernel and sketch, then core. `swx-core` and `swx-sketch` never depend on the kernel. Solid boxes exist on `main`; dashed boxes are planned. Today the only dependency between workspace crates is `swx-qa` on `swx-kernel`.
 
 ```mermaid
 flowchart TD
@@ -29,7 +29,7 @@ flowchart TD
   sketch --> core
 
   classDef planned stroke-dasharray: 5 5
-  class app,render,io,qa planned
+  class app,render,io planned
 ```
 
 ## Data flow
