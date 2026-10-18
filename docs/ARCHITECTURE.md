@@ -51,9 +51,19 @@ Dependency direction: `app → render, io → kernel, sketch → core`. `core` a
 | `shlex` 2.x | MIT OR Apache-2.0 | swx-kernel (build, via `cc`) | Transitive. |
 | `find-msvc-tools` 0.1 | MIT OR Apache-2.0 | swx-kernel (build, via `cc`) | Transitive. |
 | OpenCascade (OCCT) 7.6.3, system packages | LGPL-2.1 with OCCT exception | swx-kernel (feature `occt`) | Dynamic only (`libTK*.so`); not vendored. |
+| `png` 0.17 | MIT OR Apache-2.0 | swx-qa | Writes QA render PNGs. |
+| `flate2` 1.x | MIT OR Apache-2.0 | swx-qa | Transitive (via `png`). |
+| `miniz_oxide` 0.8, 0.9 | MIT OR Zlib OR Apache-2.0 | swx-qa | Transitive (via `png`, `flate2`). |
+| `fdeflate` 0.3 | MIT OR Apache-2.0 | swx-qa | Transitive (via `png`). |
+| `crc32fast` 1.x | MIT OR Apache-2.0 | swx-qa | Transitive (via `png`, `flate2`). |
+| `adler2` 2.x | 0BSD OR MIT OR Apache-2.0 | swx-qa | Transitive (via `miniz_oxide`). |
+| `simd-adler32` 0.3 | MIT | swx-qa | Transitive (via `fdeflate`, `miniz_oxide`). |
+| `bitflags` 1.x | MIT OR Apache-2.0 | swx-qa | Transitive (via `png`). |
+| `cfg-if` 1.x | MIT OR Apache-2.0 | swx-qa | Transitive (via `crc32fast`). |
 
 ## ADR log
 
 - 2026-10-12: initial stack chosen (this document).
 - 2026-10-13 (M1-01): OCCT binding = thin `extern "C"` shim compiled by `cc`, linked with `cargo:rustc-link-lib=dylib=TK*` against system OCCT (Ubuntu 24.04 `libocct-*-dev` 7.6.3; overridable via `OCCT_INCLUDE_DIR`/`OCCT_LIB_DIR`). Measured clean build of `swx-kernel --features occt`: ~2.2 s (only the shim compiles; OCCT is prebuilt). Cache strategy: apt packages + standard cargo `target/` cache; nothing large to cache. Rejected (not measured in this spike): bundled-source `opencascade-sys` (compiles all of OCCT from source on a cold cache, linked statically by default) and `cxx` (extra proc-macro deps; revisit if the API surface grows). Shim functions are `noexcept` and catch all C++ exceptions.
 - 2026-10-13: native format changed from text-only `.swx` to the `.sltwx` family (ZIP + JSON + optional cache, unpacked-folder form for git). See `docs/specs/FILE_FORMAT.md`.
+- 2026-10-18 (QA-01): new crate `swx-qa` (binary `swx-qa`, `publish = false`): headless CPU renderer for QA evidence. Depends only on `swx-kernel` among workspace crates (feature `occt` forwards to `swx-kernel/occt` for STEP input); pure-Rust PNG output via `png`, no GPU or system graphics libraries.
