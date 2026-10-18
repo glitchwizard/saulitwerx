@@ -15,9 +15,9 @@ The owner wants **slow, steady progress on a tight token budget**. When in doubt
 
 | Role | Schedule | Does |
 |---|---|---|
-| **Builder** | 12:17am and 2:17am ET | Implements up to `issues_per_night` issues per night (`STATE.md`), at most **two** per run, one PR per issue (§3). |
-| **Reviewer + Planner** | 1:17am and 3:17am ET, an hour after each Builder slot | Reviews and merges up to **2** factory PRs per run, then tops up the issue queue. On Monday nights it also runs the weekly retro (§4). |
-| **Reporter** | Mondays 7:56am ET | Weekly summary for the owner. Read-only on GitHub; writes only its weekly section of the status doc (§7a). |
+| **Builder** | 12:17am and 2:17am PT | Implements up to `issues_per_night` issues per night (`STATE.md`), at most **two** per run, one PR per issue (§3). |
+| **Reviewer + Planner** | 1:17am and 3:17am PT, an hour after each Builder slot | Reviews and merges up to **2** factory PRs per run, then tops up the issue queue. On Monday nights it also runs the weekly retro (§4). |
+| **Reporter** | Mondays 7:56am PT | Weekly summary for the owner. Read-only on GitHub; writes only its weekly section of the status doc (§7a). |
 
 ## 2. Work queue (GitHub issues)
 
@@ -40,7 +40,7 @@ Issue title format: `M2-03: Solver constraints: coincident, horizontal, …`. Th
 
 ## 3. Builder protocol
 
-**Night, cap and time box.** A night is the America/New_York date on which a run starts. `issues_per_night` in `STATE.md` caps how many items the Builder takes per night, across all its runs. Note the time when the run starts (`date`). Start no new item after 40 minutes, and wrap up by 60. An item that isn't done by then: push its branch, open its PR as a draft if it has none, label the issue `factory:changes`, comment what's left, and record it as `partial`. The next run continues it and marks the PR ready for review when it's done.
+**Night, cap and time box.** A night is the America/Los_Angeles date on which a run starts. Times in this file are Pacific time (PT), which follows daylight saving. `issues_per_night` in `STATE.md` caps how many items the Builder takes per night, across all its runs. Note the time when the run starts (`TZ=America/Los_Angeles date`). Start no new item after 40 minutes, and wrap up by 60. An item that isn't done by then: push its branch, open its PR as a draft if it has none, label the issue `factory:changes`, comment what's left, and record it as `partial`. The next run continues it and marks the PR ready for review when it's done.
 
 1. Kill-switch check (§0). Read `CLAUDE.md`, `docs/ARCHITECTURE.md` and `CLEAN_ROOM.md`.
 2. **Nightly cap.** Count tonight's non-idle Builder outcome comments on the run log (§6a posts one per item). If the count has reached `issues_per_night`, post an `idle (nightly cap reached)` run-log comment and stop. Otherwise this run may take up to `min(2, issues_per_night − count)` items.
@@ -217,7 +217,7 @@ Ship state is one per project, so a two-item run records its items one after the
 
 About 6 steps per item at most: decisions, not narration. Set `execution_ref` to the issue (`issue:#32`) and mark the run's last step `is_final_step`. Subagents record their own steps. Never put secrets, tokens or long logs in a step.
 
-At the end of the run, `think_export_trace` with `format: markdown`, and commit the output to `qa-artifacts` as `runs/<night>-<role>-<HHMM>/think-trace.md` (`<HHMM>` = the run's ET start time). It is text, so the Reviewer may push it through the GitHub connector. Builder QA reports link it in (b). A run that stops at the kill switch or is idle records nothing.
+At the end of the run, `think_export_trace` with `format: markdown`, and commit the output to `qa-artifacts` as `runs/<night>-<role>-<HHMM>/think-trace.md` (`<HHMM>` = the run's PT start time). It is text, so the Reviewer may push it through the GitHub connector. Builder QA reports link it in (b). A run that stops at the kill switch or is idle records nothing.
 
 **Without the server.** If the tools aren't available, say so in the outcome comment, and for a Builder also in QA report sections (b) and (e), and report the gates as before. The verdict is then at most `pass with gaps`.
 
