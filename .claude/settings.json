@@ -1,3 +1,16 @@
 {
-  "enabledMcpjsonServers": ["think-and-ship"]
+  "enabledMcpjsonServers": [
+    "think-and-ship"
+  ],
+  "permissions": {
+    "allow": [
+      "mcp__Claude_Docs__batch",
+      "mcp__Claude_Docs__update",
+      "mcp__Claude_Docs__read",
+      "mcp__Claude_Docs__guide",
+      "mcp__Claude_Docs__create",
+      "mcp__Claude_Docs__query",
+      "mcp__Claude_Docs__export"
+    ]
+  }
 }
