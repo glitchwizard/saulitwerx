@@ -71,3 +71,5 @@ jobs:
           key: occt-7.6
       - run: cargo clippy -p swx-kernel --all-targets --features occt -- -D warnings
       - run: cargo test -p swx-kernel --features occt
+      - run: cargo clippy -p swx-qa --all-targets --features occt -- -D warnings
+      - run: cargo test -p swx-qa --features occt
