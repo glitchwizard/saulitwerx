@@ -13,6 +13,12 @@ issues_per_night: 2
 
 ## Log
 
+- 2026-10-21 reviewer: merged #48 (M2-02; CI green, 3 checks; QA report + ship report verified; local gates on merge result exit 0); checked off M2-02; no new issues needed (ready: #25, #28, #49)
+- 2026-10-21 builder: idle (no qualifying item; #25/#28/#49 wait on #22 in review)
+- 2026-10-21 builder: #22 M2-02 → PR #48 QA report posted (send-back fix; CI green, 3 checks; think-and-ship gates verified)
+- 2026-10-20 builder: idle (no qualifying item; #25/#28 wait on #22; #47/#48 still await review)
+- 2026-10-20 builder: idle (no qualifying item; #25/#28 wait on #22; #47/#48 await review)
+- 2026-10-19 builder: idle (nightly cap reached; #47 and #48 opened by the 12:17am run lack QA reports and outcome comments)
 - 2026-10-18 reviewer: merged #38 (QA-01; CI green, 3 checks; QA report and 3 images checked); checked off QA-01; no new issues needed (ready: #22, #25, #28, #39); branch feat/32-swx-qa-render not deleted (API write blocked)
 - 2026-10-18 builder: #32 QA-01 → PR #38 (CI green; 3 checks; no think-and-ship)
 - 2026-10-17 reviewer: merged #27 (M2-01; CI green, 3 checks); checked off M2-01; planned #28 M2-04 (ready: #22, #25, #28); branch feat/18-sketch-geometry not deleted (API write blocked)
