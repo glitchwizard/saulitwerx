@@ -1,0 +1,79 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "M2-02 solver core, head a074e07",
+      "ref": "https://github.com/glitchwizard/saulitwerx/pull/48",
+      "task_id": "qa-pr48",
+      "type": "pr"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "qa-pr48",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "passed": true,
+      "required": true,
+      "task_id": "qa-pr48",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "required": true,
+      "task_id": "qa-pr48",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "A `Residuals` trait (or equivalent) with: number of residuals, number of parameters, `residuals(&[f64], &mut [f64])`, and an optional analytic `jacobian`; a default forward-difference Jacobian (step ~1e-7 relative) is provided when no analytic one is given.",
+      "`solve(problem, &mut params, SolveOptions) -> SolveReport`, where the report has: `converged: bool`, `iterations`, `final_residual_norm`, and a `reason` enum (`Converged`, `MaxIterations`, `Stagnated`, `NonFinite`). `SolveOptions` has defaults: tolerance 1e-10 on the residual norm, 100 max iterations.",
+      "LM damping: lambda is increased when a step fails to reduce the residual norm and decreased when it succeeds; a rejected step never changes `params`.",
+      "Tests (tolerance 1e-8 on solutions unless stated): (a) linear system x + y = 3, x − y = 1 converges to (2, 1) in ≤ 3 iterations; (b) intersection of circle x²+y²=25 and line y = x + 1 from start (1, 1) converges to (3, 4); (c) the same with the forward-difference Jacobian gives the same solution within 1e-6; (d) an already-satisfied system reports 0 iterations and `Converged`; (e) a consistent but under-determined system (1 equation, 2 unknowns) converges to a point satisfying the equation (residual norm < 1e-10) without panicking; (f) an inconsistent system (x = 0 and x = 1) reports `converged == false` and leaves `params` finite.",
+      "Non-finite residuals or parameters return `NonFinite` rather than panicking or looping; dimension mismatches return an error.",
+      "No `unsafe`; no new dependencies.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` passes.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-10-21T07:20:09.221885868+00:00",
+    "constraints": [],
+    "created_at": "2026-10-21T07:19:57.002127865+00:00",
+    "description": "M2-02: Solver core: residual/Jacobian assembly, damped Newton / LM, convergence reporting",
+    "project_id": "saulitwerx",
+    "scope": "",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 3,
+      "estimate": "small",
+      "id": "qa-pr48",
+      "status": "completed",
+      "title": "QA PR #48 head a074e07: gates, scenarios, report",
+      "type": "test"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
