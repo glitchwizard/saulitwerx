@@ -11,7 +11,12 @@
 //! | [`Circle`] | 3 | cx, cy, r |
 //! | [`Arc`] | 5 | cx, cy, r, a0, a1 (radians, counter-clockwise) |
 //!
+//! The [`solver`] module solves systems of residual equations over that
+//! vector.
+//!
 //! This crate must never depend on the geometry kernel (docs/ARCHITECTURE.md).
+
+pub mod solver;
 
 use std::f64::consts::TAU;
 use std::fmt;
