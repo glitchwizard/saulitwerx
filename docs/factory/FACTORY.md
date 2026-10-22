@@ -17,7 +17,7 @@ The owner wants **slow, steady progress on a tight token budget**. When in doubt
 |---|---|---|
 | **Builder** | 12:17am and 2:17am PT | Implements up to `issues_per_night` issues per night (`STATE.md`), at most **two** per run, one PR per issue (§3). |
 | **Reviewer + Planner** | 1:17am and 3:17am PT, an hour after each Builder slot | Reviews and merges up to **2** factory PRs per run, then tops up the issue queue. On Monday nights it also runs the weekly retro (§4). |
-| **Documenter** | 4:17am PT, after the last Reviewer slot | Keeps the user manual (`docs/manual/`) current with what merged that night, and merges its own manual PR (§4a, §6d). |
+| **Documenter** | 4:17am PT, after the last Reviewer slot | Writes and designs the user manual (a PDF built from `docs/manual/`), keeps it current with what merged, and merges its own manual PR (§4a, §6d). |
 | **Reporter** | Mondays 7:56am PT | Weekly summary for the owner. Read-only on GitHub; writes only its weekly section of the status doc (§7a). |
 
 ## 2. Work queue (GitHub issues)
@@ -108,22 +108,24 @@ Finish the run with outcome comments (§6a).
 
 ## 4a. Documenter protocol
 
-One run a night, after the last Reviewer slot. It writes the user manual (§6d) from what is on `main`, the way a user would meet it: it runs every command and example it describes.
+One run a night, after the last Reviewer slot. It writes and designs the user manual (§6d), and it meets the product the way a user would: it runs every procedure it describes. Quality comes first in this role: a chapter that isn't good enough yet waits for the next run rather than shipping rough.
 
-1. Kill-switch check (§0). Read `CLAUDE.md`, `CLEAN_ROOM.md` and §6d.
-2. **Anything new?** `docs/manual/README.md` ends with `<!-- manual-synced-to: <sha> -->`, the newest `main` commit the manual fully describes. If no commit since then changed anything under `crates/` outside `examples/`, stop: no PR and no comment. If there is no manual yet, write the first one, covering everything on `main`.
-3. For each PR merged since that commit, oldest first, read its issue, diff and QA report, and work out what a user can now do or see. Internal changes (CI, refactors, tests only) get no manual change.
-4. If an earlier manual PR of yours is still open, finish that one: merge `main` into its branch and carry on there. Otherwise branch `docs/manual-<night>` from `main`. Write or update the pages, run every command and example exactly as the page shows it, paste the real output, and make the pictures with the tools (§6d). Add one **What's new** line per user-visible change, and move the marker to the newest commit you fully documented.
-5. Run the §3 step 7 gates, push, open a PR titled `docs(manual): <night>`, and wait for CI.
-6. **Merge it yourself** (squash) when CI is green and the diff touches only `docs/manual/`, `crates/*/examples/`, `[[example]]` entries in a crate's `Cargo.toml`, and the manual link in `README.md`. Anything else is out of scope: leave it out and open an issue for it.
-7. When a how-to fails, or a capability can't be used the way its issue promised, don't paper over it. Write what actually happens, and open one issue per problem (at most 2 per run) with the §2 sections, labeled `factory:ready`, plus `priority` only when something on `main` is broken.
-8. Post one run-log comment (§6a) with the PR link and the run's STATE line.
+1. Kill-switch check (§0). Read `CLAUDE.md`, `CLEAN_ROOM.md`, §6d, and `docs/manual/STYLE.md` and `docs/manual/COVERAGE.md` if they exist.
+2. **Anything to do?** There is work when the open `manual-feedback` issue has owner comments you haven't answered, when a commit since the marker on the first line of `COVERAGE.md` (`manual-synced-to: <sha>`) changed anything under `crates/` outside `examples/`, or when `COVERAGE.md` lists backlog. Otherwise stop: no PR and no comment. If there is no manual yet, build the first one: the design (template and `STYLE.md`), the structure, and everything on `main`.
+3. Work in this order: owner feedback, then the PRs merged since the marker (oldest first: read each one's issue, diff and QA report, and work out what a user can now do or see), then backlog. Internal changes (CI, refactors, tests only) need no manual change.
+4. If an earlier manual PR of yours is still open, finish that one: merge `main` into its branch and carry on there. Otherwise branch `docs/manual-<night>` from `main`. Write and design, regenerate the pictures, and follow every changed procedure exactly as written. Update **What's new** and `COVERAGE.md`, and move the marker to the newest commit you fully documented.
+5. Run the §6d quality check. Run the §3 step 7 gates when you changed anything under `crates/`.
+6. Build the PDF with `docs/manual/build.sh docs/manual/Saulitwerx-User-Manual.pdf` and commit it with the source. Push, open a PR titled `docs(manual): <night>` with previews of the changed pages, and wait for CI.
+7. **Merge it yourself** (squash) when CI is green and the diff touches only `docs/manual/`, `crates/*/examples/`, `[[example]]` entries in a crate's `Cargo.toml`, the manual link in `README.md`, and new rows in the `docs/ARCHITECTURE.md` dependency register for the manual's fonts and tools. Anything else is out of scope: leave it out and open an issue for it.
+8. Reply on the `manual-feedback` issue to each owner comment you handled, with the PR link, or why you didn't change it.
+9. When a procedure fails, or a capability can't be used the way its issue promised, don't paper over it. Document what actually happens, and open one issue per problem (at most 2 per run) with the §2 sections, labeled `factory:ready`, plus `priority` only when something on `main` is broken.
+10. Post one run-log comment (§6a) with the PR link and the run's STATE line.
 
-Time box: start no new section after 30 minutes, and wrap up by 45. Merge what's done; the rest waits for the next run.
+Time box: start no new chapter after 60 minutes, and wrap up by 90. Merge what meets the quality bar; list the rest in `COVERAGE.md` as backlog for the next run.
 
 ## 5. Budget rules (hard)
 
-- Builder: at most `issues_per_night` issues per night (`STATE.md`), at most two per run, inside the §3 time box. Reviewer: two PRs and at most three new issues per run, plus one retro PR with at most three changes on Monday nights. Documenter: one run and at most one manual PR per night, at most 8 new or changed images and 2 new issues per run. Reporter: read-only on GitHub, one status-doc section per week.
+- Builder: at most `issues_per_night` issues per night (`STATE.md`), at most two per run, inside the §3 time box. Reviewer: two PRs and at most three new issues per run, plus one retro PR with at most three changes on Monday nights. Documenter: one run and at most one manual PR per night, and at most 2 new issues per run, inside its §4a time box. Reporter: read-only on GitHub, one status-doc section per week.
 - A subagent gets its issue and the files the issue touches, plus the docs listed in §3 step 1. Nothing else.
 - Don't explore the codebase broadly. Read only what the issue touches, plus the docs listed above.
 - Don't vendor or build large C++ dependencies from source inside a run unless the issue requires it and caching is in place.
@@ -241,23 +243,54 @@ Never run `think-and-ship init`, `connect` or `trace promote`, and never set `TH
 
 ## 6d. User manual (`docs/manual/`)
 
-The manual shows what Saulitwerx can do today and how to do it, with pictures. The Documenter writes it (§4a); Builders leave `docs/manual/` alone. It lives on `main`, so GitHub renders it and it is current every morning. The owner reads it to follow the work.
+The user manual is a professionally designed PDF that teaches anyone, including someone who has never used CAD, to use what Saulitwerx can do today. Quality comes first. The Documenter writes and designs it (§4a), with the freedom to make the editorial and design decisions a professional technical writer and designer would, within this section. Builders leave `docs/manual/` alone.
 
-**Layout:**
+**Source and build:**
 
-- `docs/manual/README.md` is the front page. **What's new** comes first, newest first: one line per user-visible change with the night (§3), what a user can now do, and a link to the section that shows it. Then **What you can do today**: one row per capability, linking to its page. Last, the `manual-synced-to` marker (§4a).
-- One page per area, named for what the user does: `render.md`, `solids.md`, `sketch.md`, and so on. Each section says what the capability does, gives the steps, and shows the result.
-- Images go in `docs/manual/img/`: PNG, under 300 KB each. Directly under each image, an HTML comment holds the exact command that made it: `<!-- regen: <command> -->`.
+- Written in Typst (Apache-2.0). `docs/manual/manual.typ` is the entry point, and `docs/manual/build.sh <out.pdf>` builds the PDF. The script downloads a pinned Typst release from its GitHub releases page when it's missing and checks its SHA-256. Start from 0.15.1: `typst-x86_64-unknown-linux-musl.tar.xz`, SHA-256 `a6d077d0a95eed5a2eba715b2dae06be954f624ccbf85758a03f389ded33118c`.
+- Core Typst only. Its package registry isn't reachable from runs, so write any helpers (callouts, index, glossary, figure styles) in the manual's own template.
+- Fonts: Typst's built-in fonts, or open-licensed (OFL) fonts kept in `docs/manual/fonts/` with their license files. Each font or tool you add gets a row in the `ARCHITECTURE.md` dependency register.
+- The built PDF is committed as `docs/manual/Saulitwerx-User-Manual.pdf`, in the same PR as the source change that produced it, and never on its own. That is the copy the owner reads: https://github.com/glitchwizard/saulitwerx/blob/main/docs/manual/Saulitwerx-User-Manual.pdf. Its cover names the `main` commit it describes and the build date.
+- Every commit of the PDF adds a full copy to the repository's history, so keep it lean: under 10 MB. Typst already subsets fonts; keep images at the resolution print needs and no more.
 
-**How-to, by stage:**
+**Structure.** The Documenter may refine it, and keeps the outline in `STYLE.md`.
 
-- A command (`swx-qa`, later `sltwx`): the exact command and its real output, in a code block.
-- A capability with no command or app yet (most of M2 to M4): a short program in the crate's `examples/` that the page quotes, how to run it (`cargo run -p <crate> --example <name>`), and its real output. The §3 gates build examples, so quoted code that stops compiling fails them.
-- From M5-01, the app: numbered steps, with a screenshot of the real window after each step that changes what's on screen (under Xvfb, or with the MB-01 harness once it exists).
+1. **Front matter:** a cover with the build date and `main` commit, how to use this manual, and the table of contents.
+2. **Getting started:** what Saulitwerx is, installing and starting it, and a first-project tutorial that gets a beginner to a real result in about 15 minutes.
+3. **Concepts:** the ideas behind parametric CAD in plain words (sketch, constraint, dimension, parameter, feature, history, solid, units), each with a picture, before any procedure relies on them.
+4. **Tasks,** grouped the way a user works: sketching, part features, parameters, files and exchange, and later assemblies and drawings. For each feature: what it's for, when to use it, numbered steps, the result, tips, and common mistakes.
+5. **Reference:** every command, tool, option and setting, with what it does, its default and its allowed values. Also keyboard and mouse controls, file formats and units.
+6. **Help:** troubleshooting by symptom, every error message a user can see with what it means and what to do, an FAQ, and known limitations.
+7. **Back matter:** a glossary; **What's new**, newest first, dated by night; **Coming next**, one page on the next roadmap items; a one-page quick-reference card; credits and licenses, including third-party notices; and an index.
 
-**Pictures** come from tools, never drawn by hand: `swx-qa render` for solids, `swx-qa sketch` for sketches once QA-02 exists, and app screenshots from M5. The QA reports' images and captions (§6b (d)) are a good start, but the manual keeps its own copies with `regen` comments. When the tool for a picture doesn't exist yet, the section says `No picture yet: <tool> not built yet`. When a change alters how something already in the manual looks or works, show before and after.
+**Coverage:** the manual covers everything a user can do or set on `main`: every command, tool, option and app setting. `docs/manual/COVERAGE.md` lists each one, found from the code, the roadmap and `PRODUCT.md`, with the section that covers it. Anything built but not yet documented is listed there as backlog. Nothing unbuilt is described as if it worked.
 
-**Words:** plain and short, for someone who knows mechanical CAD but not this program. Follow `CLEAN_ROOM.md`: never name or show another product.
+**Writing:**
+
+- Written for a lay reader: plain language, short sentences, one task per section.
+- Explain each idea the way a good intro course would: what it is, why it matters, a small example, then how to do it.
+- Define every term where it first appears, and in the glossary.
+- Numbered steps start with a verb and say what you should see afterwards.
+- Keep `STYLE.md` (voice, terms, capitalization, visual conventions) and follow it, so the manual reads as one book however many nights wrote it.
+- Follow `CLEAN_ROOM.md`: never name or show another product, and don't imitate another vendor's manual.
+
+**Pictures:**
+
+- Made by tools, never drawn by hand: `swx-qa render` for solids, `swx-qa sketch` once QA-02 exists, and app screenshots from M5-01 on (under Xvfb, or with the MB-01 harness). In the app, add a screenshot after each step that changes the screen.
+- Before M5 there is no app. How-tos then use the real command line, or a short program in a crate's `examples/` (quoted, with how to run it and its real output), in a part marked for developers. The beginner's path starts with the app.
+- Sharp in print: at least 200 dpi at printed size. PNG files in `docs/manual/img/`, each under 1 MB, with the command that made it in a comment next to it in the source.
+- Annotations (numbered markers, arrows, highlights, labels) are drawn by the template on top of the image, never painted into it, so a regenerated image keeps them.
+- Every figure has a caption and alt text. When a change alters something already shown, show before and after.
+
+**Owner feedback:** the owner comments on the open issue labeled `manual-feedback`. Every Documenter run deals with that feedback first.
+
+**Quality check** (the Documenter, before every merge):
+
+- The PDF builds with no Typst warnings.
+- Render every changed page to PNG and look at each one: text or code running off the page, bad page breaks, a heading stranded at the bottom of a page, blurry or tiny images, inconsistent styling.
+- Follow every changed procedure from a clean start, exactly as written.
+- The table of contents, cross-references and index are correct.
+- The PR body shows previews of the changed pages: images on `qa-artifacts` under `pr-<N>/`, as in §6b.
 
 ## 7. GitHub access
 
