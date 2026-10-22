@@ -1,0 +1,85 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(sketch): DOF analysis",
+      "ref": "c08d404",
+      "task_id": "m2-05-dof",
+      "type": "commit"
+    },
+    {
+      "description": "M2-05 PR",
+      "ref": "https://github.com/glitchwizard/saulitwerx/pull/52",
+      "task_id": "m2-05-dof",
+      "type": "pr"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "m2-05-dof",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "passed": true,
+      "required": true,
+      "task_id": "m2-05-dof",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "required": true,
+      "task_id": "m2-05-dof",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`analyze(problem: &dyn Residuals, params: &[f64], options) -> DofReport`, where the report has: `dof: usize` (n − rank), `rank: usize`, `redundant: Vec<usize>` (indices of residual rows that are linearly dependent on earlier rows), and `state` ∈ {`UnderConstrained`, `FullyConstrained`, `OverConstrained`, `Conflicting`}. Dimension mismatches return an error, the same way `solve` does.",
+      "The state rules: `Conflicting` if the residual norm at `params` is > 1e-8 and there is at least one redundant row; otherwise `OverConstrained` if there is a redundant row; otherwise `UnderConstrained` if dof > 0; otherwise `FullyConstrained`.",
+      "Rank uses a relative tolerance (default 1e-9 × the largest |Rᵢᵢ|, configurable). The Jacobian comes from `Residuals::jacobian`, or from a forward difference when that isn't provided, the same way as in the solver.",
+      "Tests at the solved point (from `solve`, or given exactly): (a) a free point (2 params, 0 residuals): dof 2, `UnderConstrained`; (b) a point with x = 1 and y = 2: dof 0, `FullyConstrained`; (c) a line segment (4 params) with x0 = 0, y0 = 0, y1 = y0 and length 5 (`(x1−x0)² + (y1−y0)² − 25`) solved from (0, 0, 4, 1): dof 0, `FullyConstrained`; (d) case (b) plus a duplicate x = 1: rank 2, `redundant == [2]`, `OverConstrained`; (e) case (b) plus x = 3: `Conflicting`, and `redundant` contains the conflicting row; (f) a circle (3 params) with only its center fixed: dof 1.",
+      "Non-finite parameters or Jacobian entries return an error or a `NonFinite` state, never a panic.",
+      "No `unsafe`; no new dependencies; `swx-sketch` still doesn't depend on `swx-kernel`.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` passes.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-10-22T09:21:36.258601696+00:00",
+    "constraints": [],
+    "created_at": "2026-10-22T09:21:22.758509016+00:00",
+    "description": "M2-05: DOF analysis: report under-, fully- and over-constrained states, and conflicting constraints",
+    "project_id": "saulitwerx",
+    "scope": "",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 2,
+      "checks_count": 3,
+      "estimate": "medium",
+      "id": "m2-05-dof",
+      "status": "completed",
+      "title": "Implement swx-sketch::dof analyze with tests (PR #52)",
+      "type": "implement"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
