@@ -12,10 +12,12 @@
 //! | [`Arc`] | 5 | cx, cy, r, a0, a1 (radians, counter-clockwise) |
 //!
 //! The [`solver`] module solves systems of residual equations over that
-//! vector.
+//! vector, and the [`dof`] module reports how many degrees of freedom such a
+//! system leaves and which of its equations are redundant or conflicting.
 //!
 //! This crate must never depend on the geometry kernel (docs/ARCHITECTURE.md).
 
+pub mod dof;
 pub mod solver;
 
 use std::f64::consts::TAU;

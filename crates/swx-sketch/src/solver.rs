@@ -212,16 +212,16 @@ pub fn solve(
     }
 }
 
-fn all_finite(values: &[f64]) -> bool {
+pub(crate) fn all_finite(values: &[f64]) -> bool {
     values.iter().all(|v| v.is_finite())
 }
 
-fn norm2(values: &[f64]) -> f64 {
+pub(crate) fn norm2(values: &[f64]) -> f64 {
     values.iter().map(|v| v * v).sum::<f64>().sqrt()
 }
 
 /// Forward-difference Jacobian, `h = 1e-7·max(|xⱼ|, 1)`.
-fn forward_difference(
+pub(crate) fn forward_difference(
     problem: &dyn Residuals,
     params: &[f64],
     r: &[f64],
