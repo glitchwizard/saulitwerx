@@ -4,6 +4,8 @@ An open-source, parametric 3D CAD modeler for mechanical design, written in Rust
 
 > **Status: pre-alpha.** Nothing here is usable for real work yet. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
+**User manual:** [docs/manual/Saulitwerx-User-Manual.pdf](docs/manual/Saulitwerx-User-Manual.pdf) describes what works today and how to try it.
+
 ## Goals
 
 - History-based part modeling: a feature tree you can edit and rebuild, driven by named parameters.

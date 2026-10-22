@@ -60,6 +60,8 @@ Dependency direction: `app → render, io → kernel, sketch → core`. `core` a
 | `simd-adler32` 0.3 | MIT | swx-qa | Transitive (via `fdeflate`, `miniz_oxide`). |
 | `bitflags` 1.x | MIT OR Apache-2.0 | swx-qa | Transitive (via `png`). |
 | `cfg-if` 1.x | MIT OR Apache-2.0 | swx-qa | Transitive (via `crc32fast`). |
+| Typst 0.15.1 (release binary, SHA-256 pinned) | Apache-2.0 | docs/manual (build tool) | Typesets the user manual; fetched by `docs/manual/build.sh`, not vendored. |
+| Inter 4.0 font (Regular, Italic, SemiBold, Bold) | OFL-1.1 | docs/manual | Headings and labels; files and license in `docs/manual/fonts/`. |
 
 ## ADR log
 
