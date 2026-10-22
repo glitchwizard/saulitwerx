@@ -13,6 +13,9 @@ issues_per_night: 2
 
 ## Log
 
+- 2026-10-22 reviewer: merged #51 (M2-03; CI green, 3 checks; QA report + ship report verified; local gates on merge result exit 0); checked off M2-03; sent back #52 (M2-05: conflicts with main after #51); planned #54 QA-02 and #55 M2-06 (ready: #28, #54, #55)
+- 2026-10-22 builder: #49 M2-05 → PR #52 (CI green, 3 checks; think-and-ship gates verified)
+- 2026-10-22 builder: #25 M2-03 → PR #51 (CI green, 3 checks; think-and-ship gates verified)
 - 2026-10-21 reviewer: merged #48 (M2-02; CI green, 3 checks; QA report + ship report verified; local gates on merge result exit 0); checked off M2-02; no new issues needed (ready: #25, #28, #49)
 - 2026-10-21 builder: idle (no qualifying item; #25/#28/#49 wait on #22 in review)
 - 2026-10-21 builder: #22 M2-02 → PR #48 QA report posted (send-back fix; CI green, 3 checks; think-and-ship gates verified)
