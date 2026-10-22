@@ -28,7 +28,7 @@ Tools the Builder uses for the visuals in its QA reports (FACTORY §6b).
 
 - [x] M2-01 `swx-sketch` geometry: point, line segment, circle, arc. Parameter vector layout.
 - [x] M2-02 Solver core: residual/Jacobian assembly, damped Newton / LM, convergence reporting.
-- [ ] M2-03 Constraints: coincident, horizontal, vertical, fixed, distance, radius/diameter.
+- [x] M2-03 Constraints: coincident, horizontal, vertical, fixed, distance, radius/diameter.
 - [ ] M2-04 Constraints: parallel, perpendicular, tangent (line–arc, arc–arc), equal, midpoint, symmetric.
 - [ ] M2-05 DOF analysis: report under-, fully- and over-constrained states, and conflicting constraints.
 - [ ] M2-06 Profile extraction: closed loops → regions with holes, ready for the kernel.
