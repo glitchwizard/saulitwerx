@@ -17,6 +17,7 @@ The owner wants **slow, steady progress on a tight token budget**. When in doubt
 |---|---|---|
 | **Builder** | 12:17am and 2:17am PT | Implements up to `issues_per_night` issues per night (`STATE.md`), at most **two** per run, one PR per issue (§3). |
 | **Reviewer + Planner** | 1:17am and 3:17am PT, an hour after each Builder slot | Reviews and merges up to **2** factory PRs per run, then tops up the issue queue. On Monday nights it also runs the weekly retro (§4). |
+| **Documenter** | 4:17am PT, after the last Reviewer slot | Keeps the user manual (`docs/manual/`) current with what merged that night, and merges its own manual PR (§4a, §6d). |
 | **Reporter** | Mondays 7:56am PT | Weekly summary for the owner. Read-only on GitHub; writes only its weekly section of the status doc (§7a). |
 
 ## 2. Work queue (GitHub issues)
@@ -105,9 +106,24 @@ The first Reviewer run of each Monday night (§3) runs a retro after Plan, over 
 
 Finish the run with outcome comments (§6a).
 
+## 4a. Documenter protocol
+
+One run a night, after the last Reviewer slot. It writes the user manual (§6d) from what is on `main`, the way a user would meet it: it runs every command and example it describes.
+
+1. Kill-switch check (§0). Read `CLAUDE.md`, `CLEAN_ROOM.md` and §6d.
+2. **Anything new?** `docs/manual/README.md` ends with `<!-- manual-synced-to: <sha> -->`, the newest `main` commit the manual fully describes. If no commit since then changed anything under `crates/` outside `examples/`, stop: no PR and no comment. If there is no manual yet, write the first one, covering everything on `main`.
+3. For each PR merged since that commit, oldest first, read its issue, diff and QA report, and work out what a user can now do or see. Internal changes (CI, refactors, tests only) get no manual change.
+4. If an earlier manual PR of yours is still open, finish that one: merge `main` into its branch and carry on there. Otherwise branch `docs/manual-<night>` from `main`. Write or update the pages, run every command and example exactly as the page shows it, paste the real output, and make the pictures with the tools (§6d). Add one **What's new** line per user-visible change, and move the marker to the newest commit you fully documented.
+5. Run the §3 step 7 gates, push, open a PR titled `docs(manual): <night>`, and wait for CI.
+6. **Merge it yourself** (squash) when CI is green and the diff touches only `docs/manual/`, `crates/*/examples/`, `[[example]]` entries in a crate's `Cargo.toml`, and the manual link in `README.md`. Anything else is out of scope: leave it out and open an issue for it.
+7. When a how-to fails, or a capability can't be used the way its issue promised, don't paper over it. Write what actually happens, and open one issue per problem (at most 2 per run) with the §2 sections, labeled `factory:ready`, plus `priority` only when something on `main` is broken.
+8. Post one run-log comment (§6a) with the PR link and the run's STATE line.
+
+Time box: start no new section after 30 minutes, and wrap up by 45. Merge what's done; the rest waits for the next run.
+
 ## 5. Budget rules (hard)
 
-- Builder: at most `issues_per_night` issues per night (`STATE.md`), at most two per run, inside the §3 time box. Reviewer: two PRs and at most three new issues per run, plus one retro PR with at most three changes on Monday nights. Reporter: read-only on GitHub, one status-doc section per week.
+- Builder: at most `issues_per_night` issues per night (`STATE.md`), at most two per run, inside the §3 time box. Reviewer: two PRs and at most three new issues per run, plus one retro PR with at most three changes on Monday nights. Documenter: one run and at most one manual PR per night, at most 8 new or changed images and 2 new issues per run. Reporter: read-only on GitHub, one status-doc section per week.
 - A subagent gets its issue and the files the issue touches, plus the docs listed in §3 step 1. Nothing else.
 - Don't explore the codebase broadly. Read only what the issue touches, plus the docs listed above.
 - Don't vendor or build large C++ dependencies from source inside a run unless the issue requires it and caching is in place.
@@ -122,29 +138,29 @@ Add one line at the top of the `## Log` section and keep only the newest 30 line
 - 2026-10-13 builder: #12 M2-01 → PR #15 (CI green)
 ```
 
-Only the Reviewer commits `STATE.md`, through its `docs/` PR (§4). Builders never touch `STATE.md`, because two Builder PRs editing it would conflict. A Builder puts one line per item, or one `idle` line, in its run-log comments (§6a). The Reviewer copies every Builder line posted since its previous run into `STATE.md`, then adds its own.
+Only the Reviewer commits `STATE.md`, through its `docs/` PR (§4). Builders never touch `STATE.md`, because two Builder PRs editing it would conflict. A Builder puts one line per item, or one `idle` line, in its run-log comments (§6a); the Documenter puts one line per run that acts. The Reviewer copies every Builder and Documenter line posted since its previous run into `STATE.md`, then adds its own.
 
 ## 6a. Outcome comments (every run that acts)
 
-Every Builder and Reviewer run ends by posting outcome comments, so the owner can see what happened without opening run transcripts. A run that stops at the kill switch (§0) posts nothing.
+Every Builder, Reviewer and Documenter run ends by posting outcome comments, so the owner can see what happened without opening run transcripts. A run that stops at the kill switch (§0) posts nothing, and so does a Documenter run with nothing new (§4a step 2).
 
 **Where:**
 
 - **Builder:** one comment on each issue it worked on. For a red-`main` fix with no issue, comment on the PR.
 - **Reviewer:** one comment on each PR it reviewed (this is the verdict), plus one run summary covering merges, send-backs and issues created.
-- **Every run, including idle ones:** run-summary comments on the **factory run log** issue (label `factory:log`): one per item for the Builder (so §3 step 2 can count items), one per run for the Reviewer, one for an idle run. If that issue doesn't exist, create it, titled "Factory run log".
+- **Every run, including idle ones:** run-summary comments on the **factory run log** issue (label `factory:log`): one per item for the Builder (so §3 step 2 can count items), one per run for the Reviewer and the Documenter, one for an idle run. If that issue doesn't exist, create it, titled "Factory run log".
 
 **Format** (plain Markdown, at most about 200 words):
 
 ```
-**Outcome: completed | partial | stalled | idle** (builder|reviewer, YYYY-MM-DD)
+**Outcome: completed | partial | stalled | idle** (builder|reviewer|documenter, YYYY-MM-DD)
 
 **What happened:** 1–3 sentences.
 **How:** approach and key decisions, crates/files touched, tests added, PR link, CI result.
 **Stalled because:** (partial/stalled only) the concrete blocker and what was tried, at most 3 bullets.
 **Recommended fix:** the specific next action and who owns it: `owner` or `factory`.
 **Next:** what the factory will do on its next run.
-**STATE:** the run's `STATE.md` log line (Builder only, §6).
+**STATE:** the run's `STATE.md` log line (Builder and Documenter, §6).
 ```
 
 `YYYY-MM-DD` is the night the run belongs to (§3), not the UTC date.
@@ -176,7 +192,7 @@ Every Builder PR gets a QA report: hands-on evidence that the change works, beyo
   - **something brand new:** its outcome;
   - **a new way to do something that used to be clumsy or impossible:** the old way next to the new one, for example a test asserting a number next to a render of the shape, or a long manual sequence next to the one new step.
 
-  Each image gets a one-line caption saying what it should show. The weekly status report (§7a) reuses these images and captions, so write captions for the owner, not only the Reviewer. If the change has nothing visual, write `Nothing visual: <reason>`. If the tool it needs doesn't exist yet, write `No visual: <tool> not available yet` and list that in (e).
+  Each image gets a one-line caption saying what it should show. The weekly status report (§7a) and the user manual (§6d) reuse these images and captions, so write captions for the owner, not only the Reviewer. If the change has nothing visual, write `Nothing visual: <reason>`. If the tool it needs doesn't exist yet, write `No visual: <tool> not available yet` and list that in (e).
 - **(e) Known gaps.** Everything QA did not cover or could not verify, and anything deferred, with follow-up issue numbers. Write `None` if there are none.
 - **(f) Verdict.** `pass`: every criterion is met and verified, and (e) is `None`. `pass with gaps`: every criterion is met, and (e) lists what QA could not cover. An unmet criterion is not a gap: fix it before posting. If you can't fix it in this run, post no verdict; the run is `stalled` (§6a).
 
@@ -223,6 +239,26 @@ At the end of the run, `think_export_trace` with `format: markdown`, and commit 
 
 Never run `think-and-ship init`, `connect` or `trace promote`, and never set `THINK_AND_SHIP_SYNC_TARGET`, `THINK_AND_SHIP_SHARED` or `THINK_AND_SHIP_MODEL_ID`. They write into the repo, add AI attribution, or send records to a third-party service.
 
+## 6d. User manual (`docs/manual/`)
+
+The manual shows what Saulitwerx can do today and how to do it, with pictures. The Documenter writes it (§4a); Builders leave `docs/manual/` alone. It lives on `main`, so GitHub renders it and it is current every morning. The owner reads it to follow the work.
+
+**Layout:**
+
+- `docs/manual/README.md` is the front page. **What's new** comes first, newest first: one line per user-visible change with the night (§3), what a user can now do, and a link to the section that shows it. Then **What you can do today**: one row per capability, linking to its page. Last, the `manual-synced-to` marker (§4a).
+- One page per area, named for what the user does: `render.md`, `solids.md`, `sketch.md`, and so on. Each section says what the capability does, gives the steps, and shows the result.
+- Images go in `docs/manual/img/`: PNG, under 300 KB each. Directly under each image, an HTML comment holds the exact command that made it: `<!-- regen: <command> -->`.
+
+**How-to, by stage:**
+
+- A command (`swx-qa`, later `sltwx`): the exact command and its real output, in a code block.
+- A capability with no command or app yet (most of M2 to M4): a short program in the crate's `examples/` that the page quotes, how to run it (`cargo run -p <crate> --example <name>`), and its real output. The §3 gates build examples, so quoted code that stops compiling fails them.
+- From M5-01, the app: numbered steps, with a screenshot of the real window after each step that changes what's on screen (under Xvfb, or with the MB-01 harness once it exists).
+
+**Pictures** come from tools, never drawn by hand: `swx-qa render` for solids, `swx-qa sketch` for sketches once QA-02 exists, and app screenshots from M5. The QA reports' images and captions (§6b (d)) are a good start, but the manual keeps its own copies with `regen` comments. When the tool for a picture doesn't exist yet, the section says `No picture yet: <tool> not built yet`. When a change alters how something already in the manual looks or works, show before and after.
+
+**Words:** plain and short, for someone who knows mechanical CAD but not this program. Follow `CLEAN_ROOM.md`: never name or show another product.
+
 ## 7. GitHub access
 
 Use whatever works, in this order:
@@ -244,6 +280,7 @@ A run uses only the connectors listed for its role, even when more are attached,
 | Builder | Figma, read only | View the mockup linked in an M5 issue | M5 issues only |
 | Reviewer + Planner | GitHub | §7 | Every run |
 | Reviewer + Planner | Figma | Draw one mockup per M5 issue; compare it with the QA screenshot in review | M5 issues only |
+| Documenter | GitHub | §7 | Every run that acts |
 | Reporter | GitHub, read only | Gather the week's facts | Weekly |
 | Reporter | Claude Docs | Add the week's section to the status doc | Weekly |
 
@@ -264,7 +301,7 @@ The factory must **never** modify these files. A PR that touches them is labeled
 
 The one exception is the weekly retro (§4): its PR may change `docs/factory/FACTORY.md`, and nothing else on the list. It is labeled `needs-human`, and only the owner merges it.
 
-The factory **may** edit `docs/factory/STATE.md`, check items off and add sub-items in `docs/ROADMAP.md`, and add files under `docs/specs/`.
+The factory **may** edit `docs/factory/STATE.md`, check items off and add sub-items in `docs/ROADMAP.md`, and add files under `docs/specs/`. The Documenter may change only what §4a step 6 lists.
 
 Changes under `.github/` are **owner-merge only**:
 - The Builder may implement them on a branch and open a PR labeled `owner-merge`. If GitHub rejects the push (workflow files need the `workflows` permission), post the full file as an issue comment, label the issue `needs-human`, and stop.
