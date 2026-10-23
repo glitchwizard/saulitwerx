@@ -12,12 +12,15 @@
 //! | [`Arc`] | 5 | cx, cy, r, a0, a1 (radians, counter-clockwise) |
 //!
 //! The [`solver`] module solves systems of residual equations over that
-//! vector, and the [`constraint`] module turns geometric constraints into
-//! such equations ([`Sketch::add_constraint`], [`Sketch::solve`]).
+//! vector, the [`constraint`] module turns geometric constraints into such
+//! equations ([`Sketch::add_constraint`], [`Sketch::solve`]), and the [`dof`]
+//! module reports how many degrees of freedom such a system leaves and which
+//! of its equations are redundant or conflicting.
 //!
 //! This crate must never depend on the geometry kernel (docs/ARCHITECTURE.md).
 
 pub mod constraint;
+pub mod dof;
 pub mod solver;
 
 pub use constraint::{Constraint, ConstraintId, PointRef};
