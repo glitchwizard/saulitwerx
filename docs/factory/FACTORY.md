@@ -17,6 +17,7 @@ The owner wants **slow, steady progress on a tight token budget**. When in doubt
 |---|---|---|
 | **Builder** | 12:17am and 2:17am PT | Implements up to `issues_per_night` issues per night (`STATE.md`), at most **two** per run, one PR per issue (§3). |
 | **Reviewer + Planner** | 1:17am and 3:17am PT, an hour after each Builder slot | Reviews and merges up to **2** factory PRs per run, then tops up the issue queue. On Monday nights it also runs the weekly retro (§4). |
+| **Documenter** | 4:17am PT, after the last Reviewer slot | Writes and designs the user manual (a PDF built from `docs/manual/`), keeps it current with what merged, and merges its own manual PR (§4a, §6d). |
 | **Reporter** | Mondays 7:56am PT | Weekly summary for the owner. Read-only on GitHub; writes only its weekly section of the status doc (§7a). |
 
 ## 2. Work queue (GitHub issues)
@@ -105,9 +106,26 @@ The first Reviewer run of each Monday night (§3) runs a retro after Plan, over 
 
 Finish the run with outcome comments (§6a).
 
+## 4a. Documenter protocol
+
+One run a night, after the last Reviewer slot. It writes and designs the user manual (§6d), and it meets the product the way a user would: it runs every procedure it describes. Quality comes first in this role: a chapter that isn't good enough yet waits for the next run rather than shipping rough.
+
+1. Kill-switch check (§0). Read `CLAUDE.md`, `CLEAN_ROOM.md`, §6d, and `docs/manual/STYLE.md` and `docs/manual/COVERAGE.md` if they exist.
+2. **Anything to do?** There is work when the open `manual-feedback` issue has owner comments you haven't answered, when a commit since the marker on the first line of `COVERAGE.md` (`manual-synced-to: <sha>`) changed anything under `crates/` outside `examples/`, or when `COVERAGE.md` lists backlog. Otherwise stop: no PR and no comment. If there is no manual yet, build the first one: the design (template and `STYLE.md`), the structure, and everything on `main`.
+3. Work in this order: owner feedback, then the PRs merged since the marker (oldest first: read each one's issue, diff and QA report, and work out what a user can now do or see), then backlog. Internal changes (CI, refactors, tests only) need no manual change.
+4. If an earlier manual PR of yours is still open, finish that one: merge `main` into its branch and carry on there. Otherwise branch `docs/manual-<night>` from `main`. Write and design, regenerate the pictures, and follow every changed procedure exactly as written. Update **What's new** and `COVERAGE.md`, and move the marker to the newest commit you fully documented.
+5. Run the §6d quality check. Run the §3 step 7 gates when you changed anything under `crates/`.
+6. Build the PDF with `docs/manual/build.sh docs/manual/Saulitwerx-User-Manual.pdf` and commit it with the source. Push, open a PR titled `docs(manual): <night>` with previews of the changed pages, and wait for CI.
+7. **Merge it yourself** (squash) when CI is green and the diff touches only `docs/manual/`, `crates/*/examples/`, `[[example]]` entries in a crate's `Cargo.toml`, the manual link in `README.md`, and new rows in the `docs/ARCHITECTURE.md` dependency register for the manual's fonts and tools. Anything else is out of scope: leave it out and open an issue for it.
+8. Reply on the `manual-feedback` issue to each owner comment you handled, with the PR link, or why you didn't change it.
+9. When a procedure fails, or a capability can't be used the way its issue promised, don't paper over it. Document what actually happens, and open one issue per problem (at most 2 per run) with the §2 sections, labeled `factory:ready`, plus `priority` only when something on `main` is broken.
+10. Post one run-log comment (§6a) with the PR link and the run's STATE line.
+
+Time box: start no new chapter after 60 minutes, and wrap up by 90. Merge what meets the quality bar; list the rest in `COVERAGE.md` as backlog for the next run.
+
 ## 5. Budget rules (hard)
 
-- Builder: at most `issues_per_night` issues per night (`STATE.md`), at most two per run, inside the §3 time box. Reviewer: two PRs and at most three new issues per run, plus one retro PR with at most three changes on Monday nights. Reporter: read-only on GitHub, one status-doc section per week.
+- Builder: at most `issues_per_night` issues per night (`STATE.md`), at most two per run, inside the §3 time box. Reviewer: two PRs and at most three new issues per run, plus one retro PR with at most three changes on Monday nights. Documenter: one run and at most one manual PR per night, and at most 2 new issues per run, inside its §4a time box. Reporter: read-only on GitHub, one status-doc section per week.
 - A subagent gets its issue and the files the issue touches, plus the docs listed in §3 step 1. Nothing else.
 - Don't explore the codebase broadly. Read only what the issue touches, plus the docs listed above.
 - Don't vendor or build large C++ dependencies from source inside a run unless the issue requires it and caching is in place.
@@ -122,29 +140,29 @@ Add one line at the top of the `## Log` section and keep only the newest 30 line
 - 2026-10-13 builder: #12 M2-01 → PR #15 (CI green)
 ```
 
-Only the Reviewer commits `STATE.md`, through its `docs/` PR (§4). Builders never touch `STATE.md`, because two Builder PRs editing it would conflict. A Builder puts one line per item, or one `idle` line, in its run-log comments (§6a). The Reviewer copies every Builder line posted since its previous run into `STATE.md`, then adds its own.
+Only the Reviewer commits `STATE.md`, through its `docs/` PR (§4). Builders never touch `STATE.md`, because two Builder PRs editing it would conflict. A Builder puts one line per item, or one `idle` line, in its run-log comments (§6a); the Documenter puts one line per run that acts. The Reviewer copies every Builder and Documenter line posted since its previous run into `STATE.md`, then adds its own.
 
 ## 6a. Outcome comments (every run that acts)
 
-Every Builder and Reviewer run ends by posting outcome comments, so the owner can see what happened without opening run transcripts. A run that stops at the kill switch (§0) posts nothing.
+Every Builder, Reviewer and Documenter run ends by posting outcome comments, so the owner can see what happened without opening run transcripts. A run that stops at the kill switch (§0) posts nothing, and so does a Documenter run with nothing new (§4a step 2).
 
 **Where:**
 
 - **Builder:** one comment on each issue it worked on. For a red-`main` fix with no issue, comment on the PR.
 - **Reviewer:** one comment on each PR it reviewed (this is the verdict), plus one run summary covering merges, send-backs and issues created.
-- **Every run, including idle ones:** run-summary comments on the **factory run log** issue (label `factory:log`): one per item for the Builder (so §3 step 2 can count items), one per run for the Reviewer, one for an idle run. If that issue doesn't exist, create it, titled "Factory run log".
+- **Every run, including idle ones:** run-summary comments on the **factory run log** issue (label `factory:log`): one per item for the Builder (so §3 step 2 can count items), one per run for the Reviewer and the Documenter, one for an idle run. If that issue doesn't exist, create it, titled "Factory run log".
 
 **Format** (plain Markdown, at most about 200 words):
 
 ```
-**Outcome: completed | partial | stalled | idle** (builder|reviewer, YYYY-MM-DD)
+**Outcome: completed | partial | stalled | idle** (builder|reviewer|documenter, YYYY-MM-DD)
 
 **What happened:** 1–3 sentences.
 **How:** approach and key decisions, crates/files touched, tests added, PR link, CI result.
 **Stalled because:** (partial/stalled only) the concrete blocker and what was tried, at most 3 bullets.
 **Recommended fix:** the specific next action and who owns it: `owner` or `factory`.
 **Next:** what the factory will do on its next run.
-**STATE:** the run's `STATE.md` log line (Builder only, §6).
+**STATE:** the run's `STATE.md` log line (Builder and Documenter, §6).
 ```
 
 `YYYY-MM-DD` is the night the run belongs to (§3), not the UTC date.
@@ -176,7 +194,7 @@ Every Builder PR gets a QA report: hands-on evidence that the change works, beyo
   - **something brand new:** its outcome;
   - **a new way to do something that used to be clumsy or impossible:** the old way next to the new one, for example a test asserting a number next to a render of the shape, or a long manual sequence next to the one new step.
 
-  Each image gets a one-line caption saying what it should show. The weekly status report (§7a) reuses these images and captions, so write captions for the owner, not only the Reviewer. If the change has nothing visual, write `Nothing visual: <reason>`. If the tool it needs doesn't exist yet, write `No visual: <tool> not available yet` and list that in (e).
+  Each image gets a one-line caption saying what it should show. The weekly status report (§7a) and the user manual (§6d) reuse these images and captions, so write captions for the owner, not only the Reviewer. If the change has nothing visual, write `Nothing visual: <reason>`. If the tool it needs doesn't exist yet, write `No visual: <tool> not available yet` and list that in (e).
 - **(e) Known gaps.** Everything QA did not cover or could not verify, and anything deferred, with follow-up issue numbers. Write `None` if there are none.
 - **(f) Verdict.** `pass`: every criterion is met and verified, and (e) is `None`. `pass with gaps`: every criterion is met, and (e) lists what QA could not cover. An unmet criterion is not a gap: fix it before posting. If you can't fix it in this run, post no verdict; the run is `stalled` (§6a).
 
@@ -223,6 +241,57 @@ At the end of the run, `think_export_trace` with `format: markdown`, and commit 
 
 Never run `think-and-ship init`, `connect` or `trace promote`, and never set `THINK_AND_SHIP_SYNC_TARGET`, `THINK_AND_SHIP_SHARED` or `THINK_AND_SHIP_MODEL_ID`. They write into the repo, add AI attribution, or send records to a third-party service.
 
+## 6d. User manual (`docs/manual/`)
+
+The user manual is a professionally designed PDF that teaches anyone, including someone who has never used CAD, to use what Saulitwerx can do today. Quality comes first. The Documenter writes and designs it (§4a), with the freedom to make the editorial and design decisions a professional technical writer and designer would, within this section. Builders leave `docs/manual/` alone.
+
+**Source and build:**
+
+- Written in Typst (Apache-2.0). `docs/manual/manual.typ` is the entry point, and `docs/manual/build.sh <out.pdf>` builds the PDF. The script downloads a pinned Typst release from its GitHub releases page when it's missing and checks its SHA-256. Start from 0.15.1: `typst-x86_64-unknown-linux-musl.tar.xz`, SHA-256 `a6d077d0a95eed5a2eba715b2dae06be954f624ccbf85758a03f389ded33118c`.
+- Core Typst only. Its package registry isn't reachable from runs, so write any helpers (callouts, index, glossary, figure styles) in the manual's own template.
+- Fonts: Typst's built-in fonts, or open-licensed (OFL) fonts kept in `docs/manual/fonts/` with their license files. Each font or tool you add gets a row in the `ARCHITECTURE.md` dependency register.
+- The built PDF is committed as `docs/manual/Saulitwerx-User-Manual.pdf`, in the same PR as the source change that produced it, and never on its own. That is the copy the owner reads: https://github.com/glitchwizard/saulitwerx/blob/main/docs/manual/Saulitwerx-User-Manual.pdf. Its cover names the `main` commit it describes and the build date.
+- Every commit of the PDF adds a full copy to the repository's history, so keep it lean: under 10 MB. Typst already subsets fonts; keep images at the resolution print needs and no more.
+
+**Structure.** The Documenter may refine it, and keeps the outline in `STYLE.md`.
+
+1. **Front matter:** a cover with the build date and `main` commit, how to use this manual, and the table of contents.
+2. **Getting started:** what Saulitwerx is, installing and starting it, and a first-project tutorial that gets a beginner to a real result in about 15 minutes.
+3. **Concepts:** the ideas behind parametric CAD in plain words (sketch, constraint, dimension, parameter, feature, history, solid, units), each with a picture, before any procedure relies on them.
+4. **Tasks,** grouped the way a user works: sketching, part features, parameters, files and exchange, and later assemblies and drawings. For each feature: what it's for, when to use it, numbered steps, the result, tips, and common mistakes.
+5. **Reference:** every command, tool, option and setting, with what it does, its default and its allowed values. Also keyboard and mouse controls, file formats and units.
+6. **Help:** troubleshooting by symptom, every error message a user can see with what it means and what to do, an FAQ, and known limitations.
+7. **Back matter:** a glossary; **What's new**, newest first, dated by night; **Coming next**, one page on the next roadmap items; a one-page quick-reference card; credits and licenses, including third-party notices; and an index.
+
+**Coverage:** the manual covers everything a user can do or set on `main`: every command, tool, option and app setting. `docs/manual/COVERAGE.md` lists each one, found from the code, the roadmap and `PRODUCT.md`, with the section that covers it. Anything built but not yet documented is listed there as backlog. Nothing unbuilt is described as if it worked.
+
+**Writing:**
+
+- Written for a lay reader: plain language, short sentences, one task per section.
+- Explain each idea the way a good intro course would: what it is, why it matters, a small example, then how to do it.
+- Define every term where it first appears, and in the glossary.
+- Numbered steps start with a verb and say what you should see afterwards.
+- Keep `STYLE.md` (voice, terms, capitalization, visual conventions) and follow it, so the manual reads as one book however many nights wrote it.
+- Follow `CLEAN_ROOM.md`: never name or show another product, and don't imitate another vendor's manual.
+
+**Pictures:**
+
+- Made by tools, never drawn by hand: `swx-qa render` for solids, `swx-qa sketch` once QA-02 exists, and app screenshots from M5-01 on (under Xvfb, or with the MB-01 harness). In the app, add a screenshot after each step that changes the screen.
+- Before M5 there is no app. How-tos then use the real command line, or a short program in a crate's `examples/` (quoted, with how to run it and its real output), in a part marked for developers. The beginner's path starts with the app.
+- Sharp in print: at least 200 dpi at printed size. PNG files in `docs/manual/img/`, each under 1 MB, with the command that made it in a comment next to it in the source.
+- Annotations (numbered markers, arrows, highlights, labels) are drawn by the template on top of the image, never painted into it, so a regenerated image keeps them.
+- Every figure has a caption and alt text. When a change alters something already shown, show before and after.
+
+**Owner feedback:** the owner comments on the open issue labeled `manual-feedback`. Every Documenter run deals with that feedback first.
+
+**Quality check** (the Documenter, before every merge):
+
+- The PDF builds with no Typst warnings.
+- Render every changed page to PNG and look at each one: text or code running off the page, bad page breaks, a heading stranded at the bottom of a page, blurry or tiny images, inconsistent styling.
+- Follow every changed procedure from a clean start, exactly as written.
+- The table of contents, cross-references and index are correct.
+- The PR body shows previews of the changed pages: images on `qa-artifacts` under `pr-<N>/`, as in §6b.
+
 ## 7. GitHub access
 
 Use whatever works, in this order:
@@ -244,6 +313,7 @@ A run uses only the connectors listed for its role, even when more are attached,
 | Builder | Figma, read only | View the mockup linked in an M5 issue | M5 issues only |
 | Reviewer + Planner | GitHub | §7 | Every run |
 | Reviewer + Planner | Figma | Draw one mockup per M5 issue; compare it with the QA screenshot in review | M5 issues only |
+| Documenter | GitHub | §7 | Every run that acts |
 | Reporter | GitHub, read only | Gather the week's facts | Weekly |
 | Reporter | Claude Docs | Add the week's section to the status doc | Weekly |
 
@@ -264,7 +334,7 @@ The factory must **never** modify these files. A PR that touches them is labeled
 
 The one exception is the weekly retro (§4): its PR may change `docs/factory/FACTORY.md`, and nothing else on the list. It is labeled `needs-human`, and only the owner merges it.
 
-The factory **may** edit `docs/factory/STATE.md`, check items off and add sub-items in `docs/ROADMAP.md`, and add files under `docs/specs/`.
+The factory **may** edit `docs/factory/STATE.md`, check items off and add sub-items in `docs/ROADMAP.md`, and add files under `docs/specs/`. The Documenter may change only what §4a step 6 lists.
 
 Changes under `.github/` are **owner-merge only**:
 - The Builder may implement them on a branch and open a PR labeled `owner-merge`. If GitHub rejects the push (workflow files need the `workflows` permission), post the full file as an issue comment, label the issue `needs-human`, and stop.

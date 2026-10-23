@@ -12,13 +12,18 @@
 //! | [`Arc`] | 5 | cx, cy, r, a0, a1 (radians, counter-clockwise) |
 //!
 //! The [`solver`] module solves systems of residual equations over that
-//! vector, and the [`dof`] module reports how many degrees of freedom such a
-//! system leaves and which of its equations are redundant or conflicting.
+//! vector, the [`constraint`] module turns geometric constraints into such
+//! equations ([`Sketch::add_constraint`], [`Sketch::solve`]), and the [`dof`]
+//! module reports how many degrees of freedom such a system leaves and which
+//! of its equations are redundant or conflicting.
 //!
 //! This crate must never depend on the geometry kernel (docs/ARCHITECTURE.md).
 
+pub mod constraint;
 pub mod dof;
 pub mod solver;
+
+pub use constraint::{Constraint, ConstraintId, PointRef};
 
 use std::f64::consts::TAU;
 use std::fmt;
@@ -36,8 +41,11 @@ pub enum SketchError {
     NonPositiveRadius(f64),
     /// No entity with this id exists in the sketch.
     UnknownGeom(GeomId),
-    /// The new value is a different entity kind than the one stored.
+    /// The entity has the wrong kind for this use (e.g. a different kind
+    /// than the one stored, or a constraint on an unsupported kind).
     KindMismatch(GeomId),
+    /// A constraint value (distance, radius, diameter) was zero or negative.
+    NonPositiveValue(f64),
 }
 
 impl fmt::Display for SketchError {
@@ -47,6 +55,7 @@ impl fmt::Display for SketchError {
             SketchError::NonPositiveRadius(r) => write!(f, "radius must be > 0, got {r}"),
             SketchError::UnknownGeom(id) => write!(f, "unknown geometry {}", id.0),
             SketchError::KindMismatch(id) => write!(f, "geometry {} has a different kind", id.0),
+            SketchError::NonPositiveValue(v) => write!(f, "value must be > 0, got {v}"),
         }
     }
 }
@@ -260,11 +269,14 @@ pub struct Slot {
     pub len: usize,
 }
 
-/// A 2D sketch: geometry entities over one flat parameter vector.
+/// A 2D sketch: geometry entities over one flat parameter vector, plus the
+/// constraints between them.
 #[derive(Debug, Clone, Default)]
 pub struct Sketch {
     params: Vec<f64>,
     slots: Vec<Slot>,
+    constraints: Vec<Constraint>,
+    rows: Vec<constraint::Resolved>,
 }
 
 impl Sketch {

@@ -19,3 +19,11 @@ cc = { version = "1", optional = true }
 
 [lints]
 workspace = true
+
+[[example]]
+name = "plate_with_hole"
+required-features = ["occt"]
+
+[[example]]
+name = "plate_stages"
+required-features = ["occt"]
