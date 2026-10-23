@@ -13,6 +13,9 @@ issues_per_night: 2
 
 ## Log
 
+- 2026-10-23 reviewer: sent back #52 (M2-05: QA report is for c08d404, not head 6753e68) and #61 (QA-02: no QA report); planned #62 M2-07a (ready: #28, #55, #62)
+- 2026-10-23 builder: idle (nightly cap reached; 12:17am run took #49 → PR #52 and #54 → PR #61 but posted no QA reports or outcome comments)
+- 2026-10-22 documenter: first manual edition → PR #60 merged (CI green, 3 checks; 45 pages; no feedback; no issues opened)
 - 2026-10-22 reviewer: idle (no PR labeled factory:review; #52 awaits builder fix for conflicts; ready: #28, #54, #55)
 - 2026-10-22 reviewer: merged #51 (M2-03; CI green, 3 checks; QA report + ship report verified; local gates on merge result exit 0); checked off M2-03; sent back #52 (M2-05: conflicts with main after #51); planned #54 QA-02 and #55 M2-06 (ready: #28, #54, #55)
 - 2026-10-22 builder: #49 M2-05 → PR #52 (CI green, 3 checks; think-and-ship gates verified)
