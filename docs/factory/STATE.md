@@ -13,6 +13,9 @@ issues_per_night: 2
 
 ## Log
 
+- 2026-10-23 reviewer: merged #52 (M2-05) and #61 (QA-02) (CI green, 3 checks each; QA reports + ship reports + 2 images verified; local gates on main+both exit 0); checked off M2-05 and QA-02; removed attribution footers from 6 builder comments; no new issues needed (ready: #28, #55, #62); branches not deleted (API write blocked)
+- 2026-10-23 builder: #49 → PR #52 QA report posted (6753e68), back to factory:review; #54 → PR #61 QA report posted (e989880), back to factory:review
+- 2026-10-23 builder: #49 partial → PR #52 (6753e68); #54 partial → PR #61 (e989880); QA reports pending
 - 2026-10-23 reviewer: sent back #52 (M2-05: QA report is for c08d404, not head 6753e68) and #61 (QA-02: no QA report); planned #62 M2-07a (ready: #28, #55, #62)
 - 2026-10-23 builder: idle (nightly cap reached; 12:17am run took #49 → PR #52 and #54 → PR #61 but posted no QA reports or outcome comments)
 - 2026-10-22 documenter: first manual edition → PR #60 merged (CI green, 3 checks; 45 pages; no feedback; no issues opened)
@@ -40,5 +43,3 @@ issues_per_night: 2
 - 2026-10-13 builder: #2 M1-02 → PR #15 (CI green; kernel-occt job 34 s; owner-merge)
 - 2026-10-13 reviewer: owner merged #4 (M1-01) and #5 (CI); checked off M1-01; planned #7 M1-03, #8 M1-04, #9 M1-05; #6 (FACTORY.md) needs-human
 - 2026-10-13 builder: idle (no ready issues; #1-#3 needs-human, CI pending #5)
-- 2026-10-13 builder: #1 M1-01 → PR #4 (no CI on main, see #3; table-row edit needs-human)
-- 2026-10-12 bootstrap: M0 complete (workspace, swx-core, factory docs); seeded M1 issues
