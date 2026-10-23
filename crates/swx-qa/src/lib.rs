@@ -3,21 +3,27 @@
 //! `swx-qa render` draws a [`Mesh`](swx_kernel::Mesh) to a PNG on the CPU:
 //! no GPU, no window, deterministic bytes. Builder QA reports (FACTORY §6b)
 //! use it to show geometry.
+//!
+//! `swx-qa sketch` plots a solved [`Sketch`](swx_sketch::Sketch) to a PNG
+//! with its dimension values; Builders can also call [`sketch::plot`]
+//! directly.
 
 pub mod fixtures;
 pub mod render;
+pub mod sketch;
 
 use std::path::{Path, PathBuf};
 
 use render::Options;
 
-/// Builds the `--help` text, including the fixture list.
+/// Builds the `--help` text, including the fixture lists.
 pub fn usage() -> String {
     format!(
         "\
 Usage: swx-qa render (--fixture <name> | --step <file.step>) -o <out.png> [options]
+       swx-qa sketch --fixture <name> -o <out.png> [--size <W>x<H>]
 
-Renders a mesh as an isometric, flat-shaded PNG with feature edges.
+render: draws a mesh as an isometric, flat-shaded PNG with feature edges.
 
 Input (exactly one):
   --fixture <name>     built-in mesh: {}
@@ -28,8 +34,16 @@ Options:
   -o, --output <file>  PNG to write (required)
   --size <W>x<H>       image size in pixels (default 800x600)
   --crease <deg>       crease angle for feature edges (default 30)
-  -h, --help           show this help",
-        fixtures::FIXTURE_NAMES.join(", ")
+  -h, --help           show this help
+
+sketch: solves a built-in sketch and plots it top-down (x right, y up)
+with its geometry, point dots and dimension values.
+
+  --fixture <name>     built-in sketch (required): {}
+  -o, --output <file>  PNG to write (required)
+  --size <W>x<H>       image size in pixels (default 800x600)",
+        fixtures::FIXTURE_NAMES.join(", "),
+        sketch::FIXTURE_NAMES.join(", ")
     )
 }
 
@@ -43,6 +57,7 @@ pub fn run(args: &[String]) -> Result<String, String> {
     match cmd {
         "-h" | "--help" | "help" => Ok(usage()),
         "render" => render_cmd(rest),
+        "sketch" => sketch_cmd(rest),
         other => Err(format!("unknown command `{other}`\n\n{}", usage())),
     }
 }
@@ -93,6 +108,45 @@ fn render_cmd(args: &[String]) -> Result<String, String> {
         Input::Step(path) => step_mesh(path)?,
     };
     let (img, _) = render::render(&mesh, &opts)?;
+    let png = img.to_png()?;
+    std::fs::write(&output, &png).map_err(|e| format!("cannot write {}: {e}", output.display()))?;
+    Ok(format!(
+        "wrote {} ({}x{}, {} bytes)",
+        output.display(),
+        img.width,
+        img.height,
+        png.len()
+    ))
+}
+
+fn sketch_cmd(args: &[String]) -> Result<String, String> {
+    let mut fixture = None;
+    let mut output = None;
+    let mut opts = sketch::PlotOptions::default();
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        let mut value = || {
+            it.next()
+                .cloned()
+                .ok_or_else(|| format!("`{arg}` needs a value"))
+        };
+        match arg.as_str() {
+            "-h" | "--help" => return Ok(usage()),
+            "--fixture" => fixture = Some(value()?),
+            "-o" | "--output" => output = Some(PathBuf::from(value()?)),
+            "--size" => (opts.width, opts.height) = parse_size(&value()?)?,
+            other => return Err(format!("unknown option `{other}`\n\n{}", usage())),
+        }
+    }
+    let name = fixture.ok_or("missing input: give --fixture <name>")?;
+    let output = output.ok_or("missing output: give -o <out.png>")?;
+    let sk = sketch::fixture(&name).ok_or_else(|| {
+        format!(
+            "unknown sketch fixture `{name}`; available: {}",
+            sketch::FIXTURE_NAMES.join(", ")
+        )
+    })??;
+    let img = sketch::plot(&sk, &opts)?;
     let png = img.to_png()?;
     std::fs::write(&output, &png).map_err(|e| format!("cannot write {}: {e}", output.display()))?;
     Ok(format!(
@@ -200,6 +254,52 @@ mod tests {
             "render -o OUT",
             "render --fixture",
             "frobnicate",
+        ];
+        for a in bad {
+            assert!(run(&args(&a.replace("OUT", &out))).is_err(), "{a}");
+        }
+        assert!(!std::path::Path::new(&out).exists());
+    }
+
+    #[test]
+    fn sketch_help_lists_fixtures() {
+        let h = run(&args("sketch --help")).unwrap();
+        for word in sketch::FIXTURE_NAMES
+            .iter()
+            .chain(&["sketch", "--size", "-o"])
+        {
+            assert!(h.contains(word), "help lacks {word}");
+        }
+    }
+
+    #[test]
+    fn plots_sketch_fixtures_to_png() {
+        for name in sketch::FIXTURE_NAMES {
+            let out = out_path(&format!("{name}.png"));
+            let msg = run(&args(&format!(
+                "sketch --fixture {name} --size 120x90 -o {out}"
+            )))
+            .unwrap();
+            assert!(msg.contains("120x90"), "{msg}");
+            let bytes = std::fs::read(&out).unwrap();
+            std::fs::remove_file(&out).unwrap();
+            assert_eq!(&bytes[1..4], b"PNG");
+        }
+    }
+
+    #[test]
+    fn invalid_sketch_input_is_an_error() {
+        let out = out_path("bad-sketch.png");
+        let bad = [
+            "sketch --fixture hexagon -o OUT",
+            "sketch --fixture rectangle",
+            "sketch -o OUT",
+            "sketch --fixture rectangle --size 0x10 -o OUT",
+            "sketch --fixture rectangle --size 400 -o OUT",
+            "sketch --fixture rectangle --size 400x -o OUT",
+            "sketch --fixture rectangle --size 9000x10 -o OUT",
+            "sketch --fixture rectangle --crease 30 -o OUT",
+            "sketch --fixture",
         ];
         for a in bad {
             assert!(run(&args(&a.replace("OUT", &out))).is_err(), "{a}");
