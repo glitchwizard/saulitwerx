@@ -1,0 +1,111 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(qa): plot solved sketches to PNG with swx-qa sketch",
+      "ref": "c70da9c",
+      "task_id": "qa-sketch-54",
+      "type": "commit"
+    },
+    {
+      "description": "fix(qa): keep sketch labels inside small plots",
+      "ref": "e989880",
+      "task_id": "qa-sketch-54",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "qa-sketch-54",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "passed": true,
+      "required": true,
+      "task_id": "qa-sketch-54",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "required": true,
+      "task_id": "qa-sketch-54",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "qa-sketch-54",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "qa-sketch-54",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo test (unpiped)",
+      "passed": true,
+      "required": true,
+      "task_id": "qa-sketch-54",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "A library function in swx-qa (e.g. sketch::plot(&Sketch, &PlotOptions) -> Result<Image, String>) draws, top-down with x right and y up, and uniformly scaled to fit the image with a margin of at least 5% per side: lines, circles and arcs (arcs counter-clockwise from a0 to a1), and point entities and line endpoints as dots of at least 3 px.",
+      "Dimension values: each Distance, Radius and Diameter constraint is labeled with its value (up to 3 decimals, trailing zeros trimmed; R prefix for radius, Ø for diameter) near the midpoint of the dimensioned points (distance) or the entity (radius/diameter).",
+      "CLI: swx-qa sketch --fixture <name> -o <out.png> [--size WxH] with at least two built-in fixtures, each solved before plotting: rectangle (40 × 25 rectangle from the M2-03 combined test, from a perturbed start) and triangle-345 (3-4-5 right triangle with two distances). --help lists them. An unknown fixture, a missing -o, or a bad --size returns an error message and a non-zero exit, not a panic.",
+      "Determinism: plotting the same fixture twice gives byte-identical PNGs (test).",
+      "Geometry test: for rectangle at 400x300, the four corner dots land within 2 px of the pixel positions computed from the solved coordinates and the fit transform, and a pixel on each side's midpoint is drawn (not background).",
+      "Text test: the label for a distance of 40 contains non-background pixels within 20 px of the bottom side's midpoint; the glyph table has a glyph for every character the labeler can emit (test iterates the formatter's output for sample values 0.5, 25, 40, 123.456).",
+      "Empty sketch: plot returns a valid image (background only) or a clear error; documented either way; no panic, no division by zero.",
+      "swx-qa still builds and tests without --features occt; no unsafe; no new third-party dependencies; the ADR line is added.",
+      "cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace passes.",
+      "QA report (FACTORY §6b) posted on the PR, with the rectangle and triangle-345 PNGs as its visuals."
+    ],
+    "completed_at": "2026-10-23T17:59:39.336969741+00:00",
+    "constraints": [],
+    "created_at": "2026-10-23T17:59:07.007901661+00:00",
+    "description": "QA-02: swx-qa sketch: plot a solved sketch (geometry, points, dimension values) to a PNG",
+    "project_id": "saulitwerx",
+    "scope": "crates/swx-qa, Cargo.lock, docs/ARCHITECTURE.md ADR line",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 2,
+      "checks_count": 6,
+      "estimate": "medium",
+      "id": "qa-sketch-54",
+      "status": "completed",
+      "title": "swx-qa sketch plotting and CLI (PR #61)",
+      "type": "implement"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
