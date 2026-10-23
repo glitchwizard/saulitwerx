@@ -1,7 +1,7 @@
 [package]
 name = "swx-qa"
 version = "0.0.1"
-description = "Saulitwerx QA tooling: headless CPU renders of kernel meshes for review evidence."
+description = "Saulitwerx QA tooling: headless CPU renders of kernel meshes and sketch plots for review evidence."
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -16,6 +16,7 @@ occt = ["swx-kernel/occt"]
 [dependencies]
 png = "0.17"
 swx-kernel = { path = "../swx-kernel" }
+swx-sketch = { path = "../swx-sketch" }
 
 [lints]
 workspace = true

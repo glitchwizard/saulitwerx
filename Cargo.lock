@@ -127,6 +127,7 @@ version = "0.0.1"
 dependencies = [
  "png",
  "swx-kernel",
+ "swx-sketch",
 ]
 
 [[package]]
