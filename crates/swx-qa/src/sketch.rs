@@ -26,6 +26,13 @@ const DOT_RADIUS: i64 = 2;
 const TEXT_SCALE: i64 = 2;
 /// Gap in pixels between a label and the geometry it labels.
 const LABEL_GAP: f64 = 4.0;
+/// Smallest margins in pixels `(x, y)`, so a label of up to 3 characters
+/// beside the outermost geometry fits in small images (each capped at 25 %
+/// of its dimension): 3 glyph cells wide, or one line tall, plus two gaps.
+const MIN_MARGIN_PX: [f64; 2] = [
+    ((6 * 3 - 1) * TEXT_SCALE) as f64 + 2.0 * LABEL_GAP,
+    (7 * TEXT_SCALE) as f64 + 2.0 * LABEL_GAP,
+];
 
 /// Plot settings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,13 +66,15 @@ pub struct Fit {
 
 impl Fit {
     /// Fits the model-space box `min..max` into `width × height` with a
-    /// [`MARGIN`] on each side. A box with zero extent along an axis is
-    /// fitted along the other one; a single point gets scale 1.
+    /// [`MARGIN`] on each side, but at least [`MIN_MARGIN_PX`] (capped at
+    /// 25 %). A box with zero extent along an axis is fitted along the other
+    /// one; a single point gets scale 1.
     pub fn new(min: [f64; 2], max: [f64; 2], width: u32, height: u32) -> Self {
-        let usable = [
-            f64::from(width) * (1.0 - 2.0 * MARGIN),
-            f64::from(height) * (1.0 - 2.0 * MARGIN),
-        ];
+        let usable = [0, 1].map(|i| {
+            let side = f64::from([width, height][i]);
+            let margin = (side * MARGIN).max(MIN_MARGIN_PX[i].min(side * 0.25));
+            side - 2.0 * margin
+        });
         let scale = (0..2)
             .filter(|&i| max[i] - min[i] > 0.0)
             .map(|i| usable[i] / (max[i] - min[i]))
@@ -323,7 +332,8 @@ fn unit(v: [f64; 2], fallback: [f64; 2]) -> [f64; 2] {
 }
 
 /// Plots `sketch` top-down (x right, y up), uniformly scaled to fit the
-/// image with a 10 % margin per side.
+/// image with a 10 % margin per side, widened to [`MIN_MARGIN_PX`] in small
+/// images.
 ///
 /// Draws lines, circles and arcs (counter-clockwise from start to end
 /// angle), dots on point entities and line endpoints, and the value of every
@@ -698,6 +708,27 @@ mod tests {
         let lens: Vec<f64> = ls.iter().map(Line::length).collect();
         for (got, want) in lens.iter().zip([4.0, 3.0, 5.0]) {
             assert!((got - want).abs() < 1e-9, "{lens:?}");
+        }
+    }
+
+    #[test]
+    fn labels_are_not_clipped_in_small_images() {
+        for name in FIXTURE_NAMES {
+            let img = plot(
+                &fixture(name).unwrap().unwrap(),
+                &PlotOptions {
+                    width: 120,
+                    height: 90,
+                },
+            )
+            .unwrap();
+            let (w, h) = (img.width, img.height);
+            let edge = (0..w)
+                .flat_map(|x| [(x, 0), (x, h - 1)])
+                .chain((0..h).flat_map(|y| [(0, y), (w - 1, y)]));
+            for (x, y) in edge {
+                assert_eq!(img.get(x, y), BACKGROUND, "{name}: ({x}, {y})");
+            }
         }
     }
 
