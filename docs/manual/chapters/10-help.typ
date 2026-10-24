@@ -15,6 +15,9 @@
   [Rows of `*` and colored text appear when saving or reading STEP], [Normal. The geometry engine prints its own report. Saulitwerx's own lines come before and after it.],
   [The picture looks small or blurry when printed], [Use a larger `--size`: about 80 pixels per centimeter of printed width.],
   [A curved part is covered in lines], [Raise `--crease`, for example to 45.],
+  [The numbers in a sketch picture are too small to read], [Use a smaller `--size`. Labels have a fixed size in pixels, so they take up more of a small picture.],
+  [A sketch solves, but its sizes aren't what you expect], [Some of it is still free to move. Check the degrees of freedom (@sec-check-dof) and add the missing dimensions.],
+  [The solver stops with `Stagnated`], [Two or more rules contradict each other. Check the degrees of freedom: the report says `Conflicting` and gives the clashing equation's number.],
 )
 
 == Error messages <sec-errors>
@@ -26,14 +29,16 @@ Every message starts with `swx-qa: `. No picture is written when there is an err
 #ref-table(
   columns: (1fr, 1fr),
   header: ("Message", "Meaning and fix"),
-  [`missing command`], [Nothing after `swx-qa`. Add `render`, or `--help`.],
-  [#raw("unknown command `x`")], [Only `render` and `help` exist.],
-  [#raw("unknown option `x`")], [A misspelled option. The help text follows the message.],
+  [`missing command`], [Nothing after `swx-qa`. Add `render`, `sketch`, or `--help`.],
+  [#raw("unknown command `x`")], [Only `render`, `sketch` and `help` exist.],
+  [#raw("unknown option `x`")], [A misspelled option, or one that belongs to the other command (`--crease` and `--step` are for `render` only). The help text follows the message.],
   [#raw("`--size` needs a value")], [An option was last on the line without its value. The same goes for the other options.],
   [`missing input: give --fixture <name> or --step <file.step>`], [Say what to draw.],
   [`give exactly one of --fixture and --step`], [Two inputs were given. Keep one.],
+  [`missing input: give --fixture <name>`], [`sketch` needs the name of a built-in sketch.],
   [`missing output: give -o <out.png>`], [Say where to save the picture.],
   [#raw("unknown fixture `x`; available: cube, cylinder, l-bracket")], [Use one of the listed names.],
+  [#raw("unknown sketch fixture `x`; available: rectangle, triangle-345")], [Use one of the listed names.],
   [#raw("invalid --size `x`: expected <W>x<H>, e.g. 800x600")], [Write the size as two whole numbers joined by `x`, with no spaces.],
   [#raw("invalid --size `x`: width and height must be > 0")], [Neither side may be 0.],
   [`image size WxH must be between 1x1 and 8192x8192`], [Use a smaller size.],
@@ -95,7 +100,8 @@ Every message starts with `swx-qa: `. No picture is written when there is an err
 - No desktop app, 3D view, mouse or keyboard controls yet.
 - No features that turn sketches into solids yet: no extrude, revolve, fillet or hole. Solids are made from boxes, cylinders and spheres.
 - No native part files; work can't be saved with its history.
-- Sketches can't yet report how many degrees of freedom are left, or which constraints conflict.
+- The degree-of-freedom report gives redundant and conflicting rules as equation numbers, not as constraints; your program has to match them up (@sec-check-dof).
+- `swx-qa sketch` draws only its two built-in sketches. Your own sketches need a short program (@sec-picture-sketch). Sketch pictures show no dimension arrows and no marks for constraints such as horizontal.
 - Sketch constraints are limited to coincident, horizontal, vertical, fixed, distance, radius and diameter.
 - Only built on and tested on Ubuntu Linux.
 - An imported STEP file becomes one shape, and can't be edited.

@@ -9,9 +9,10 @@
     ("Boolean operation", [Combining two solids by union, cut or intersect.]),
     ("CAD", [Computer-aided design: using a computer to design physical objects.]),
     ("Coincident", [A constraint that puts two points at the same place.]),
+    ("Conflicting", [Said of a sketch whose rules contradict each other, so no shape can meet them all.]),
     ("Constraint", [A rule about a sketch's shape, such as "horizontal" or "these points touch".]),
     ("Cut", [A Boolean operation that removes one solid from another.]),
-    ("Degree of freedom", [One way a piece of a sketch can still move. A free point has two.]),
+    ("Degree of freedom (DOF)", [One way a piece of a sketch can still move. A free point has two.]),
     ("Diameter", [The width of a circle through its center; twice the radius.]),
     ("Dimension", [A constraint with a number: a distance, radius or diameter.]),
     ("Dirty", [Said of a feature that must be rebuilt after a change.]),
@@ -27,25 +28,35 @@
     ("Intersect", [A Boolean operation that keeps only what two solids share.]),
     ("Isometric", [A view from a corner, looking down at an angle, so that three sides of a box show equally.]),
     ("OpenCascade (OCCT)", [The open-source geometry kernel Saulitwerx uses.]),
+    ("Over-constrained", [Said of a sketch with a rule that repeats what other rules already say.]),
     ("Parameter", [A named number that features and dimensions refer to.]),
     ("Parametric", [Built from steps and numbers that can be changed later, with the design rebuilding to match.]),
     ("Pre-alpha", [Early, unfinished software: the parts work, but it isn't ready for real use.]),
+    ("Redundant", [Said of a rule that repeats what other rules already say.]),
     ("Sketch", [A 2D drawing on a plane, made of points, lines, circles and arcs.]),
     ("Solid", [A closed 3D shape with an inside and an outside.]),
     ("Solver", [The calculation that moves sketch geometry until every constraint holds.]),
     ("STEP", [An international standard file format (ISO 10303) for exchanging 3D parts.]),
     ("Surface area", [The total area of a solid's faces.]),
+    ("Under-constrained", [Said of a sketch with at least one degree of freedom left.]),
     ("Union", [A Boolean operation that joins two solids into one.]),
     ("Unit", [What a number measures in, such as millimeters.]),
     ("Volume", [How much space a solid fills.]),
   )
   set par(first-line-indent: 0pt, justify: false)
   columns(2, gutter: 18pt, for (t, d) in g {
-    block(spacing: 0.75em, breakable: false, [#text(font: sans, weight: "semibold", size: 9pt, t) \ #text(size: 9.5pt, d)])
+    block(spacing: 0.45em, breakable: false, [#text(font: sans, weight: "semibold", size: 9pt, t) \ #text(size: 9.2pt, d)])
   })
 }
 
 = What's new
+
+== 2026-10-24: degrees of freedom and sketch pictures
+
+- *New:* check how fully a sketch is defined: degrees of freedom left, and whether it is under-, fully or over-constrained, or conflicting (@sec-dof, @sec-check-dof, @sec-ref-dof).
+- *New:* draw a sketch to a PNG with `swx-qa sketch` (@sec-picture-sketch, @sec-ref-qa-sketch).
+- *Pictures:* the sketch sections of *Concepts* and *Sketching* now show the plate sketch, rough and solved.
+- Help: new troubleshooting rows and `swx-qa sketch` error messages; known limitations updated.
 
 == 2026-10-22: first edition
 
@@ -67,9 +78,7 @@ These are the next items on the public roadmap. None of them works yet. When one
   columns: (auto, 1fr),
   header: ("Soon", "What you'll be able to do"),
   [More constraints], [Parallel, perpendicular, tangent, equal, midpoint and symmetric.],
-  [Degree-of-freedom report], [See whether a sketch is under-, fully or over-constrained, and which constraints conflict.],
   [Profiles], [Turn closed loops in a sketch into regions, with holes, ready to become solids.],
-  [Pictures of sketches], [Draw a solved sketch, with its points and dimension values, to a PNG.],
   [Dimension parameters], [Every dimension becomes a named parameter, `d0`, `d1`, …, with expressions and units.],
   [Part features], [Extrude, revolve, fillet, chamfer, shell and hole, driven by sketches.],
   [Part files], [Save a part with its full history, and open it again.],
@@ -91,8 +100,10 @@ Later milestones add assemblies, 2D drawings and exploded views. The full plan i
       #term-block("cargo test --workspace\ncargo build --release -p swx-qa \\\n  --features occt")
       #text(font: sans, weight: "bold", fill: accent, "DRAW A PART")
       #term-block("swx-qa render --step part.step -o part.png\nswx-qa render --fixture cube -o cube.png\n  --size 1600x1000   (default 800x600)\n  --crease 45     (default 30)")
+      #text(font: sans, weight: "bold", fill: accent, "DRAW A SKETCH")
+      #term-block("swx-qa sketch --fixture rectangle -o r.png\n  (or triangle-345)")
       #text(font: sans, weight: "bold", fill: accent, "SAMPLES")
-      #term-block("cargo run -p swx-sketch \\\n  --example plate_sketch\ncargo run -p swx-kernel --features occt \\\n  --example plate_with_hole -- plate.step\ncargo run -p swx-core \\\n  --example feature_history")
+      #term-block("cargo run -p swx-sketch \\\n  --example plate_sketch\ncargo run -p swx-sketch \\\n  --example sketch_dof\ncargo run -p swx-kernel --features occt \\\n  --example plate_with_hole -- plate.step\ncargo run -p swx-core \\\n  --example feature_history")
     ],
     [
       #text(font: sans, weight: "bold", fill: accent, "SKETCH CONSTRAINTS")
@@ -103,6 +114,13 @@ Later milestones add assemblies, 2D drawings and exploded views. The full plan i
         [Fixed], [a point at (x, y)],
         [Distance], [two points a length apart],
         [Radius / Diameter], [a circle's size],
+      )
+      #text(font: sans, weight: "bold", fill: accent, "SKETCH STATES")
+      #ref-table(columns: (auto, 1fr), header: ("State", "Means"),
+        [Under-constrained], [can still move: add rules],
+        [Fully constrained], [done: 0 DOF left],
+        [Over-constrained], [a rule repeats others],
+        [Conflicting], [rules contradict],
       )
       #text(font: sans, weight: "bold", fill: accent, "SOLIDS")
       #ref-table(columns: (auto, 1fr), header: ("Call", "Gives"),
@@ -133,7 +151,7 @@ Saulitwerx is written by its contributors and is licensed under either the MIT l
   [Libertinus Serif, DejaVu Sans Mono], [SIL Open Font License 1.1; Bitstream Vera license], [Body text and code in this manual, as bundled with Typst.],
 )
 
-Every picture of a part in this manual was drawn by Saulitwerx's own renderer, `swx-qa render`, from geometry made by Saulitwerx.
+Every picture of a part in this manual was drawn by Saulitwerx's own renderer, `swx-qa render`, and every picture of a sketch by `swx-qa sketch`'s plotter, from geometry made by Saulitwerx.
 
 = Index
 

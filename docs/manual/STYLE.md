@@ -21,9 +21,9 @@ The rules that keep the Saulitwerx user manual reading as one book, however many
 
 1. Front matter: cover (commit, build date, status), *How to use this manual*, contents.
 2. Part I Getting started: 1 Welcome, 2 Installing, 3 Your first part (the ~15-minute tutorial).
-3. Part II Concepts: 4 How parametric CAD works (solids, units, sketches, constraints, dimensions, parameters, features, history).
-4. Part III Tasks: 5 Sketching, 6 Solids and STEP files, 7 Pictures of parts, 8 Parameters and history. Later: part features, files, assemblies, drawings.
-5. Part IV Reference: 9 Reference (commands, build options, kernel operations, sketch entities and constraints, solver, formats and units, keyboard and mouse).
+3. Part II Concepts: 4 How parametric CAD works (solids, units, sketches, constraints, dimensions, degrees of freedom, parameters, features, history).
+4. Part III Tasks: 5 Sketching, 6 Solids and STEP files, 7 Pictures of parts and sketches, 8 Parameters and history. Later: part features, files, assemblies, drawings.
+5. Part IV Reference: 9 Reference (commands, build options, kernel operations, sketch entities and constraints, solver, degree-of-freedom report, formats and units, keyboard and mouse).
 6. Part V Help: 10 Help (troubleshooting by symptom, every error message, questions, known limitations).
 7. Back matter: glossary, What's new (newest first, dated by night), Coming next, quick-reference card, credits and licenses, index.
 
@@ -41,5 +41,5 @@ Label chapters `<ch-…>`, sections `<sec-…>`, figures `<fig-…>`. `@label` p
 
 - Page: US Letter, mirrored margins. Body Libertinus Serif 10.5 pt; headings and labels Inter; code DejaVu Sans Mono.
 - Colour: steel blue `#3d5a80` (accent, matches rendered parts); green for tips and results; rust for cautions; purple for developer sections. Callouts never break across pages.
-- Pictures: tool-made only (`swx-qa render` today; `swx-qa sketch` after QA-02; app screenshots from M5). PNG in `img/`, under 1 MB, at least 200 dpi at printed size (a full-width figure is about 6.5 in, so at least 1300 px wide). The command that made each image sits in a comment next to its use. Annotations (operator signs, markers, labels) are drawn by the template, never painted into the image. Every figure has a caption and alt text.
+- Pictures: tool-made only (`swx-qa render` for parts, `swx-qa sketch` or `swx_qa::sketch::plot` for sketches; app screenshots from M5). PNG in `img/`, under 1 MB, at least 200 dpi at printed size (a full-width figure is about 6.5 in, so at least 1300 px wide). The command that made each image sits in a comment next to its use. Annotations (operator signs, markers, labels) are drawn by the template, never painted into the image. Every figure has a caption and alt text. Sketch pictures are 600x420 px, shown at 40 % width alone or two across, so their built-in labels stay legible in print.
 - Tables use `#ref-table`; status uses `#now` / `#later` pills.
