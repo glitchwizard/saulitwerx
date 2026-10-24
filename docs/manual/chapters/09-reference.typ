@@ -30,6 +30,41 @@ On success it prints `wrote <file> (<W>x<H>, <bytes> bytes)` and exits with stat
   [`l-bracket`], [An L profile with 30 mm legs and 8 mm thickness, 20 mm deep.],
 )
 
+== `swx-qa sketch` <sec-ref-qa-sketch>
+
+#idx("swx-qa sketch")
+Solves a built-in sketch and draws it from above as a PNG, with its dimension values.
+
+#term-block(label: "Form", "swx-qa sketch --fixture <name> -o <out.png> [--size <W>x<H>]")
+
+#ref-table(
+  columns: (auto, 1fr, auto),
+  header: ("Option", "What it does", "Default"),
+  [`--fixture <name>`], [The built-in sketch to draw: `rectangle` or `triangle-345`. Required.], [—],
+  [`-o`, `--output <file>`], [The PNG to write. Required. An existing file is replaced.], [—],
+  [`--size <W>x<H>`], [Picture size in pixels. Each side from 1 to 8192.], [`800x600`],
+  [`-h`, `--help`], [Prints the help text and does nothing else.], [—],
+)
+
+Success and errors work as for `render`. `--step` and `--crease` belong to `render` only.
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("Built-in sketch", "Shape"),
+  [`rectangle`], [40 × 25 mm, lower-left corner fixed at the origin; sides horizontal and vertical; bottom and right dimensioned.],
+  [`triangle-345`], [A right triangle with its right angle fixed at the origin; a horizontal side of 4 and a vertical side of 3, both dimensioned. The long side comes out 5.],
+)
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("In the picture", "Drawn as"),
+  [Lines, circles, arcs], [Dark blue lines, 1 pixel wide.],
+  [Points, line ends], [Red dots, 5 pixels across.],
+  [Distance], [Its value, in green, beside the middle of the two points, on the side away from the sketch's center.],
+  [Radius, diameter], [Its value with `R` or `Ø` in front, outside the circle at the upper right, or outside an arc at its middle.],
+  [Values], [Up to 3 decimals, with trailing zeros dropped: `40`, `12.5`, `R2.125`.],
+)
+
 == Build options
 
 #ref-table(
@@ -38,6 +73,8 @@ On success it prints `wrote <file> (<W>x<H>, <bytes> bytes)` and exits with stat
   [`cargo test --workspace`], [Everything without OpenCascade, and runs every test.],
   [`cargo build --release -p swx-qa --features occt`], [The `swx-qa` tool with STEP input, at `target/release/swx-qa`.],
   [`cargo run -p swx-sketch --example plate_sketch`], [Runs the sample sketch (@ch-sketching).],
+  [`cargo run -p swx-sketch --example sketch_dof`], [Runs the degree-of-freedom sample (@sec-check-dof).],
+  [`cargo run -p swx-qa --example plate_sketch_plot -- <dir> [<W>x<H>]`], [Draws the sample sketch in three stages, as PNGs in `<dir>` (@sec-picture-sketch).],
   [`cargo run -p swx-kernel --features occt --example plate_with_hole -- <file.step>`], [Builds the plate and saves it (@ch-solids). The file defaults to `plate.step`.],
   [`cargo run -p swx-kernel --features occt --example plate_stages -- <dir>`], [Saves the block, the cylinder and the plate as three STEP files in `<dir>`.],
   [`cargo run -p swx-core --example feature_history`], [Runs the history sample (@ch-history).],
@@ -114,13 +151,56 @@ A point `p` is written `PointRef::Point(id)` for a point entity, `Start(id)` or 
 #idx("Levenberg–Marquardt")
 The solver uses the Levenberg–Marquardt method, a standard way to solve many equations at once; see J. Nocedal and S. J. Wright, _Numerical Optimization_, 2nd ed., chapter 10.
 
+== Degree-of-freedom report <sec-ref-dof>
+
+#idx("analyze")
+`swx_sketch::dof::analyze(&sketch, sketch.params(), options)` checks a sketch as it is now (@sec-dof). Run it after `solve`.
+
+#ref-table(
+  columns: (auto, 1fr, auto),
+  header: ("Setting", "Meaning", "Default"),
+  [`rank_tolerance`], [How independent an equation must be, compared with the largest, to count as a new rule rather than a repeat.], [`1e-9`],
+  [`residual_tolerance`], [A sketch with a repeated rule is `Conflicting`, not `OverConstrained`, when its remaining error is more than this.], [`1e-8`],
+)
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("Report field", "Meaning"),
+  [`dof`], [Degrees of freedom left: the sketch's numbers minus its independent equations.],
+  [`rank`], [The number of independent equations.],
+  [`redundant`], [The numbers of the equations that repeat earlier ones, smallest first, counting from 0 in the order the constraints were added.],
+  [`residual_norm`], [The remaining error: how far the rules are from being met, overall.],
+  [`state`], [One of the states below.],
+)
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("State", "When"),
+  [`UnderConstrained`], [No repeated rule, and `dof` is more than 0.],
+  [`FullyConstrained`], [No repeated rule, and `dof` is 0.],
+  [`OverConstrained`], [At least one repeated rule, and every rule is met.],
+  [`Conflicting`], [At least one repeated rule, and the remaining error is more than `residual_tolerance`.],
+  [`NonFinite`], [A value is infinite or not a number. Nothing else was worked out.],
+)
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("Entity or constraint", "Numbers or equations"),
+  [Point · Line · Circle · Arc], [2 · 4 · 3 · 5 numbers (degrees of freedom when free).],
+  [Coincident · Fixed], [2 equations each.],
+  [Every other constraint], [1 equation.],
+)
+
+#idx("Householder QR")
+The count uses a Householder QR factorization, taking the equations in the order they were added; see G. H. Golub and C. F. Van Loan, _Matrix Computations_, 4th ed., §5.2.
+
 == File formats and units
 
 #ref-table(
   columns: (auto, auto, 1fr),
   header: ("Format", "Read / write", "Notes"),
   [STEP (`.step`, `.stp`), ISO 10303-21], [Both], [Solids only. Written in millimeters.],
-  [PNG (`.png`)], [Write], [Pictures from `swx-qa render`.],
+  [PNG (`.png`)], [Write], [Pictures from `swx-qa render` and `swx-qa sketch`.],
   [Saulitwerx part (`.sltwx`)], [Not yet], [Planned: the part with its full history.],
 )
 

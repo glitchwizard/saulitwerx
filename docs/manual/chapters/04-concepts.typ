@@ -32,9 +32,15 @@ Most solids start as a flat drawing. A #term[sketch] is a 2D drawing on a flat p
 
 A sketch for the plate would be a rectangle (four lines) and a circle. You don't need to draw it accurately. A rough shape is fine, because the next two ideas, constraints and dimensions, make it exact.
 
-*In Saulitwerx today:* sketches with points, lines, circles and arcs exist as a building block (@ch-sketching). There is no drawing window yet, so sketches are written as a short program.
+#shot(
+  // cargo run -p swx-qa --example plate_sketch_plot -- docs/manual/img 600x420
+  "img/sketch-rough.png",
+  width: 40%,
+  caption: [A rough sketch of the plate: four lines and a circle, drawn by eye. The red dots are the ends of the lines.],
+  alt: "A crooked four-sided outline with a circle inside, drawn roughly",
+) <fig-sketch-rough>
 
-#note(title: [Pictures of sketches])[Sketch pictures need a sketch-drawing tool that is planned but not built yet. Until it arrives, this edition shows sketches as their solved coordinates (@ch-sketching).]
+*In Saulitwerx today:* sketches with points, lines, circles and arcs exist as a building block (@ch-sketching). There is no drawing window yet, so sketches are written as a short program, and `swx-qa sketch` draws them to a picture (@sec-picture-sketch).
 
 == Constraints <sec-constraint>
 
@@ -52,6 +58,14 @@ A #term[constraint] is a rule about the shape of a sketch: "this line is horizon
 #idx("coincident")#idx("horizontal")#idx("vertical")#idx("fixed")
 Saulitwerx satisfies constraints with a #term[solver]: a calculation that nudges every point until all the rules hold at once. You give it a rough drawing and the rules; it gives back the exact shape.
 
+#shot(
+  // cargo run -p swx-qa --example plate_sketch_plot -- docs/manual/img 600x420
+  "img/sketch-shape.png",
+  width: 40%,
+  caption: [The same sketch after the solver applied coincident, horizontal, vertical and fixed. It is now a true rectangle, but its size is still whatever the rough drawing happened to be.],
+  alt: "A clean rectangle with a circle inside, with no numbers on it",
+) <fig-sketch-shape>
+
 == Dimensions <sec-dimension>
 
 A #term[dimension] is a constraint with a number: a length, a distance, a radius or a diameter. "The bottom line is 40 mm long." "The hole is 10 mm across." Dimensions fix the size of a sketch, the way the plain constraints above fix its shape.
@@ -65,11 +79,34 @@ A #term[dimension] is a constraint with a number: a length, a distance, a radius
 )
 
 #idx("distance")#idx("radius")#idx("diameter")
-When a sketch has enough constraints and dimensions that nothing can move any more, it is #term[fully constrained]. Each way a piece can still move is called a #term[degree of freedom]. A free point on a sheet has two (left–right and up–down); a free circle has three (its center's two, and its size).
+#shot(
+  // cargo run -p swx-qa --example plate_sketch_plot -- docs/manual/img 600x420
+  "img/sketch-sized.png",
+  width: 40%,
+  caption: [With dimensions added, the plate sketch is exactly 40 × 25 mm with a ⌀10 mm hole. Each green number is a dimension.],
+  alt: "The rectangle labeled 40 along the bottom and 25 on the right, and its circle labeled with a diameter of 10",
+) <fig-sketch-sized>
+
+== Degrees of freedom <sec-dof>
+
+Each way a piece of a sketch can still move is called a #term[degree of freedom], or DOF for short. A free point on a sheet has two (left–right and up–down). A free line has four (two for each end); a free circle has three (its center's two, and its size). Each constraint takes some away: fixed takes two from a point, horizontal takes one from a line.
+
+Counting what is left tells you how finished a sketch is. A sketch is in one of four states: #term[under-constrained], #term[fully constrained], #term[over-constrained] or #term[conflicting].
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("State", "What it means"),
+  [Under-constrained], [Something can still move. Add constraints or dimensions until the count reaches zero.],
+  [Fully constrained], [Nothing can move, and no rule repeats another. This is the goal.],
+  [Over-constrained], [At least one rule repeats what other rules already say, but they all agree. The repeated rule is #term[redundant]: harmless today, but it will fight you as soon as you change one of the sizes it repeats.],
+  [Conflicting], [Redundant rules that disagree, such as two sides of a rectangle dimensioned 40 and 45 mm. No shape can satisfy them, so the solver stops short.],
+)
+
+The plate sketch starts with 19 degrees of freedom: four lines and a circle. @fig-sketch-shape still has 5 (the rectangle's width and height, and the circle's position and size); @fig-sketch-sized has none. @sec-check-dof shows how to get these numbers.
 
 #tip[Constrain the shape first (coincident, horizontal, vertical), then add dimensions. Then anchor one point with fixed, so the whole sketch can't slide around.]
 
-*In Saulitwerx today:* all of the constraints and dimensions in these two tables work, and the solver reports whether it found a shape that meets them. Reporting how many degrees of freedom are left, and which rules conflict, is the next item on the roadmap.
+*In Saulitwerx today:* all of the constraints and dimensions in these tables work, and the solver reports whether it found a shape that meets them. A degree-of-freedom report gives the count and the state, and points to each redundant rule as a numbered equation (@sec-check-dof). Naming the constraint behind each equation is up to your program for now.
 
 == Parameters <sec-parameter>
 
@@ -129,7 +166,7 @@ Here is how the ideas line up when you design a part, once the app exists:
 
 #steps(
   [Make a *sketch* on a plane, roughly the shape you want.],
-  [Add *constraints* to fix its shape, and *dimensions* to fix its size, until it is fully constrained.],
+  [Add *constraints* to fix its shape, and *dimensions* to fix its size, until no degrees of freedom are left.],
   [Turn the sketch into a *solid* with a *feature*, such as extrude.],
   [Add more features (cuts, holes, rounded edges) to finish the part. They form its *history*.],
   [Change a *parameter* or a dimension later, and the part rebuilds to match.],
