@@ -17,6 +17,7 @@
     ("Dimension", [A constraint with a number: a distance, radius or diameter.]),
     ("Dirty", [Said of a feature that must be rebuilt after a change.]),
     ("Edge", [A curve where two faces of a solid meet.]),
+    ("Equal", [A constraint that makes two lines the same length, or two circles or arcs the same size.]),
     ("Entity", [One piece of sketch geometry: a point, line, circle or arc.]),
     ("Face", [One flat or curved patch of a solid's surface.]),
     ("Feature", [One step in building a part, such as a sketch or a cut. Features are kept in the history.]),
@@ -26,18 +27,28 @@
     ("Geometry kernel", [The part of a CAD program that does the 3D math. Saulitwerx uses OpenCascade.]),
     ("History", [A part's features, in the order they were made.]),
     ("Intersect", [A Boolean operation that keeps only what two solids share.]),
+    ("Island", [A region inside a hole of another region.]),
     ("Isometric", [A view from a corner, looking down at an angle, so that three sides of a box show equally.]),
+    ("Loop", [A closed chain of sketch pieces, each ending where the next begins.]),
+    ("Midpoint", [A constraint that keeps a point halfway along a line.]),
+    ("Open edge", [A sketch piece that isn't part of any closed loop.]),
     ("OpenCascade (OCCT)", [The open-source geometry kernel Saulitwerx uses.]),
     ("Over-constrained", [Said of a sketch with a rule that repeats what other rules already say.]),
+    ("Parallel", [A constraint that makes two lines point the same way.]),
     ("Parameter", [A named number that features and dimensions refer to.]),
     ("Parametric", [Built from steps and numbers that can be changed later, with the design rebuilding to match.]),
+    ("Perpendicular", [A constraint that makes two lines meet at a right angle.]),
     ("Pre-alpha", [Early, unfinished software: the parts work, but it isn't ready for real use.]),
+    ("Profile", [The regions of a sketch: the areas a feature can turn into a solid.]),
     ("Redundant", [Said of a rule that repeats what other rules already say.]),
+    ("Region", [A flat area enclosed by an outer loop, minus any holes inside it.]),
     ("Sketch", [A 2D drawing on a plane, made of points, lines, circles and arcs.]),
     ("Solid", [A closed 3D shape with an inside and an outside.]),
     ("Solver", [The calculation that moves sketch geometry until every constraint holds.]),
+    ("Symmetric", [A constraint that makes two points mirror images across a line.]),
     ("STEP", [An international standard file format (ISO 10303) for exchanging 3D parts.]),
     ("Surface area", [The total area of a solid's faces.]),
+    ("Tangent", [Touching without cutting in: a line and a circle, or two circles, that meet at one point.]),
     ("Under-constrained", [Said of a sketch with at least one degree of freedom left.]),
     ("Union", [A Boolean operation that joins two solids into one.]),
     ("Unit", [What a number measures in, such as millimeters.]),
@@ -50,6 +61,15 @@
 }
 
 = What's new
+
+== 2026-10-25: more constraints, and profiles
+
+- *New:* six constraints: parallel, perpendicular, equal, midpoint, symmetric and tangent (@sec-constraint, @sec-ref-sketch).
+- *New:* keep a hole centered whatever the plate's size (@sec-centered), and draw a slot with tangent, equal-sized ends (@sec-slot).
+- *New:* find the regions a sketch encloses, with their holes and areas, and the pieces left open (@sec-profile, @sec-profiles, @sec-ref-profile).
+- *Pictures:* the centered plate at two widths, and a slot with a gap, ringed by the template.
+- Help: profile error messages, two new troubleshooting rows, and known limitations updated, including arcs whose ends can't be constrained.
+- Corrected: midpoint and symmetric add two equations each to the degree-of-freedom count.
 
 == 2026-10-24: degrees of freedom and sketch pictures
 
@@ -77,9 +97,8 @@ These are the next items on the public roadmap. None of them works yet. When one
 #ref-table(
   columns: (auto, 1fr),
   header: ("Soon", "What you'll be able to do"),
-  [More constraints], [Parallel, perpendicular, tangent, equal, midpoint and symmetric.],
-  [Profiles], [Turn closed loops in a sketch into regions, with holes, ready to become solids.],
   [Dimension parameters], [Every dimension becomes a named parameter, `d0`, `d1`, …, with expressions and units.],
+  [Sketch inference], [Constraints such as horizontal, tangent and coincident added for you while you draw.],
   [Part features], [Extrude, revolve, fillet, chamfer, shell and hole, driven by sketches.],
   [Part files], [Save a part with its full history, and open it again.],
   [Desktop app], [A window with a 3D view, a model browser, sketch mode and property panels.],
@@ -103,7 +122,7 @@ Later milestones add assemblies, 2D drawings and exploded views. The full plan i
       #text(font: sans, weight: "bold", fill: accent, "DRAW A SKETCH")
       #term-block("swx-qa sketch --fixture rectangle -o r.png\n  (or triangle-345)")
       #text(font: sans, weight: "bold", fill: accent, "SAMPLES")
-      #term-block("cargo run -p swx-sketch \\\n  --example plate_sketch\ncargo run -p swx-sketch \\\n  --example sketch_dof\ncargo run -p swx-kernel --features occt \\\n  --example plate_with_hole -- plate.step\ncargo run -p swx-core \\\n  --example feature_history")
+      #term-block("cargo run -p swx-sketch \\\n  --example plate_sketch\ncargo run -p swx-sketch \\\n  --example sketch_dof\ncargo run -p swx-sketch \\\n  --example centered_plate -- 60 25\ncargo run -p swx-sketch \\\n  --example slot_sketch\ncargo run -p swx-kernel --features occt \\\n  --example plate_with_hole -- plate.step\ncargo run -p swx-core \\\n  --example feature_history")
     ],
     [
       #text(font: sans, weight: "bold", fill: accent, "SKETCH CONSTRAINTS")
@@ -114,6 +133,11 @@ Later milestones add assemblies, 2D drawings and exploded views. The full plan i
         [Fixed], [a point at (x, y)],
         [Distance], [two points a length apart],
         [Radius / Diameter], [a circle's size],
+        [Parallel · Perpendicular], [two lines' directions],
+        [Equal], [two lengths or radii alike],
+        [Midpoint], [a point mid-line],
+        [Symmetric], [two points mirrored],
+        [Tangent], [a line touching a curve],
       )
       #text(font: sans, weight: "bold", fill: accent, "SKETCH STATES")
       #ref-table(columns: (auto, 1fr), header: ("State", "Means"),

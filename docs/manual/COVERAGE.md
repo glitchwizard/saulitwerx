@@ -1,4 +1,4 @@
-manual-synced-to: 6f4a61ad36d4069a8b1fdfdbad6659fd3acd5c53
+manual-synced-to: 018a21bf319c1a21ae822d092122d976c4ec7f0e
 
 # Manual coverage
 
@@ -8,25 +8,28 @@ Everything a user can do or set on `main`, found from the code, `docs/ROADMAP.md
 
 | Capability (crate) | Where |
 |---|---|
-| Install from source; build with and without `--features occt` | 2, 9.2 |
+| Install from source; build with and without `--features occt` | 2, 9.3 |
 | `swx-qa render`: `--fixture` (cube, cylinder, l-bracket), `--step`, `-o/--output`, `--size` (default 800x600, max 8192), `--crease` (default 30, 0–180), `-h/--help`, `help` | 3.1, 7, 9.1 |
 | `swx-qa sketch`: `--fixture` (rectangle, triangle-345), `-o/--output`, `--size` (default 800x600, max 8192), `-h/--help`; plot conventions | 7.5, 9.2 |
 | `swx-qa` success line, exit status, every error message (render and sketch) | 9.1, 9.2, 10.2 |
 | `swx_qa::sketch::plot` (developers) | 7.5 |
-| Kernel: `make_box`, `make_cylinder`, `make_sphere` | 6.1, 9.3 |
-| Kernel: `union`, `cut`, `intersect` | 4.7, 6.2, 9.3 |
-| Kernel: `volume`, `surface_area`, `bounding_box`, `face_count` | 3.2, 6.1, 9.3 |
-| Kernel: `tessellate` (deflection) | 7.1, 9.3 |
-| Kernel: `export_step`, `import_step` (mm) | 3.2, 6.1, 6.3, 9.3, 9.6 |
+| Kernel: `make_box`, `make_cylinder`, `make_sphere` | 6.1, 9.4 |
+| Kernel: `union`, `cut`, `intersect` | 4.9, 6.2, 9.4 |
+| Kernel: `volume`, `surface_area`, `bounding_box`, `face_count` | 3.2, 6.1, 9.4 |
+| Kernel: `tessellate` (deflection) | 7.1, 9.4 |
+| Kernel: `export_step`, `import_step` (mm) | 3.2, 6.1, 6.3, 9.4, 9.9 |
 | Kernel errors (`InvalidInput`, `Backend`) | 10.2 |
-| Sketch entities: point, line, circle, arc | 4.3, 9.4 |
-| Constraints: coincident, horizontal, horizontal points, vertical, vertical points, fixed, distance, radius, diameter | 4.4, 4.5, 5, 9.4 |
-| Solver: `SolveOptions` (tolerance, max_iterations, initial_damping), report, stop reasons | 5.1, 9.5 |
-| DOF analysis: `dof::analyze`, `DofOptions` (rank_tolerance, residual_tolerance), `DofReport` (dof, rank, redundant, residual_norm, state), states incl. `NonFinite` | 4.6, 5.3, 9.7 |
+| Sketch entities: point, line, circle, arc | 4.3, 9.5 |
+| Constraints: coincident, horizontal, horizontal points, vertical, vertical points, fixed, distance, radius, diameter | 4.4, 4.5, 5, 9.5 |
+| Constraints: parallel, perpendicular, equal (lines; circles/arcs), midpoint, symmetric, tangent (line–circle/arc, circle/arc–circle/arc; side and internal/external rules) | 4.4, 5.5, 5.6, 9.5 |
+| Profiles: `profiles`, `profile_report`, `ProfileOptions` (weld_tolerance), `ProfileReport` (regions, open_edges), `Region` (outer, holes, `area()`), `Loop` (edges, signed_area), `OrientedEdge`, nesting rules | 4.7, 5.7, 9.7 |
+| Profile errors (`InvalidTolerance`, `SelfIntersecting`, `Sketch`) | 5.7, 10.2 |
+| Solver: `SolveOptions` (tolerance, max_iterations, initial_damping), report, stop reasons | 5.1, 9.6 |
+| DOF analysis: `dof::analyze`, `DofOptions` (rank_tolerance, residual_tolerance), `DofReport` (dof, rank, redundant, residual_norm, state), states incl. `NonFinite`; equations per constraint | 4.6, 5.3, 9.8 |
 | Sketch errors | 5.4, 10.2 |
-| Document model: parameters, features (sketch, extrude, revolve), history, dirty propagation | 4.6, 4.8, 8, 9.2 |
+| Document model: parameters, features (sketch, extrude, revolve), history, dirty propagation | 4.8, 4.10, 8 |
 | Document model errors | 8.3, 10.2 |
-| Units (mm; degrees for feature parameters, radians for arcs) | 4.2, 9.6 |
+| Units (mm; degrees for feature parameters, radians for arcs) | 4.2, 9.9 |
 
 ## Examples the manual runs (`crates/*/examples/`)
 
@@ -36,9 +39,12 @@ Everything a user can do or set on `main`, found from the code, `docs/ROADMAP.md
 | `swx-sketch` `sketch_dof` | 5.3 |
 | `swx-qa` `plate_sketch_plot` | 4.3–4.5, 5.1, 7.5 figures |
 | `swx-kernel` `plate_with_hole` (occt) | 3, 6 |
-| `swx-kernel` `plate_stages` (occt) | 4.7 figure |
+| `swx-kernel` `plate_stages` (occt) | 4.9 figure |
+| `swx-sketch` `centered_plate` | 5.5, 5.7 |
+| `swx-sketch` `slot_sketch` | 5.6, 5.7 |
+| `swx-qa` `constraint_plots` | 4.7, 5.5, 5.6 figures |
 | `swx-core` `feature_history` | 8 |
 
 ## Backlog
 
-- Nothing built is undocumented. Open PRs #65 (M2-04 constraints) and #66 (M2-06 profiles) are not on `main`; document them once merged.
+- Nothing built is undocumented. Open PRs #69 (M2-07a document parameters) and #70 (M2-05a DOF names constraints) are not on `main`; document them once merged. When #70 merges, replace the equation-number workaround in 5.3 and the matching known limitation.
