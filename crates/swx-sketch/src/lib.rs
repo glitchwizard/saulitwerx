@@ -15,12 +15,14 @@
 //! vector, the [`constraint`] module turns geometric constraints into such
 //! equations ([`Sketch::add_constraint`], [`Sketch::solve`]), and the [`dof`]
 //! module reports how many degrees of freedom such a system leaves and which
-//! of its equations are redundant or conflicting.
+//! of its equations are redundant or conflicting. The [`profile`] module
+//! turns closed loops of lines, arcs and circles into regions with holes.
 //!
 //! This crate must never depend on the geometry kernel (docs/ARCHITECTURE.md).
 
 pub mod constraint;
 pub mod dof;
+pub mod profile;
 pub mod solver;
 
 pub use constraint::{Constraint, ConstraintId, PointRef};
