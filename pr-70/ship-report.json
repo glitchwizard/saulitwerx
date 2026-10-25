@@ -1,0 +1,85 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(sketch): name redundant constraints in the DOF report",
+      "ref": "d081d61",
+      "task_id": "m2-05a",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "m2-05a",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "passed": true,
+      "required": true,
+      "task_id": "m2-05a",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": false,
+      "required": true,
+      "task_id": "m2-05a",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "required": true,
+      "task_id": "m2-05a",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "A sketch-level call, e.g. `Sketch::dof(options: DofOptions) -> Result<SketchDofReport, SolveError>`, returns the `DofReport` fields plus `redundant_constraints: Vec<ConstraintId>`. That list is the distinct constraints that own at least one redundant row, ascending, with no duplicates.",
+      "Alternatively or additionally, a public `Sketch::constraint_of_row(row: usize) -> Option<ConstraintId>`.",
+      "Tests: (a) the plate sketch (`plate_sketch` example constraints), solved: `FullyConstrained`, and `redundant_constraints` is empty; (b) plus a top-line distance of 40: `OverConstrained`, and `redundant_constraints == [id of that distance]`; (c) with 45 instead, after solve: `Conflicting`, with the same id; (d) a duplicate `Coincident` (2 rows) is reported once.",
+      "No new dependencies; `swx-sketch` still doesn't depend on `swx-kernel`; no `unsafe`.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` passes.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-10-25T07:23:41.112631548+00:00",
+    "constraints": [],
+    "created_at": "2026-10-25T07:23:20.769553137+00:00",
+    "description": "M2-05a: DOF report names the conflicting constraints (ConstraintIds), not just residual rows",
+    "project_id": "saulitwerx",
+    "scope": "crates/swx-sketch only; PR #70",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 4,
+      "estimate": "small",
+      "id": "m2-05a",
+      "status": "completed",
+      "title": "Implement and verify M2-05a constraint-level DOF report (PR #70)",
+      "type": "implement"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
