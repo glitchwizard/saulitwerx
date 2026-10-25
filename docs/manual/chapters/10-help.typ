@@ -17,6 +17,8 @@
   [A curved part is covered in lines], [Raise `--crease`, for example to 45.],
   [The numbers in a sketch picture are too small to read], [Use a smaller `--size`. Labels have a fixed size in pixels, so they take up more of a small picture.],
   [A sketch solves, but its sizes aren't what you expect], [Some of it is still free to move. Check the degrees of freedom (@sec-check-dof) and add the missing dimensions.],
+  [A sketch looks closed, but has no region], [Some ends don't meet. The open-edge list names the pieces (@sec-profiles). Join line ends with coincident, and check that each arc is drawn with the angles that reach its neighbors.],
+  [An arc's ends stay where they were drawn after solving], [Expected today: no constraint can hold an arc's ends, so the solver never changes its angles (@sec-slot).],
   [The solver stops with `Stagnated`], [Two or more rules contradict each other. Check the degrees of freedom: the report says `Conflicting` and gives the clashing equation's number.],
 )
 
@@ -70,8 +72,19 @@ Every message starts with `swx-qa: `. No picture is written when there is an err
   [`radius must be > 0, got r`], [A circle or arc needs a positive radius.],
   [`value must be > 0, got v`], [A distance, radius or diameter constraint needs a positive value.],
   [`unknown geometry N`], [The constraint names an entity that isn't in this sketch.],
-  [`geometry N has a different kind`], [Wrong kind of point or entity, such as `Center` of a line (@ch-sketching).],
+  [`geometry N has a different kind`], [Wrong kind of point or entity, such as `Center` of a line, a circle in parallel, or a line made equal to a circle (@ch-sketching).],
 )
+
+=== From profiles
+
+#ref-table(
+  columns: (1fr, 1fr),
+  header: ("Message", "Meaning and fix"),
+  [`geometry A and B intersect`], [Pieces A and B cross, overlap, or touch away from their ends. Move or shorten one so they meet only end to end (@sec-profiles).],
+  [`weld tolerance must be > 0, got t`], [Give a `weld_tolerance` greater than zero, or `None` for the default.],
+)
+
+Any sketch message above can also come from profiles, when the sketch itself is at fault.
 
 === From the document model
 
@@ -102,6 +115,8 @@ Every message starts with `swx-qa: `. No picture is written when there is an err
 - No native part files; work can't be saved with its history.
 - The degree-of-freedom report gives redundant and conflicting rules as equation numbers, not as constraints; your program has to match them up (@sec-check-dof).
 - `swx-qa sketch` draws only its two built-in sketches. Your own sketches need a short program (@sec-picture-sketch). Sketch pictures show no dimension arrows and no marks for constraints such as horizontal.
-- Sketch constraints are limited to coincident, horizontal, vertical, fixed, distance, radius and diameter.
+- A constraint can't name an arc's two ends, only its center. Arcs must be drawn with the angles that reach their neighbors; the solver never changes them (@sec-slot).
+- There are no angle dimensions and no point-to-line distance yet.
+- Profiles don't split pieces where they cross; crossing pieces are an error.
 - Only built on and tested on Ubuntu Linux.
 - An imported STEP file becomes one shape, and can't be edited.

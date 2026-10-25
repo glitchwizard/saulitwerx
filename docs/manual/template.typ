@@ -134,10 +134,12 @@
   body
 })
 
-// A terminal command or program output. `label` names the panel.
+// A terminal command or program output. `label` names the panel. Panels
+// up to 24 lines stay on one page, so a label is never stranded at a page
+// foot; longer ones may break.
 #let term-block(label: "Terminal", body) = block(
   width: 100%,
-  breakable: true,
+  breakable: type(body) != str or body.split("\n").len() > 24,
   spacing: 1em,
   {
     block(
@@ -167,10 +169,24 @@
 
 // A figure from docs/manual/img/. Images are rendered by tools (§6d); the
 // command that made each one sits in a comment next to the call.
-#let shot(path, caption: none, alt: none, width: 100%) = figure(
+//
+// `marks` rings spots on the image without painting into it: an array of
+// (x, y, label) with x and y as ratios of the image's width and height, and a
+// short label (or none) set beside the ring.
+#let shot(path, caption: none, alt: none, width: 100%, marks: ()) = figure(
   box(
     width: width, fill: render-bg, radius: 3pt, clip: true, stroke: 0.5pt + rule-c,
-    image(path, width: 100%, alt: alt),
+    {
+      image(path, width: 100%, alt: alt)
+      for (x, y, lab) in marks {
+        place(top + left, dx: x - 10pt, dy: y - 10pt,
+          circle(radius: 10pt, stroke: 1.6pt + caution-c))
+        if lab != none {
+          place(top + left, dx: x + 13pt, dy: y + 6pt,
+            text(font: sans, size: 7.5pt, weight: "bold", fill: caution-c, lab))
+        }
+      }
+    },
   ),
   caption: caption,
   kind: image,
@@ -197,8 +213,12 @@
   kind: image,
 )
 
-// A plain reference table with a tinted header.
-#let ref-table(columns: auto, header: (), ..rows) = block(spacing: 1.1em, {
+// A plain reference table with a tinted header. Tables of up to eight rows
+// stay on one page, so no row is left alone on the next.
+#let ref-table(columns: auto, header: (), ..rows) = block(
+  spacing: 1.1em,
+  breakable: rows.pos().len() / calc.max(1, if type(columns) == array { columns.len() } else { 1 }) > 8,
+{
   set par(justify: false, first-line-indent: 0pt)
   set text(size: 8.8pt)
   table(

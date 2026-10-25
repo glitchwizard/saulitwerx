@@ -74,7 +74,10 @@ Success and errors work as for `render`. `--step` and `--crease` belong to `rend
   [`cargo build --release -p swx-qa --features occt`], [The `swx-qa` tool with STEP input, at `target/release/swx-qa`.],
   [`cargo run -p swx-sketch --example plate_sketch`], [Runs the sample sketch (@ch-sketching).],
   [`cargo run -p swx-sketch --example sketch_dof`], [Runs the degree-of-freedom sample (@sec-check-dof).],
+  [`cargo run -p swx-sketch --example centered_plate -- [<width> <height>]`], [Runs the centered-hole sample (@sec-centered). Defaults: 40 and 25.],
+  [`cargo run -p swx-sketch --example slot_sketch`], [Runs the slot sample (@sec-slot).],
   [`cargo run -p swx-qa --example plate_sketch_plot -- <dir> [<W>x<H>]`], [Draws the sample sketch in three stages, as PNGs in `<dir>` (@sec-picture-sketch).],
+  [`cargo run -p swx-qa --example constraint_plots -- <dir> [<W>x<H>]`], [Draws the centered-plate and slot sketches as PNGs in `<dir>`.],
   [`cargo run -p swx-kernel --features occt --example plate_with_hole -- <file.step>`], [Builds the plate and saves it (@ch-solids). The file defaults to `plate.step`.],
   [`cargo run -p swx-kernel --features occt --example plate_stages -- <dir>`], [Saves the block, the cylinder and the plate as three STEP files in `<dir>`.],
   [`cargo run -p swx-core --example feature_history`], [Runs the history sample (@ch-history).],
@@ -125,9 +128,26 @@ All positions must be finite numbers; all sizes finite and greater than zero.
   [`Distance { a, b, value }`], [Points `a` and `b` are `value` apart. Value > 0.],
   [`Radius { geom, value }`], [The circle or arc has this radius. Value > 0.],
   [`Diameter { geom, value }`], [The circle or arc has this diameter. Value > 0.],
+  [`Parallel(l1, l2)`], [Lines `l1` and `l2` point the same way (or exactly opposite ways).],
+  [`Perpendicular(l1, l2)`], [Lines `l1` and `l2` are at 90°.],
+  [`Equal(g1, g2)`], [Two lines of equal length, or two circles or arcs of equal radius (any mix of circle and arc). A line and a circle can't be made equal.],
+  [`Midpoint { point, line }`], [The point is halfway between the line's two ends.],
+  [`Symmetric { a, b, line }`], [Points `a` and `b` are mirror images across the line: the middle of `a`–`b` lies on the line (or on its extension), and `a`–`b` is perpendicular to it.],
+  [`Tangent(g1, g2)`], [A line and a circle or arc, in either order, touch: the distance from the center to the line (extended without end) equals the radius. Or two circles or arcs touch, from outside or inside.],
 )
 
-A point `p` is written `PointRef::Point(id)` for a point entity, `Start(id)` or `End(id)` for a line's ends, or `Center(id)` for a circle's or arc's center.
+A point `p` is written `PointRef::Point(id)` for a point entity, `Start(id)` or `End(id)` for a line's ends, or `Center(id)` for a circle's or arc's center. An arc's two ends can't be named.
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("Tangent detail", "How it is decided"),
+  [Line and circle], [The circle stays on the side of the line its center was on when the constraint was added.],
+  [Two circles], [Touching from outside (centers `r1 + r2` apart) or inside (`|r1 − r2|` apart), whichever the drawing was closer to when the constraint was added.],
+  [Where they touch], [Anywhere. Tangent doesn't say where a line stops; add other constraints for its ends.],
+)
+
+#idx("tangent")
+Tangency uses the standard distance conditions for lines and circles; see A. Bowyer and J. Woodwark, _A Programmer's Geometry_, chapters 3 and 5.
 
 == Solver settings and report
 
@@ -150,6 +170,39 @@ A point `p` is written `PointRef::Point(id)` for a point entity, `Start(id)` or 
 
 #idx("Levenberg–Marquardt")
 The solver uses the Levenberg–Marquardt method, a standard way to solve many equations at once; see J. Nocedal and S. J. Wright, _Numerical Optimization_, 2nd ed., chapter 10.
+
+== Profiles <sec-ref-profile>
+
+#idx("profile_report")
+`swx_sketch::profile::profile_report(&sketch, &options)` finds the regions a sketch encloses and the pieces left open (@sec-profile). `profiles(&sketch, &options)` returns the regions alone. Point entities are ignored.
+
+#ref-table(
+  columns: (auto, 1fr, auto),
+  header: ("Setting", "Meaning", "Default"),
+  [`weld_tolerance`], [Ends of pieces closer than this count as one corner. `None` uses 0.000001 × the diagonal of the box around the sketch. Must be > 0 when given.], [`None`],
+)
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("Result", "Meaning"),
+  [`regions`], [Every region found. Each has an `outer` loop and a list of `holes`.],
+  [`Region::area()`], [The region's area: the outer loop's area minus its holes', in mm².],
+  [`Loop`], [The `edges` around it in order, each a piece's id and whether it is walked backwards (`reversed`), and its `signed_area`.],
+  [`signed_area`], [Positive for an outer loop, which runs counter-clockwise; negative for a hole, which runs clockwise. Exact for arcs.],
+  [`open_edges`], [Ids of the pieces in no loop: free-ended pieces, pieces that only link two loops, and pieces of zero length. Smallest id first.],
+)
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("Rule", "What happens"),
+  [Circle], [A loop on its own. So is an arc that goes all the way round.],
+  [Loop inside a loop], [Becomes a hole of the smallest loop around it. A loop inside that hole is a new region (an island), and so on, alternating.],
+  [Pieces that cross, overlap or touch away from their ends], [An error, `SelfIntersecting`, naming the first two such pieces. No regions are returned.],
+  [No closed loop], [No regions, and no error.],
+)
+
+#idx("doubly connected edge list")
+Loops are found by walking around each corner in angle order, the standard method for the faces of a flat network of lines; see M. de Berg, O. Cheong, M. van Kreveld and M. Overmars, _Computational Geometry_, 3rd ed., §2.2. Areas use Green's theorem (J. Stewart, _Calculus_, 8th ed., §16.4).
 
 == Degree-of-freedom report <sec-ref-dof>
 
@@ -187,7 +240,7 @@ The solver uses the Levenberg–Marquardt method, a standard way to solve many e
   columns: (auto, 1fr),
   header: ("Entity or constraint", "Numbers or equations"),
   [Point · Line · Circle · Arc], [2 · 4 · 3 · 5 numbers (degrees of freedom when free).],
-  [Coincident · Fixed], [2 equations each.],
+  [Coincident · Fixed · Midpoint · Symmetric], [2 equations each.],
   [Every other constraint], [1 equation.],
 )
 

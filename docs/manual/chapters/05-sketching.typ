@@ -111,7 +111,7 @@ let report = analyze(&s, s.params(), DofOptions::default())?;
 println!("dof {} {:?}", report.dof, report.state);
 ```
 
-The report holds `dof`, the `state`, and `redundant`: the numbers of the equations that repeat earlier ones. Each constraint adds one or two equations, in the order you add the constraints: coincident and fixed add two, the others one. To turn an equation number back into a constraint, the sample notes how many equations each `add_constraint` call added, by reading `s.num_residuals()` before and after. @sec-ref-dof lists every field and setting.
+The report holds `dof`, the `state`, and `redundant`: the numbers of the equations that repeat earlier ones. Each constraint adds one or two equations, in the order you add the constraints: coincident, fixed, midpoint and symmetric add two, the others one. To turn an equation number back into a constraint, the sample notes how many equations each `add_constraint` call added, by reading `s.num_residuals()` before and after. @sec-ref-dof lists every field and setting.
 
 #tip(title: [Solve first, then check])[The difference between over-constrained and conflicting is whether the rules are met. Run the check after `solve`: on a rough drawing that hasn't been solved yet, a harmless repeated rule can show as `Conflicting`.]
 
@@ -126,11 +126,165 @@ The report holds `dof`, the `state`, and `redundant`: the numbers of the equatio
   [Change the value back to `40.0` when you are done.],
 )
 
-#tip[To keep the hole centered whatever the width, the sketch would need a *midpoint* or *symmetric* constraint. Those are next on the roadmap.]
+#tip[The hole stayed put because it is fixed at (20, 12.5). To keep it centered whatever the width, use midpoint instead (@sec-centered).]
+
+== Keep a hole centered <sec-centered>
+
+A good sketch says what you *mean*. If the hole belongs in the middle of the plate, the sketch should say "in the middle", not "at x = 20". Then a wider plate keeps its hole centered with no extra work. The tool for this is the #term[midpoint] constraint, which keeps a point exactly halfway along a line.
+
+#task-intro(
+  goal: [Center a hole with midpoint constraints, then change the plate's width and watch the hole follow.],
+  needs: [Saulitwerx built (@ch-install). OpenCascade is not needed.],
+  time: [5 minutes.],
+)
+
+#steps(
+  [Run the centered-plate sample:
+  #term-block("cargo run -p swx-sketch --example centered_plate")
+  It solves the sketch, checks its degrees of freedom, and prints the sizes and the region an extrude would use:
+  #term-block(label: "Output", "solved: true (Converged), dof 0 FullyConstrained\nbottom length 40.00 mm\nright  length 25.00 mm\nhole   center (20.00, 12.50)  diameter 10.00 mm\nregions: 1\n  region 0: outer edges 4, holes 1, area 921.46 mm²\nopen edges: 0")],
+  [Check the first line. `FullyConstrained` with `dof 0` means every piece is pinned down, including the hole, even though no rule gives the hole's coordinates.],
+  [Run it again for a plate 60 mm wide. The two numbers after `--` are the width and the height:
+  #term-block("cargo run -p swx-sketch --example centered_plate -- 60 25")
+  #term-block(label: "Output", "solved: true (Converged), dof 0 FullyConstrained\nbottom length 60.00 mm\nright  length 25.00 mm\nhole   center (30.00, 12.50)  diameter 10.00 mm\nregions: 1\n  region 0: outer edges 4, holes 1, area 1421.46 mm²\nopen edges: 0")
+  The hole has moved to x = 30, the middle of the new width.],
+)
+
+#result[A plate whose hole stays in the middle whatever its width or height, and a sketch that is fully constrained.]
+
+#image-equation(
+  (
+    // cargo run -p swx-qa --example constraint_plots -- docs/manual/img 600x420
+    ("img/sketch-centered-40.png", "40 mm wide"),
+    ("img/sketch-centered-60.png", "60 mm wide"),
+  ),
+  ("→",),
+  caption: [The same sketch with only the width changed. The red dots at the middle of the bottom and left sides are the helper points that center the hole.],
+) <fig-centered>
+
+=== How the centered plate is built
+
+The program is `crates/swx-sketch/examples/centered_plate.rs`. It starts from the same rough drawing as the plate sketch, and changes two things.
+
+*Square corners without four direction rules.* Only the bottom is horizontal. The left side is #term[perpendicular] to it, and each side is #term[parallel] to the one opposite:
+
+```rust
+s.add_constraint(Constraint::Horizontal(bottom))?;
+s.add_constraint(Constraint::Perpendicular(bottom, left))?;
+s.add_constraint(Constraint::Parallel(top, bottom))?;
+s.add_constraint(Constraint::Parallel(right, left))?;
+```
+
+*Center the hole with two helper points.* A point entity sits at the middle of the bottom side, and another at the middle of the left side. The hole's center is lined up straight above the first and level with the second:
+
+```rust
+let mid_bottom = s.add(Geometry::Point(p(19.0, 0.0)?))?;
+let mid_left = s.add(Geometry::Point(p(0.0, 12.0)?))?;
+s.add_constraint(Constraint::Midpoint { point: PointRef::Point(mid_bottom), line: bottom })?;
+s.add_constraint(Constraint::Midpoint { point: PointRef::Point(mid_left), line: left })?;
+s.add_constraint(Constraint::VerticalPoints(
+    PointRef::Point(mid_bottom), PointRef::Center(hole)))?;
+s.add_constraint(Constraint::HorizontalPoints(
+    PointRef::Point(mid_left), PointRef::Center(hole)))?;
+```
+
+Helper points are safe to add: they are not part of any outline, so the profile ignores them.
+
+#tip(title: [Why not a diagonal?])[Drawing the rectangle's diagonal and putting the hole's center at its midpoint would also work for the solver. But the diagonal would cut through the hole and the plate, and profiles can't be found from pieces that cross (@sec-profiles). Helper points avoid that.]
+
+#idx("symmetric")
+The #term[symmetric] constraint is the other way to say "centered": `Symmetric { a, b, line }` makes points `a` and `b` mirror images across `line`. It suits pairs, such as two holes placed evenly either side of a center line.
+
+== Draw a slot <sec-slot>
+
+A slot is a rounded-end opening, like the hole a bolt slides along. Its outline is two straight sides and two half circles, and the sides must run smoothly into the curves, with no corner. The #term[tangent] constraint says exactly that: a line touches a circle or arc without cutting into it. The #term[equal] constraint keeps both ends the same size, so you set the radius only once.
+
+#task-intro(
+  goal: [Solve a slot with tangent and equal constraints, find its region, and see why its arcs must be drawn as exact half circles today.],
+  needs: [Saulitwerx built (@ch-install). OpenCascade is not needed.],
+  time: [5 minutes.],
+)
+
+#steps(
+  [Run the slot sample:
+  #term-block("cargo run -p swx-sketch --example slot_sketch")
+  It solves the same slot twice. The first time, the arcs are drawn as half circles; the second time, the left arc is drawn 10° short:
+  #term-block(label: "Output", "1 half-circle ends\n  dof 4 UnderConstrained\n  left   arc center (  0.00,  0.00)  radius 5.00 mm\n  right  arc center ( 30.00,  0.00)  radius 5.00 mm\n  bottom (  0.00, -5.00) -> ( 30.00, -5.00)\n  regions: 1\n    outer edges 4, holes 0, area 378.54 mm²\n  open edges: []\n2 left end drawn 10 degrees short\n  dof 4 UnderConstrained\n  left   arc center (  0.00,  0.00)  radius 5.00 mm\n  right  arc center ( 30.00,  0.00)  radius 5.00 mm\n  bottom (  0.00, -5.00) -> ( 30.00, -5.00)\n  regions: 0\n  open edges: [0, 1, 2, 3]")],
+  [Read stage 1. The ends were drawn with radii 4 and 6 and the slot tilted; now both radii are 5 mm, the centers are 30 mm apart and level, and the sides run along y = −5 and y = 5. The slot encloses one region of 378.54 mm²: a 30 × 10 mm rectangle plus two half circles.],
+  [Read `dof 4`. The four degrees of freedom left are the start and end angles of the two arcs. No constraint can hold an arc's ends yet, so they stay exactly as drawn.],
+  [Read stage 2. Everything moved to the same place, but the left arc still stops 10° short of the bottom side. The outline no longer closes, so there is no region, and all four pieces are listed as open edges.],
+)
+
+#result[A 30 mm slot with 5 mm round ends, and one region ready to become a solid; and a clear sign of what happens when the outline doesn't close.]
+
+#shot(
+  // cargo run -p swx-qa --example constraint_plots -- docs/manual/img 600x420
+  "img/sketch-slot-gap.png",
+  width: 40%,
+  marks: ((19.4%, 64%, [gap]),),
+  caption: [Stage 2: the left arc ends 10° short of the bottom side (ringed). The gap is under 1 mm, but it is enough to leave the outline open.],
+  alt: "A slot outline whose lower-left arc stops just short of the bottom line",
+) <fig-slot-gap>
+
+=== How the slot is built
+
+The program is `crates/swx-sketch/examples/slot_sketch.rs`. Each side is tangent to both ends, and the ends are equal. A tangent line can touch its circle anywhere along the line, so tangency alone doesn't say where a side stops; the sample lines up each side's ends straight below or above an arc's center, which is where a half circle's ends are:
+
+```rust
+for (line, arc) in [(bottom, left), (bottom, right), (top, left), (top, right)] {
+    s.add_constraint(Constraint::Tangent(line, arc))?;
+}
+s.add_constraint(Constraint::Equal(left, right))?;
+s.add_constraint(Constraint::Radius { geom: left, value: 5.0 })?;
+// and likewise for the other three side ends:
+s.add_constraint(Constraint::VerticalPoints(PointRef::Start(bottom), PointRef::Center(left)))?;
+```
+
+#caution(title: [Draw arcs that end where they should])[Saulitwerx can't yet join an arc's end to a line's end with coincident: `PointRef` names only an arc's center. The solver moves an arc's center and changes its radius, but never its start or end angle. So an arc meets its neighbors only if you draw it with the right angles to begin with, as the slot's exact half circles are.]
+
+#tip[A tangent line stays on the side of the circle it started on, and two tangent circles stay touching on the outside or the inside, whichever they were closer to when you added the constraint. Draw roughly the right arrangement and the solver keeps it.]
+
+== Find the region to extrude <sec-profiles>
+
+Before a sketch can become a solid, Saulitwerx has to know which areas it encloses (@sec-profile). Both samples above end by asking for exactly that. This section shows the call, and how to read the answer.
+
+#task-intro(
+  goal: [Get the regions of a sketch, with their holes and areas, and find the open edges when a sketch doesn't close.],
+  needs: [The two samples above, run once each.],
+  time: [5 minutes.],
+)
+
+#steps(
+  [Look at the end of the centered-plate output (@sec-centered): `regions: 1`, `holes 1`, `area 921.46 mm²`. The rectangle is the region's outside edge and the circle its hole; the area is the rectangle's 1000 mm² minus the hole's 78.54 mm².],
+  [Look at stage 1 of the slot output (@sec-slot): one region with `outer edges 4` (two lines, two arcs) and no holes.],
+  [Look at stage 2: `regions: 0` and `open edges: [0, 1, 2, 3]`. The numbers are the pieces in the order they were added to the sketch: 0 and 1 are the arcs, 2 and 3 the lines. When a sketch has no region, the open edges show where to look for the gap.],
+)
+
+#result[You can tell whether a sketch is ready to become a solid, and how much area it encloses.]
+
+=== How it works
+
+One call returns every region and the open edges:
+
+```rust
+use swx_sketch::profile::{profile_report, ProfileOptions};
+
+let profile = profile_report(&s, &ProfileOptions::default())?;
+for r in &profile.regions {
+    println!("holes {}, area {:.2} mm²", r.holes.len(), r.area());
+}
+println!("open edges: {:?}", profile.open_edges);
+```
+
+`profiles(&s, &options)` returns only the regions. Ends of pieces closer together than a small tolerance count as joined; @sec-ref-profile lists the setting, every field, and the rules for loops inside loops.
+
+#caution(title: [Crossing pieces stop the search])[If two pieces cross, overlap or touch away from their ends, `profile_report` returns an error naming both, such as `geometry 2 and 5 intersect`, and no regions. Saulitwerx doesn't split pieces where they cross. Move or shorten one of them so they meet only end to end.]
 
 == Common mistakes
 
 - *A value of zero or less.* Distance, radius and diameter must be greater than zero. Adding `value: 0.0` fails with `value must be > 0, got 0`.
 - *The wrong kind of point.* `PointRef::Start` and `End` work only on lines, and `Center` only on circles and arcs. Using `Center` on a line fails with `geometry 0 has a different kind`.
 - *Rules that fight each other.* Two fixed points 30 mm apart with a distance of 40 mm between them can't both hold. The solver then stops with `solved: false` and a reason of `Stagnated`, and moves the points as close to meeting the rules as it can. A degree-of-freedom check then says `Conflicting` and gives the number of the clashing equation (@sec-check-dof).
+- *The wrong kind of entity.* Parallel and perpendicular take two lines. Equal takes two lines or two round pieces (circles and arcs), not one of each. Tangent takes a line and a round piece, or two round pieces, never two lines. Each of these fails with `geometry N has a different kind`.
+- *An outline with a gap.* Pieces that look joined but aren't leave no region. Join every corner with coincident, and draw arcs that end where their neighbors start (@sec-slot).
 - *Too few rules.* A sketch can solve and still be under-constrained: the solver keeps unconstrained pieces near where you drew them. Check that the degrees of freedom reach zero before you rely on the sizes.

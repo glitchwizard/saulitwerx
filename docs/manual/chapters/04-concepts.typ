@@ -53,9 +53,17 @@ A #term[constraint] is a rule about the shape of a sketch: "this line is horizon
   [Horizontal], [A line runs left–right; or two points are at the same height.],
   [Vertical], [A line runs up–down; or two points are directly above each other.],
   [Fixed], [A point stays at exact coordinates. Use it to anchor a sketch.],
+  [Parallel], [Two lines point the same way, like opposite sides of a rectangle.],
+  [Perpendicular], [Two lines meet at a right angle (90°), like the corner of a rectangle.],
+  [Equal], [Two lines are the same length, or two circles or arcs are the same size.],
+  [Midpoint], [A point sits exactly halfway along a line.],
+  [Symmetric], [Two points are mirror images of each other across a line.],
+  [Tangent], [A line just touches a circle or arc without cutting into it; or two circles or arcs just touch.],
 )
 
-#idx("coincident")#idx("horizontal")#idx("vertical")#idx("fixed")
+#idx("coincident")#idx("horizontal")#idx("vertical")#idx("fixed")#idx("parallel")#idx("perpendicular")#idx("equal")#idx("midpoint")#idx("symmetric")#idx("tangent")
+Some constraints are about direction (horizontal, vertical, parallel, perpendicular), some about position (coincident, fixed, midpoint, symmetric), and some about how curves meet (tangent) or match (equal). Parallel and perpendicular are relative: a parallel pair can lean at any angle, as long as both lean the same way. That is why a rectangle usually gets one horizontal side, to say which way is level, and perpendicular and parallel for the rest.
+
 Saulitwerx satisfies constraints with a #term[solver]: a calculation that nudges every point until all the rules hold at once. You give it a rough drawing and the rules; it gives back the exact shape.
 
 #shot(
@@ -106,7 +114,25 @@ The plate sketch starts with 19 degrees of freedom: four lines and a circle. @fi
 
 #tip[Constrain the shape first (coincident, horizontal, vertical), then add dimensions. Then anchor one point with fixed, so the whole sketch can't slide around.]
 
-*In Saulitwerx today:* all of the constraints and dimensions in these tables work, and the solver reports whether it found a shape that meets them. A degree-of-freedom report gives the count and the state, and points to each redundant rule as a numbered equation (@sec-check-dof). Naming the constraint behind each equation is up to your program for now.
+*In Saulitwerx today:* all of the constraints and dimensions in these tables work, and the solver reports whether it found a shape that meets them. A degree-of-freedom report gives the count and the state, and points to each redundant rule as a numbered equation (@sec-check-dof). Naming the constraint behind each equation is up to your program for now. One gap: a constraint can name an arc's center but not its two ends, so an arc's ends can't be joined to anything (@sec-slot).
+
+== Profiles and regions <sec-profile>
+
+A sketch on its own is just lines. To become a solid, it has to enclose an area that a feature can push into 3D. A closed chain of sketch pieces, where each one ends exactly where the next begins, is a #term[loop]. The flat area a loop encloses is a #term[region], and the regions of a sketch together are its #term[profile].
+
+A region can have holes. In the plate sketch the rectangle is one loop and the circle is another, inside it. Saulitwerx works out that the circle is a hole, so the plate's region is the rectangle *minus* the circle: 1000 − 78.54 = 921.46 mm². Pushed up 5 mm, that region is exactly the plate of @ch-first, hole included, with no separate cut.
+
+#shot(
+  // cargo run -p swx-qa --example constraint_plots -- docs/manual/img 600x420
+  "img/sketch-centered-40.png",
+  width: 40%,
+  caption: [Two loops, one region: the rectangle is its outside edge and the circle its hole.],
+  alt: "A 40 by 25 rectangle with a 10 mm circle in its middle",
+) <fig-profile>
+
+Pieces that don't close a loop, like a line with a free end, are #term[open edges]. They are left out of every region and listed separately, so you can find the gap. Pieces that cross each other are an error: Saulitwerx won't guess which of the shapes they form you meant.
+
+*In Saulitwerx today:* profiles are worked out from any sketch of lines, circles and arcs, with holes, nested islands and open edges (@sec-profiles). Turning a region into a solid comes with the extrude feature.
 
 == Parameters <sec-parameter>
 
