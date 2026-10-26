@@ -91,7 +91,9 @@ Any sketch message above can also come from profiles, when the sketch itself is 
 #ref-table(
   columns: (1fr, 1fr),
   header: ("Message", "Meaning and fix"),
-  [#raw("unknown parameter `p`")], [Set the parameter before a feature uses it.],
+  [#raw("unknown parameter `p`")], [Set the parameter before a feature uses it. Renaming or commenting on a parameter that doesn't exist also gives this.],
+  [#raw("a parameter named `p` already exists")], [Every parameter needs its own name. Pick another, or rename the other parameter first (@sec-param-table).],
+  [#raw("invalid parameter name `p`: must start with a letter or `_` and contain only letters, digits and `_`")], [Use a name like `hole_2`: no leading digit, no spaces, dashes, dots or accents.],
   [`unknown feature N`], [No feature with that number is in the history.],
   [`feature N references feature M which is not earlier in the history`], [A feature can use only features made before it.],
 )
@@ -113,7 +115,6 @@ Any sketch message above can also come from profiles, when the sketch itself is 
 - No desktop app, 3D view, mouse or keyboard controls yet.
 - No features that turn sketches into solids yet: no extrude, revolve, fillet or hole. Solids are made from boxes, cylinders and spheres.
 - No native part files; work can't be saved with its history.
-- The degree-of-freedom report gives redundant and conflicting rules as equation numbers, not as constraints; your program has to match them up (@sec-check-dof).
 - `swx-qa sketch` draws only its two built-in sketches. Your own sketches need a short program (@sec-picture-sketch). Sketch pictures show no dimension arrows and no marks for constraints such as horizontal.
 - A constraint can't name an arc's two ends, only its center. Arcs must be drawn with the angles that reach their neighbors; the solver never changes them (@sec-slot).
 - There are no angle dimensions and no point-to-line distance yet.
