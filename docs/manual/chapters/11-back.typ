@@ -31,6 +31,7 @@
     ("Isometric", [A view from a corner, looking down at an angle, so that three sides of a box show equally.]),
     ("Loop", [A closed chain of sketch pieces, each ending where the next begins.]),
     ("Midpoint", [A constraint that keeps a point halfway along a line.]),
+    ("Model parameter", [A parameter that belongs to a dimension, named `d0`, `d1`, … in turn.]),
     ("Open edge", [A sketch piece that isn't part of any closed loop.]),
     ("OpenCascade (OCCT)", [The open-source geometry kernel Saulitwerx uses.]),
     ("Over-constrained", [Said of a sketch with a rule that repeats what other rules already say.]),
@@ -52,6 +53,7 @@
     ("Under-constrained", [Said of a sketch with at least one degree of freedom left.]),
     ("Union", [A Boolean operation that joins two solids into one.]),
     ("Unit", [What a number measures in, such as millimeters.]),
+    ("User parameter", [A parameter you create yourself, with a name you choose.]),
     ("Volume", [How much space a solid fills.]),
   )
   set par(first-line-indent: 0pt, justify: false)
@@ -61,6 +63,12 @@
 }
 
 = What's new
+
+== 2026-10-26: parameter table, and named conflicts
+
+- *New:* a part's parameters form a table: model parameters named `d0`, `d1`, … in turn, user parameters with names you choose, units and comments. Renaming a parameter updates every feature that uses it (@sec-parameter, @sec-param-table, @sec-ref-params).
+- *Changed:* the degree-of-freedom report now names the redundant or conflicting constraints, not just equation numbers (@sec-check-dof, @sec-ref-dof). The matching known limitation is gone.
+- Help: two new parameter error messages, and two new common mistakes.
 
 == 2026-10-25: more constraints, and profiles
 
@@ -97,7 +105,8 @@ These are the next items on the public roadmap. None of them works yet. When one
 #ref-table(
   columns: (auto, 1fr),
   header: ("Soon", "What you'll be able to do"),
-  [Dimension parameters], [Every dimension becomes a named parameter, `d0`, `d1`, …, with expressions and units.],
+  [Parameter expressions], [Write a parameter as a formula with units, such as `d1 / 2 + 5 mm`.],
+  [Dimension parameters], [Every sketch dimension makes its own model parameter, `d0`, `d1`, …, by itself.],
   [Sketch inference], [Constraints such as horizontal, tangent and coincident added for you while you draw.],
   [Part features], [Extrude, revolve, fillet, chamfer, shell and hole, driven by sketches.],
   [Part files], [Save a part with its full history, and open it again.],
@@ -122,7 +131,7 @@ Later milestones add assemblies, 2D drawings and exploded views. The full plan i
       #text(font: sans, weight: "bold", fill: accent, "DRAW A SKETCH")
       #term-block("swx-qa sketch --fixture rectangle -o r.png\n  (or triangle-345)")
       #text(font: sans, weight: "bold", fill: accent, "SAMPLES")
-      #term-block("cargo run -p swx-sketch \\\n  --example plate_sketch\ncargo run -p swx-sketch \\\n  --example sketch_dof\ncargo run -p swx-sketch \\\n  --example centered_plate -- 60 25\ncargo run -p swx-sketch \\\n  --example slot_sketch\ncargo run -p swx-kernel --features occt \\\n  --example plate_with_hole -- plate.step\ncargo run -p swx-core \\\n  --example feature_history")
+      #term-block("cargo run -p swx-sketch \\\n  --example plate_sketch\ncargo run -p swx-sketch \\\n  --example sketch_dof\ncargo run -p swx-sketch \\\n  --example centered_plate -- 60 25\ncargo run -p swx-sketch \\\n  --example slot_sketch\ncargo run -p swx-kernel --features occt \\\n  --example plate_with_hole -- plate.step\ncargo run -p swx-core \\\n  --example feature_history\ncargo run -p swx-core \\\n  --example parameter_table")
     ],
     [
       #text(font: sans, weight: "bold", fill: accent, "SKETCH CONSTRAINTS")
