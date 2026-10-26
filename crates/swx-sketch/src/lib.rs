@@ -279,6 +279,8 @@ pub struct Sketch {
     slots: Vec<Slot>,
     constraints: Vec<Constraint>,
     rows: Vec<constraint::Resolved>,
+    /// The constraint that produced each entry of `rows`.
+    row_owners: Vec<ConstraintId>,
 }
 
 impl Sketch {
