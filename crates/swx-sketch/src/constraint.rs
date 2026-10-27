@@ -542,6 +542,34 @@ impl Sketch {
         Ok(id)
     }
 
+    /// Changes the value of an existing `Distance`, `Radius` or `Diameter`
+    /// constraint. The value must be finite and > 0, as in
+    /// [`Sketch::add_constraint`]. On error nothing changes.
+    pub fn set_dimension_value(&mut self, id: ConstraintId, value: f64) -> Result<(), SketchError> {
+        let c = self
+            .constraints
+            .get(id.0 as usize)
+            .copied()
+            .ok_or(SketchError::UnknownConstraint(id))?;
+        let c = match c {
+            Constraint::Distance { a, b, .. } => Constraint::Distance { a, b, value },
+            Constraint::Radius { geom, .. } => Constraint::Radius { geom, value },
+            Constraint::Diameter { geom, .. } => Constraint::Diameter { geom, value },
+            _ => return Err(SketchError::NotADimension(id)),
+        };
+        // Dimension rows depend only on indices and the value, so resolving
+        // again yields the same row with the new value.
+        let rows = self.resolve(&c)?;
+        let first = self
+            .row_owners
+            .iter()
+            .position(|&o| o == id)
+            .ok_or(SketchError::UnknownConstraint(id))?;
+        self.rows[first..first + rows.len()].copy_from_slice(&rows);
+        self.constraints[id.0 as usize] = c;
+        Ok(())
+    }
+
     /// The constraint that produced residual row `row` (as indexed by
     /// [`Residuals::residuals`] and [`DofReport::redundant`]), or `None` if
     /// there is no such row.
