@@ -1,0 +1,80 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(sketch): bind dimensions to document parameters",
+      "ref": "e212add",
+      "task_id": "m2-07b",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "m2-07b",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "passed": true,
+      "required": true,
+      "task_id": "m2-07b",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "required": true,
+      "task_id": "m2-07b",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`Sketch::set_dimension_value(id: ConstraintId, value: f64) -> Result<(), SketchError>` changes the value of an existing `Distance`, `Radius` or `Diameter` constraint. It returns an error for an unknown id, for any other constraint kind, and for a value that is not finite or is ≤ 0 (the same rule `add_constraint` uses). No panics.",
+      "A new module `swx_sketch::params` with `bind_dimension(sketch: &mut Sketch, doc: &mut Document, c: Constraint) -> Result<(ConstraintId, String), …>`. It adds the constraint, creates a model parameter through `doc.add_model_param(value, \"mm\")` (Radius/Diameter keep their own value: a diameter dimension of 10 creates a parameter of value 10), records the binding, and returns the constraint id and the parameter name. Non-dimensional constraints return an error and add nothing to either the sketch or the document.",
+      "Test: binding three dimensions in a fresh document gives `d0`, `d1`, `d2`, in order, with values equal to the constraint values.",
+      "`apply_params(sketch: &mut Sketch, doc: &Document) -> Result<(), …>` copies each bound parameter's current value into its constraint. A binding whose parameter no longer exists returns an error that names it. Test: rectangle 40 × 25 (width and height bound as `d0`, `d1`); `doc.set_param(\"d0\", 60.0)`, `apply_params`, `solve`: the solved width is 60 ± 1e-8 and the height stays 25 ± 1e-8.",
+      "Rename: `rename_bound(sketch: &mut Sketch, old: &str, new: &str)` updates the sketch's bindings. Test: `doc.rename_param(\"d0\", \"width\")` then `rename_bound(.., \"d0\", \"width\")`, `doc.set_param(\"width\", 50.0)`, `apply_params`, `solve`: the width is 50 ± 1e-8. `Sketch::bindings()` (or equivalent) lists `(ConstraintId, parameter name)` pairs so callers can inspect them.",
+      "Unbound constraints keep working exactly as before; all existing `swx-sketch` and `swx-core` tests pass unchanged.",
+      "No `unsafe`; no new third-party dependencies; `swx-sketch` depends only on `swx-core` among workspace crates; one ADR line added.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` passes.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-10-27T07:23:53.090578139+00:00",
+    "constraints": [],
+    "created_at": "2026-10-27T07:23:43.556161300+00:00",
+    "description": "M2-07b: Sketch dimensions bound to document parameters: Distance/Radius/Diameter create d0, d1, … and follow parameter edits",
+    "project_id": "saulitwerx",
+    "scope": "crates/swx-sketch, docs/ARCHITECTURE.md ADR line",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 3,
+      "estimate": "medium",
+      "id": "m2-07b",
+      "status": "completed",
+      "title": "Bind sketch dimensions to document parameters (#71, PR #83)",
+      "type": "implement"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
