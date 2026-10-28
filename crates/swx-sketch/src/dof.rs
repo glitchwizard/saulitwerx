@@ -22,6 +22,7 @@
 //! column-pivoted factorization and an upper bound on every `|Rᵢᵢ|`.
 
 use crate::solver::{all_finite, forward_difference, norm2, Residuals, SolveError};
+use crate::{ConstraintId, Sketch};
 
 /// Settings for [`analyze`].
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -137,6 +138,39 @@ pub fn analyze(
         residual_norm,
         state,
     })
+}
+
+/// Outcome of [`Sketch::dof`]: the row-level report plus the constraints
+/// that own its redundant rows.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SketchDofReport {
+    /// The report of [`analyze`] on the sketch's constraint system.
+    pub report: DofReport,
+    /// The distinct constraints that own at least one row of
+    /// [`DofReport::redundant`], ascending. Of two mutually redundant
+    /// constraints, the one added later is listed.
+    pub redundant_constraints: Vec<ConstraintId>,
+}
+
+impl Sketch {
+    /// Analyzes the degrees of freedom of all constraints at the current
+    /// geometry (see [`analyze`]); call it after [`Sketch::solve`] to tell
+    /// [`DofState::OverConstrained`] from [`DofState::Conflicting`].
+    pub fn dof(&self, options: DofOptions) -> Result<SketchDofReport, SolveError> {
+        let report = analyze(self, self.params(), options)?;
+        // Rows of one constraint are contiguous and ids ascend with rows, so
+        // mapping the ascending row list gives a sorted list.
+        let mut redundant_constraints: Vec<ConstraintId> = report
+            .redundant
+            .iter()
+            .filter_map(|&row| self.constraint_of_row(row))
+            .collect();
+        redundant_constraints.dedup();
+        Ok(SketchDofReport {
+            report,
+            redundant_constraints,
+        })
+    }
 }
 
 /// Householder QR of `Jᵀ` with its columns (the rows of the row-major
@@ -378,6 +412,131 @@ mod tests {
             ..fns(1, 1, |_: &[f64], o: &mut [f64]| o[0] = 0.0)
         };
         assert_eq!(run(&sys, &[0.0]).state, DofState::NonFinite);
+    }
+
+    /// The constraints of the `plate_sketch` example, solved. Returns the
+    /// sketch and its top line.
+    fn plate() -> (Sketch, crate::GeomId) {
+        use crate::{Circle, Constraint, Geometry, Line, Point, PointRef};
+        let mut s = Sketch::new();
+        let p = |x, y| Point::new(x, y).unwrap();
+        let mut line = |x0, y0, x1, y1| {
+            s.add(Geometry::Line(Line::new(p(x0, y0), p(x1, y1)).unwrap()))
+                .unwrap()
+        };
+        let bottom = line(0.0, 0.0, 38.0, 1.0);
+        let right = line(38.0, 1.0, 39.0, 22.0);
+        let top = line(39.0, 22.0, 1.0, 24.0);
+        let left = line(1.0, 24.0, 0.0, 0.0);
+        let hole = s
+            .add(Geometry::Circle(Circle::new(p(18.0, 11.0), 4.0).unwrap()))
+            .unwrap();
+        let mut cs = Vec::new();
+        for (a, b) in [(bottom, right), (right, top), (top, left), (left, bottom)] {
+            cs.push(Constraint::Coincident(PointRef::End(a), PointRef::Start(b)));
+        }
+        cs.extend([
+            Constraint::Horizontal(bottom),
+            Constraint::Horizontal(top),
+            Constraint::Vertical(left),
+            Constraint::Vertical(right),
+            Constraint::Fixed {
+                point: PointRef::Start(bottom),
+                x: 0.0,
+                y: 0.0,
+            },
+            Constraint::Distance {
+                a: PointRef::Start(bottom),
+                b: PointRef::End(bottom),
+                value: 40.0,
+            },
+            Constraint::Distance {
+                a: PointRef::Start(right),
+                b: PointRef::End(right),
+                value: 25.0,
+            },
+            Constraint::Fixed {
+                point: PointRef::Center(hole),
+                x: 20.0,
+                y: 12.5,
+            },
+            Constraint::Diameter {
+                geom: hole,
+                value: 10.0,
+            },
+        ]);
+        for c in cs {
+            s.add_constraint(c).unwrap();
+        }
+        s.solve(SolveOptions::default()).unwrap();
+        (s, top)
+    }
+
+    /// Adds a distance of `value` along `line`, solves, and analyzes.
+    fn with_line_distance(
+        mut s: Sketch,
+        line: crate::GeomId,
+        value: f64,
+    ) -> (ConstraintId, SketchDofReport) {
+        use crate::{Constraint, PointRef};
+        let id = s
+            .add_constraint(Constraint::Distance {
+                a: PointRef::Start(line),
+                b: PointRef::End(line),
+                value,
+            })
+            .unwrap();
+        s.solve(SolveOptions::default()).unwrap();
+        (id, s.dof(DofOptions::default()).unwrap())
+    }
+
+    #[test]
+    fn sketch_plate_is_fully_constrained() {
+        let rep = plate().0.dof(DofOptions::default()).unwrap();
+        assert_eq!(rep.report.state, DofState::FullyConstrained);
+        assert!(rep.redundant_constraints.is_empty());
+    }
+
+    #[test]
+    fn sketch_agreeing_top_distance_is_named_redundant() {
+        let (s, top) = plate();
+        let (id, rep) = with_line_distance(s, top, 40.0);
+        assert_eq!(rep.report.state, DofState::OverConstrained);
+        assert_eq!(rep.redundant_constraints, vec![id]);
+    }
+
+    #[test]
+    fn sketch_disagreeing_top_distance_is_named_conflicting() {
+        let (s, top) = plate();
+        let (id, rep) = with_line_distance(s, top, 45.0);
+        assert_eq!(rep.report.state, DofState::Conflicting);
+        assert_eq!(rep.redundant_constraints, vec![id]);
+    }
+
+    #[test]
+    fn sketch_duplicate_coincident_is_reported_once() {
+        let (mut s, _) = plate();
+        // Repeat an outline corner: both of its rows are redundant.
+        let corner = s.constraints()[1];
+        let id = s.add_constraint(corner).unwrap();
+        let rep = s.dof(DofOptions::default()).unwrap();
+        assert_eq!(rep.report.redundant.len(), 2);
+        assert_eq!(rep.redundant_constraints, vec![id]);
+        assert_eq!(rep.report.state, DofState::OverConstrained);
+    }
+
+    #[test]
+    fn constraint_of_row_maps_two_row_constraints() {
+        let (s, _) = plate();
+        // Four coincidents (2 rows each), then four 1-row constraints.
+        assert_eq!(s.constraint_of_row(0), Some(ConstraintId(0)));
+        assert_eq!(s.constraint_of_row(1), Some(ConstraintId(0)));
+        assert_eq!(s.constraint_of_row(7), Some(ConstraintId(3)));
+        assert_eq!(s.constraint_of_row(8), Some(ConstraintId(4)));
+        let last = s.num_residuals() - 1;
+        let n = s.constraints().len() as u32;
+        assert_eq!(s.constraint_of_row(last), Some(ConstraintId(n - 1)));
+        assert_eq!(s.constraint_of_row(last + 1), None);
     }
 
     #[test]

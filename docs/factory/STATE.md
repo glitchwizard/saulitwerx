@@ -13,6 +13,12 @@ issues_per_night: 2
 
 ## Log
 
+- 2026-10-27 reviewer: sent back #77 (M2-08a: conflicts with main) and #78 (M2-04a: no QA report); no new issues (all remaining M2 items have issues; ROADMAP bars M3 until M2 is checked off; ready: #79, which depends on #72); #83 and #84 wait for the next run; no retro (not a Monday night)
+- 2026-10-27 builder: #71 M2-07b → PR #83 (CI green, 3 checks; think-and-ship gates verified; QA pass)
+- 2026-10-26 documenter: M2-07a + M2-05a → PR #82 merged (CI green, 3 checks; 60 pages; no feedback; no issues opened)
+- 2026-10-26 reviewer: merged #69 (M2-07a) and #70 (M2-05a) (CI green, 3 checks each; QA reports + ship reports verified; local gates on main+both exit 0); no roadmap check-off (M2-07 still open, M2-05 already checked); planned #79 M2-08b (ready: #71, #73, #79); #77 and #78 wait for the next run; retro PR #80 (needs-human, 2 changes)
+- 2026-10-26 builder: idle (nightly cap reached; 12:17am run took #72 → PR #77 and #76 → PR #78 but posted no outcome comments; #78 has no QA report)
+- 2026-10-25 documenter: M2-04 + M2-06 → PR #75 merged (CI green, 3 checks; 58 pages; no feedback; opened #76)
 - 2026-10-25 reviewer: merged #65 (M2-04) and #66 (M2-06) (CI green, 3 checks each; QA reports + ship reports + 4 images verified; local gates on merge results exit 0); checked off QA-02, M2-04, M2-05, M2-06 (superseding stale docs PR #64); planned #71 M2-07b, #72 M2-08a, #73 M2-09 (ready: #71, #72, #73); #69 and #70 wait for the next run
 - 2026-10-25 builder: idle (nightly cap reached; 12:17am run took #68 → PR #70 and #62 → PR #69)
 - 2026-10-25 builder: #62 M2-07a → PR #69 (CI green, 3 checks; think-and-ship gates verified; QA pass)
@@ -37,9 +43,3 @@ issues_per_night: 2
 - 2026-10-20 builder: idle (no qualifying item; #25/#28 wait on #22; #47/#48 await review)
 - 2026-10-19 builder: idle (nightly cap reached; #47 and #48 opened by the 12:17am run lack QA reports and outcome comments)
 - 2026-10-18 reviewer: merged #38 (QA-01; CI green, 3 checks; QA report and 3 images checked); checked off QA-01; no new issues needed (ready: #22, #25, #28, #39); branch feat/32-swx-qa-render not deleted (API write blocked)
-- 2026-10-18 builder: #32 QA-01 → PR #38 (CI green; 3 checks; no think-and-ship)
-- 2026-10-17 reviewer: merged #27 (M2-01; CI green, 3 checks); checked off M2-01; planned #28 M2-04 (ready: #22, #25, #28); branch feat/18-sketch-geometry not deleted (API write blocked)
-- 2026-10-17 builder: #18 M2-01 → PR #27 (CI pending at log time)
-- 2026-10-16 reviewer: no open PRs; owner merged #24 (M1-05); checked off M1-05; planned #25 M2-03 (ready: #18, #22, #25)
-- 2026-10-16 builder: #9 M1-05 → PR #24 (CI green; 3 checks; owner-merge: adds libocct-data-exchange-dev to CI)
-- 2026-10-15 reviewer: merged #20 (M1-04; CI green, 3 checks); checked off M1-04; planned #22 M2-02 (ready: #9, #18, #22); branch feat/8-tessellation not deleted (API write blocked)
