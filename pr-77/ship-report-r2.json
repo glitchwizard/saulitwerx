@@ -1,0 +1,80 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "Merge main into feat/72-param-expressions",
+      "ref": "938642e",
+      "task_id": "pr77-gates",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt --all --check",
+      "passed": true,
+      "required": true,
+      "task_id": "pr77-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy --workspace --all-targets -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "pr77-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test --workspace",
+      "passed": true,
+      "required": true,
+      "task_id": "pr77-gates",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`Quantity { value: f64, dim: Dim }` where `Dim` holds integer exponents of length and angle (`Dim::NONE`, `Dim::LENGTH`, `Dim::ANGLE`; area is length²). Values are stored in base units: millimeters and radians.",
+      "`parse(src: &str) -> Result<Expr, ExprError>` accepts: decimal numbers (`5`, `2.5`, `.5`, `1e-3`), identifiers matching `[A-Za-z_][A-Za-z0-9_]*`, binary `+ - * /`, unary minus, parentheses, and a unit suffix directly after a number or a parenthesized group (`5 mm`, `5mm`, `(d1 + 2) mm`). Units: `mm`, `cm`, `m`, `in`, `ft` (length) and `deg`, `rad` (angle). Usual precedence and left associativity: `2 + 3 * 4 = 14`, `8 / 4 / 2 = 1`, `-2 * 3 = -6`.",
+      "`eval(&Expr, resolve: &dyn Fn(&str) -> Option<Quantity>, default_length: Unit) -> Result<Quantity, ExprError>`. A bare number is unitless; the caller decides how to treat a unitless result (for example `5` typed into a length parameter). Test values: `1 in` = 25.4 mm exactly; `2 ft + 1 in` = 635 mm ± 1e-9; `90 deg` = π/2 ± 1e-12 rad; with `d1 = 40 mm`, `d1 / 2 + 5 mm` = 25 mm ± 1e-12; `d1 * d1` has dimension length² and value 1600.",
+      "`default_length` is how a result is *shown*: `Quantity::in_unit(Unit::In)` converts back, e.g. 25.4 mm → 1.0 in.",
+      "Errors, each with the byte offset in `src` where it applies, and a clear `Display`: syntax error (`2 +`, `(1`, `1 2`, `5 mmm`), unknown unit, unknown name (the resolver returned `None`), dimension mismatch (`5 mm + 2 deg`, `d1 + 3` where `d1` is a length and `3` is unitless), and division by zero. No panics on any input; a test feeds at least 20 malformed strings.",
+      "`Expr::names()` returns the identifiers an expression references, in first-use order without duplicates (`d1 / 2 + d1 * w` → `[\"d1\", \"w\"]`), ready for the dependency ordering in M2-08b.",
+      "No `unsafe`; no new dependencies; `swx-core` still has no workspace dependencies.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` passes.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-10-28T07:20:35.135840745+00:00",
+    "constraints": [],
+    "created_at": "2026-10-28T07:20:14.143616679+00:00",
+    "description": "M2-08a: Parameter expressions with units: parse and evaluate `d1 / 2 + 5 mm` with unit checking",
+    "project_id": "saulitwerx",
+    "scope": "",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 3,
+      "estimate": "small",
+      "id": "pr77-gates",
+      "status": "completed",
+      "title": "Merge main into PR #77 and verify gates",
+      "type": "test"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
