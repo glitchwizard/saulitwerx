@@ -194,13 +194,24 @@
 
 // A row of images joined by operator signs drawn by the template, used for
 // "this plus that gives this" pictures. `parts` is an array of
-// (path, label) pairs; `ops` the signs between them.
-#let image-equation(parts, ops, caption: none, alt: none) = figure(
+// (path, label) pairs; `ops` the signs between them. `marks`, if given, has
+// one array of (x, y, label) rings per part, as in `shot`.
+#let image-equation(parts, ops, caption: none, alt: none, marks: ()) = figure(
   {
     let cells = ()
     for (i, (p, lab)) in parts.enumerate() {
       cells.push(stack(spacing: 5pt,
-        box(fill: render-bg, radius: 3pt, clip: true, stroke: 0.5pt + rule-c, image(p, width: 100%, alt: lab)),
+        box(fill: render-bg, radius: 3pt, clip: true, stroke: 0.5pt + rule-c, {
+          image(p, width: 100%, alt: lab)
+          for (x, y, mlab) in marks.at(i, default: ()) {
+            place(top + left, dx: x - 8pt, dy: y - 8pt,
+              circle(radius: 8pt, stroke: 1.4pt + caution-c))
+            if mlab != none {
+              place(top + left, dx: x + 10pt, dy: y + 4pt,
+                text(font: sans, size: 7pt, weight: "bold", fill: caution-c, mlab))
+            }
+          }
+        }),
         align(center, text(font: sans, size: 8pt, fill: muted, lab)),
       ))
       if i < ops.len() {

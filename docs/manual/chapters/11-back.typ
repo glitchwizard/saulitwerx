@@ -5,6 +5,7 @@
 
 #{
   let g = (
+    ("Binding", [The link between a sketch dimension and the parameter that drives it.]),
     ("Bounding box", [The smallest box, with sides parallel to the axes, that holds a solid.]),
     ("Boolean operation", [Combining two solids by union, cut or intersect.]),
     ("CAD", [Computer-aided design: using a computer to design physical objects.]),
@@ -20,6 +21,7 @@
     ("Equal", [A constraint that makes two lines the same length, or two circles or arcs the same size.]),
     ("Entity", [One piece of sketch geometry: a point, line, circle or arc.]),
     ("Face", [One flat or curved patch of a solid's surface.]),
+    ("Expression", [A small formula with units that works out a value, such as `d1 / 2 + 5 mm`.]),
     ("Feature", [One step in building a part, such as a sketch or a cut. Features are kept in the history.]),
     ("Feature tree", [Another name for a part's history.]),
     ("Fixed", [A constraint that keeps a point at exact coordinates.]),
@@ -64,6 +66,14 @@
 
 = What's new
 
+== 2026-10-28: dimensions as parameters, expressions, and joined arcs
+
+- *New:* constraints can name an arc's two ends (`ArcStart`, `ArcEnd`), so lines and arcs join into closed outlines. The slot task is rewritten: it now starts from a careless drawing and solves to a fully defined slot (@sec-slot, @sec-ref-sketch).
+- *New:* a sketch's distance, radius and diameter dimensions can each make a model parameter, `d0`, `d1`, …, and follow it when it changes (@sec-drive-sketch).
+- *New:* work out expressions with units, such as `d1 / 2 + 5 mm`, with unit checking (@sec-expressions, @sec-ref-expr).
+- *Pictures:* the slot before and after solving replaces the slot with a gap.
+- Help: new error messages for bound dimensions and expressions; troubleshooting and known limitations updated. The limitation on arc ends is gone.
+
 == 2026-10-26: parameter table, and named conflicts
 
 - *New:* a part's parameters form a table: model parameters named `d0`, `d1`, … in turn, user parameters with names you choose, units and comments. Renaming a parameter updates every feature that uses it (@sec-parameter, @sec-param-table, @sec-ref-params).
@@ -105,8 +115,7 @@ These are the next items on the public roadmap. None of them works yet. When one
 #ref-table(
   columns: (auto, 1fr),
   header: ("Soon", "What you'll be able to do"),
-  [Parameter expressions], [Write a parameter as a formula with units, such as `d1 / 2 + 5 mm`.],
-  [Dimension parameters], [Every sketch dimension makes its own model parameter, `d0`, `d1`, …, by itself.],
+  [Parameters as formulas], [Set a parameter to an expression such as `d1 / 2 + 5 mm`, with the table kept in dependency order and loops refused.],
   [Sketch inference], [Constraints such as horizontal, tangent and coincident added for you while you draw.],
   [Part features], [Extrude, revolve, fillet, chamfer, shell and hole, driven by sketches.],
   [Part files], [Save a part with its full history, and open it again.],
@@ -131,7 +140,7 @@ Later milestones add assemblies, 2D drawings and exploded views. The full plan i
       #text(font: sans, weight: "bold", fill: accent, "DRAW A SKETCH")
       #term-block("swx-qa sketch --fixture rectangle -o r.png\n  (or triangle-345)")
       #text(font: sans, weight: "bold", fill: accent, "SAMPLES")
-      #term-block("cargo run -p swx-sketch \\\n  --example plate_sketch\ncargo run -p swx-sketch \\\n  --example sketch_dof\ncargo run -p swx-sketch \\\n  --example centered_plate -- 60 25\ncargo run -p swx-sketch \\\n  --example slot_sketch\ncargo run -p swx-kernel --features occt \\\n  --example plate_with_hole -- plate.step\ncargo run -p swx-core \\\n  --example feature_history\ncargo run -p swx-core \\\n  --example parameter_table")
+      #term-block("cargo run -p swx-sketch \\\n  --example plate_sketch\ncargo run -p swx-sketch \\\n  --example sketch_dof\ncargo run -p swx-sketch \\\n  --example centered_plate -- 60 25\ncargo run -p swx-sketch \\\n  --example slot_sketch\ncargo run -p swx-kernel --features occt \\\n  --example plate_with_hole -- plate.step\ncargo run -p swx-core \\\n  --example feature_history\ncargo run -p swx-core \\\n  --example parameter_table\ncargo run -p swx-sketch \\\n  --example driven_plate\ncargo run -p swx-core \\\n  --example expressions")
     ],
     [
       #text(font: sans, weight: "bold", fill: accent, "SKETCH CONSTRAINTS")

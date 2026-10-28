@@ -75,7 +75,7 @@ let report = s.solve(SolveOptions::default())?;
 ```
 
 #idx("PointRef")
-A `PointRef` names a point the constraint acts on: `Start(line)`, `End(line)`, `Center(circle)` or `Point(point)`. @sec-ref-sketch lists every entity and constraint with its exact form.
+A `PointRef` names a point the constraint acts on: `Start(line)`, `End(line)`, `Center(circle)`, `ArcStart(arc)`, `ArcEnd(arc)` or `Point(point)`. @sec-ref-sketch lists every entity and constraint with its exact form.
 
 == Check how fully a sketch is defined <sec-check-dof>
 
@@ -199,10 +199,10 @@ The #term[symmetric] constraint is the other way to say "centered": `Symmetric {
 
 == Draw a slot <sec-slot>
 
-A slot is a rounded-end opening, like the hole a bolt slides along. Its outline is two straight sides and two half circles, and the sides must run smoothly into the curves, with no corner. The #term[tangent] constraint says exactly that: a line touches a circle or arc without cutting into it. The #term[equal] constraint keeps both ends the same size, so you set the radius only once.
+A slot is a rounded-end opening, like the hole a bolt slides along. Its outline is two straight sides and two half circles, and the sides must run smoothly into the curves, with no corner. Three constraints say that. Coincident joins each side's ends to the arcs' ends, so the outline closes. The #term[tangent] constraint makes a line touch a circle or arc without cutting into it, so there is no corner where they meet. The #term[equal] constraint keeps both ends the same size, so you set the radius only once.
 
 #task-intro(
-  goal: [Solve a slot with tangent and equal constraints, find its region, and see why its arcs must be drawn as exact half circles today.],
+  goal: [Close a roughly drawn slot with coincident, tangent and equal constraints, check that it is fully defined, and find its region.],
   needs: [Saulitwerx built (@ch-install). OpenCascade is not needed.],
   time: [5 minutes.],
 )
@@ -210,41 +210,53 @@ A slot is a rounded-end opening, like the hole a bolt slides along. Its outline 
 #steps(
   [Run the slot sample:
   #term-block("cargo run -p swx-sketch --example slot_sketch")
-  It solves the same slot twice. The first time, the arcs are drawn as half circles; the second time, the left arc is drawn 10° short:
-  #term-block(label: "Output", "1 half-circle ends\n  dof 4 UnderConstrained\n  left   arc center (  0.00,  0.00)  radius 5.00 mm\n  right  arc center ( 30.00,  0.00)  radius 5.00 mm\n  bottom (  0.00, -5.00) -> ( 30.00, -5.00)\n  regions: 1\n    outer edges 4, holes 0, area 378.54 mm²\n  open edges: []\n2 left end drawn 10 degrees short\n  dof 4 UnderConstrained\n  left   arc center (  0.00,  0.00)  radius 5.00 mm\n  right  arc center ( 30.00,  0.00)  radius 5.00 mm\n  bottom (  0.00, -5.00) -> ( 30.00, -5.00)\n  regions: 0\n  open edges: [0, 1, 2, 3]")],
-  [Read stage 1. The ends were drawn with radii 4 and 6 and the slot tilted; now both radii are 5 mm, the centers are 30 mm apart and level, and the sides run along y = −5 and y = 5. The slot encloses one region of 378.54 mm²: a 30 × 10 mm rectangle plus two half circles.],
-  [Read `dof 4`. The four degrees of freedom left are the start and end angles of the two arcs. No constraint can hold an arc's ends yet, so they stay exactly as drawn.],
-  [Read stage 2. Everything moved to the same place, but the left arc still stops 10° short of the bottom side. The outline no longer closes, so there is no region, and all four pieces are listed as open edges.],
+  It prints the slot twice: as drawn, then after solving.
+  #term-block(label: "Output", "1 as drawn\n  left   arc center (  0.00,  0.00)  radius 4.00 mm  from   90° to  260°\n  right  arc center ( 28.00,  1.00)  radius 6.00 mm  from  -90° to   90°\n  bottom (  0.00, -4.00) -> ( 28.00, -5.00)\n  regions: 0\n  open edges: [0, 1, 2, 3]\n2 solved: true\n  dof 0 FullyConstrained\n  left   arc center (  0.00,  0.00)  radius 5.00 mm  from   90° to  270°\n  right  arc center ( 30.00,  0.00)  radius 5.00 mm  from  -90° to   90°\n  bottom (  0.00, -5.00) -> ( 30.00, -5.00)\n  regions: 1\n    outer edges 4, holes 0, area 378.54 mm²\n  open edges: []")],
+  [Read stage 1. The slot was drawn carelessly on purpose: the ends have radii 4 and 6, the slot is tilted, and the left arc stops at 260°, 10° short of the bottom side (@fig-slot). Because of that one gap the outline doesn't close, so there is no region and all four pieces are listed as open edges.],
+  [Read stage 2. Both radii are now 5 mm, the centers are 30 mm apart and level, and the left arc runs the full half circle from 90° to 270°. The solver turned the arc's end until it met the bottom side.],
+  [Read `dof 0 FullyConstrained`. Every piece of the slot is pinned down: its size, its shape and where it sits. Nothing is left to chance.],
+  [Read the region. The closed slot encloses one region of 378.54 mm²: a 30 × 10 mm rectangle plus two half circles of radius 5 mm.],
 )
 
-#result[A 30 mm slot with 5 mm round ends, and one region ready to become a solid; and a clear sign of what happens when the outline doesn't close.]
+#result[A fully defined 30 mm slot with 5 mm round ends, and one region ready to become a solid.]
 
-#shot(
-  // cargo run -p swx-qa --example constraint_plots -- docs/manual/img 600x420
-  "img/sketch-slot-gap.png",
-  width: 40%,
-  marks: ((19.4%, 64%, [gap]),),
-  caption: [Stage 2: the left arc ends 10° short of the bottom side (ringed). The gap is under 1 mm, but it is enough to leave the outline open.],
-  alt: "A slot outline whose lower-left arc stops just short of the bottom line",
-) <fig-slot-gap>
+#image-equation(
+  (
+    // cargo run -p swx-qa --example constraint_plots -- docs/manual/img 600x420
+    ("img/sketch-slot-rough.png", "As drawn"),
+    ("img/sketch-slot.png", "Solved"),
+  ),
+  ("→",),
+  marks: (((18%, 64%, [gap]),), ()),
+  caption: [The slot before and after solving. As drawn, the ends differ in size, the slot is tilted, and the left arc stops short of the bottom side (ringed). Solved, it is level, with equal 5 mm ends joined all the way round.],
+) <fig-slot>
 
 === How the slot is built
 
-The program is `crates/swx-sketch/examples/slot_sketch.rs`. Each side is tangent to both ends, and the ends are equal. A tangent line can touch its circle anywhere along the line, so tangency alone doesn't say where a side stops; the sample lines up each side's ends straight below or above an arc's center, which is where a half circle's ends are:
+The program is `crates/swx-sketch/examples/slot_sketch.rs`. An arc's two ends are named with `PointRef::ArcStart(arc)` and `PointRef::ArcEnd(arc)`. An arc always runs counterclockwise from its start to its end, so the left arc, drawn from the top (90°) round to the bottom (270°), ends where the bottom side starts:
 
 ```rust
+for (a, b) in [
+    (PointRef::Start(bottom), PointRef::ArcEnd(left)),
+    (PointRef::End(bottom), PointRef::ArcStart(right)),
+    (PointRef::Start(top), PointRef::ArcEnd(right)),
+    (PointRef::End(top), PointRef::ArcStart(left)),
+] {
+    s.add_constraint(Constraint::Coincident(a, b))?;
+}
 for (line, arc) in [(bottom, left), (bottom, right), (top, left), (top, right)] {
     s.add_constraint(Constraint::Tangent(line, arc))?;
 }
 s.add_constraint(Constraint::Equal(left, right))?;
 s.add_constraint(Constraint::Radius { geom: left, value: 5.0 })?;
-// and likewise for the other three side ends:
-s.add_constraint(Constraint::VerticalPoints(PointRef::Start(bottom), PointRef::Center(left)))?;
 ```
 
-#caution(title: [Draw arcs that end where they should])[Saulitwerx can't yet join an arc's end to a line's end with coincident: `PointRef` names only an arc's center. The solver moves an arc's center and changes its radius, but never its start or end angle. So an arc meets its neighbors only if you draw it with the right angles to begin with, as the slot's exact half circles are.]
+Then the bottom side is made horizontal, the left center is fixed at the origin, and the centers are set 30 mm apart. That is all the slot needs.
 
-#tip[A tangent line stays on the side of the circle it started on, and two tangent circles stay touching on the outside or the inside, whichever they were closer to when you added the constraint. Draw roughly the right arrangement and the solver keeps it.]
+#idx("arc ends")
+#tip(title: [Which end is which])[Picture walking round the arc counterclockwise, the way the angles grow. Where you set off is `ArcStart`; where you stop is `ArcEnd`. If you join the wrong end, the solver still tries to obey, and you get a different shape from the one you meant. Check the angles in the output, or plot the sketch (@sec-picture-sketch).]
+
+#tip[A tangent line stays on the side of the circle it started on, and two tangent circles stay touching on the outside or the inside, whichever they were closer to when you added the constraint. Draw roughly the right arrangement and the solver keeps it. When a line's end is joined to an arc's end, tangent there means the line meets the arc square to its radius, which is exactly "no corner".]
 
 == Find the region to extrude <sec-profiles>
 
@@ -258,8 +270,8 @@ Before a sketch can become a solid, Saulitwerx has to know which areas it enclos
 
 #steps(
   [Look at the end of the centered-plate output (@sec-centered): `regions: 1`, `holes 1`, `area 921.46 mm²`. The rectangle is the region's outside edge and the circle its hole; the area is the rectangle's 1000 mm² minus the hole's 78.54 mm².],
-  [Look at stage 1 of the slot output (@sec-slot): one region with `outer edges 4` (two lines, two arcs) and no holes.],
-  [Look at stage 2: `regions: 0` and `open edges: [0, 1, 2, 3]`. The numbers are the pieces in the order they were added to the sketch: 0 and 1 are the arcs, 2 and 3 the lines. When a sketch has no region, the open edges show where to look for the gap.],
+  [Look at stage 2 of the slot output (@sec-slot): one region with `outer edges 4` (two lines, two arcs) and no holes.],
+  [Look at stage 1: `regions: 0` and `open edges: [0, 1, 2, 3]`. The numbers are the pieces in the order they were added to the sketch: 0 and 1 are the arcs, 2 and 3 the lines. When a sketch has no region, the open edges show where to look for the gap.],
 )
 
 #result[You can tell whether a sketch is ready to become a solid, and how much area it encloses.]
@@ -285,8 +297,8 @@ println!("open edges: {:?}", profile.open_edges);
 == Common mistakes
 
 - *A value of zero or less.* Distance, radius and diameter must be greater than zero. Adding `value: 0.0` fails with `value must be > 0, got 0`.
-- *The wrong kind of point.* `PointRef::Start` and `End` work only on lines, and `Center` only on circles and arcs. Using `Center` on a line fails with `geometry 0 has a different kind`.
+- *The wrong kind of point.* `PointRef::Start` and `End` work only on lines, `ArcStart` and `ArcEnd` only on arcs, and `Center` only on circles and arcs. Using `Center` on a line fails with `geometry 0 has a different kind`.
 - *Rules that fight each other.* Two fixed points 30 mm apart with a distance of 40 mm between them can't both hold. The solver then stops with `solved: false` and a reason of `Stagnated`, and moves the points as close to meeting the rules as it can. A degree-of-freedom check then says `Conflicting` and names the clashing constraint (@sec-check-dof).
 - *The wrong kind of entity.* Parallel and perpendicular take two lines. Equal takes two lines or two round pieces (circles and arcs), not one of each. Tangent takes a line and a round piece, or two round pieces, never two lines. Each of these fails with `geometry N has a different kind`.
-- *An outline with a gap.* Pieces that look joined but aren't leave no region. Join every corner with coincident, and draw arcs that end where their neighbors start (@sec-slot).
+- *An outline with a gap.* Pieces that look joined but aren't leave no region. Join every corner with coincident, including where a line meets an arc (@sec-slot).
 - *Too few rules.* A sketch can solve and still be under-constrained: the solver keeps unconstrained pieces near where you drew them. Check that the degrees of freedom reach zero before you rely on the sizes.
