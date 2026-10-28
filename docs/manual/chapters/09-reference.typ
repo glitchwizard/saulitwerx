@@ -81,6 +81,7 @@ Success and errors work as for `render`. `--step` and `--crease` belong to `rend
   [`cargo run -p swx-kernel --features occt --example plate_with_hole -- <file.step>`], [Builds the plate and saves it (@ch-solids). The file defaults to `plate.step`.],
   [`cargo run -p swx-kernel --features occt --example plate_stages -- <dir>`], [Saves the block, the cylinder and the plate as three STEP files in `<dir>`.],
   [`cargo run -p swx-core --example feature_history`], [Runs the history sample (@ch-history).],
+  [`cargo run -p swx-core --example parameter_table`], [Runs the parameter-table sample (@sec-param-table).],
 )
 
 #idx("occt feature")
@@ -207,7 +208,8 @@ Loops are found by walking around each corner in angle order, the standard metho
 == Degree-of-freedom report <sec-ref-dof>
 
 #idx("analyze")
-`swx_sketch::dof::analyze(&sketch, sketch.params(), options)` checks a sketch as it is now (@sec-dof). Run it after `solve`.
+#idx("dof")
+`sketch.dof(options)` checks a sketch as it is now (@sec-dof) and returns a `SketchDofReport`. Run it after `solve`. The lower-level `swx_sketch::dof::analyze(&sketch, sketch.params(), options)` returns the `DofReport` alone.
 
 #ref-table(
   columns: (auto, 1fr, auto),
@@ -238,6 +240,15 @@ Loops are found by walking around each corner in angle order, the standard metho
 
 #ref-table(
   columns: (auto, 1fr),
+  header: ("SketchDofReport field", "Meaning"),
+  [`report`], [The `DofReport` above.],
+  [`redundant_constraints`], [The constraints that own a repeated equation, as `ConstraintId`s, smallest first, each listed once. Of two rules that repeat each other, the one added later is listed.],
+)
+
+`sketch.constraint_of_row(n)` gives the constraint that made equation `n`, or `None` when there is no such equation.
+
+#ref-table(
+  columns: (auto, 1fr),
   header: ("Entity or constraint", "Numbers or equations"),
   [Point · Line · Circle · Arc], [2 · 4 · 3 · 5 numbers (degrees of freedom when free).],
   [Coincident · Fixed · Midpoint · Symmetric], [2 equations each.],
@@ -246,6 +257,34 @@ Loops are found by walking around each corner in angle order, the standard metho
 
 #idx("Householder QR")
 The count uses a Householder QR factorization, taking the equations in the order they were added; see G. H. Golub and C. F. Van Loan, _Matrix Computations_, 4th ed., §5.2.
+
+== Parameters <sec-ref-params>
+
+#idx("Document")
+A `swx_core::Document` keeps its parameters in creation order (@sec-param-table). Every call that can fail leaves the table unchanged when it does.
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("Call", "What it does"),
+  [`add_model_param(value, unit)`], [Makes a model parameter named `d<N>` and returns the name. `N` starts at 0 and only goes up; a name already taken is skipped.],
+  [`add_user_param(name, value, unit)`], [Makes a user parameter. Fails if the name is invalid or taken.],
+  [`rename_param(old, new)`], [Renames a parameter and every feature that uses it. The kind is kept. Renaming to the same name does nothing.],
+  [`set_param_comment(name, comment)`], [Sets the comment. Fails if there is no such parameter.],
+  [`set_param(name, value)`], [Sets the value. An unknown name makes a user parameter with an empty unit; this name is not checked.],
+  [`param(name)`], [The value, or `None`.],
+  [`parameters()`], [Every parameter, in creation order.],
+  [`is_valid_param_name(name)`], [Whether a name is allowed.],
+)
+
+#ref-table(
+  columns: (auto, 1fr, auto),
+  header: ("Parameter field", "Meaning", "Allowed values"),
+  [`name`], [Unique within the part. Case-sensitive.], [a letter or `_`, then letters, digits or `_` (ASCII)],
+  [`kind`], [Where it came from.], [`Model`, `User`],
+  [`value`], [The number.], [any number],
+  [`unit`], [Free text; not checked yet.], [any, may be empty],
+  [`comment`], [A note for people.], [any; empty by default],
+)
 
 == File formats and units
 

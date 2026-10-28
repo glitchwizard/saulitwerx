@@ -664,6 +664,8 @@ impl Sketch {
         let id = ConstraintId(self.constraints.len() as u32);
         self.constraints.push(c);
         self.first_row.push(self.rows.len());
+        self.row_owners
+            .resize(self.row_owners.len() + rows.len(), id);
         self.rows.extend(rows);
         if let Constraint::Coincident(..) = c {
             // A line-arc tangent added earlier may now share an end with its
@@ -679,6 +681,15 @@ impl Sketch {
             }
         }
         Ok(id)
+    }
+
+    /// The constraint that produced residual row `row` (as indexed by
+    /// [`Residuals::residuals`] and [`DofReport::redundant`]), or `None` if
+    /// there is no such row.
+    ///
+    /// [`DofReport::redundant`]: crate::dof::DofReport::redundant
+    pub fn constraint_of_row(&self, row: usize) -> Option<ConstraintId> {
+        self.row_owners.get(row).copied()
     }
 
     /// The constraints, in the order they were added.

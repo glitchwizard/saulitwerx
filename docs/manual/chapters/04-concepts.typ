@@ -114,7 +114,7 @@ The plate sketch starts with 19 degrees of freedom: four lines and a circle. @fi
 
 #tip[Constrain the shape first (coincident, horizontal, vertical), then add dimensions. Then anchor one point with fixed, so the whole sketch can't slide around.]
 
-*In Saulitwerx today:* all of the constraints and dimensions in these tables work, and the solver reports whether it found a shape that meets them. A degree-of-freedom report gives the count and the state, and points to each redundant rule as a numbered equation (@sec-check-dof). Naming the constraint behind each equation is up to your program for now. One gap: a constraint can name an arc's center but not its two ends, so an arc's ends can't be joined to anything (@sec-slot).
+*In Saulitwerx today:* all of the constraints and dimensions in these tables work, and the solver reports whether it found a shape that meets them. A degree-of-freedom report gives the count and the state, and names each redundant constraint (@sec-check-dof). One gap: a constraint can name an arc's center but not its two ends, so an arc's ends can't be joined to anything (@sec-slot).
 
 == Profiles and regions <sec-profile>
 
@@ -140,7 +140,9 @@ A #term[parameter] is a named number, like `thickness = 5` or `hole_dia = 10`. F
 
 This is the "parametric" in parametric CAD. One plate design, with its thickness as a parameter, is really a whole family of plates: set `thickness` to 3, 5 or 8 and rebuild.
 
-*In Saulitwerx today:* parts hold named parameters, and features refer to them by name (@ch-history). Expressions such as `d3 = d1 / 2 + 5 mm`, and automatic parameters for every dimension, are on the roadmap.
+Parameters come in two kinds. Each dimension owns a _model parameter_, named `d0`, `d1`, … in the order the dimensions were made. You add _user parameters_ yourself, with names you choose. Rename `d0` to `thickness`, and everything that uses it follows.
+
+*In Saulitwerx today:* parts keep a parameter table with both kinds, units and comments, and features refer to parameters by name (@sec-param-table). Sketch dimensions don't create their model parameters by themselves yet, and expressions such as `d3 = d1 / 2 + 5 mm` are on the roadmap.
 
 == Features <sec-feature>
 
