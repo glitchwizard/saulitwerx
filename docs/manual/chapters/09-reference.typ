@@ -82,6 +82,8 @@ Success and errors work as for `render`. `--step` and `--crease` belong to `rend
   [`cargo run -p swx-kernel --features occt --example plate_stages -- <dir>`], [Saves the block, the cylinder and the plate as three STEP files in `<dir>`.],
   [`cargo run -p swx-core --example feature_history`], [Runs the history sample (@ch-history).],
   [`cargo run -p swx-core --example parameter_table`], [Runs the parameter-table sample (@sec-param-table).],
+  [`cargo run -p swx-sketch --example driven_plate`], [Runs the bound-dimension sample (@sec-drive-sketch).],
+  [`cargo run -p swx-core --example expressions`], [Runs the expression sample (@sec-expressions).],
 )
 
 #idx("occt feature")
@@ -114,7 +116,7 @@ All positions must be finite numbers; all sizes finite and greater than zero.
   [`Point`], [x, y.],
   [`Line`], [A start point and an end point.],
   [`Circle`], [A center point and a radius > 0.],
-  [`Arc`], [A center, a radius > 0, and start and end angles in radians, running counter-clockwise; the end angle must be after the start.],
+  [`Arc`], [A center, a radius > 0, and start and end angles in radians, running counter-clockwise; the end angle must be after the start. Solving can change all five; it keeps the arc's sweep more than 0 and at most one full turn.],
 )
 
 #ref-table(
@@ -137,14 +139,15 @@ All positions must be finite numbers; all sizes finite and greater than zero.
   [`Tangent(g1, g2)`], [A line and a circle or arc, in either order, touch: the distance from the center to the line (extended without end) equals the radius. Or two circles or arcs touch, from outside or inside.],
 )
 
-A point `p` is written `PointRef::Point(id)` for a point entity, `Start(id)` or `End(id)` for a line's ends, or `Center(id)` for a circle's or arc's center. An arc's two ends can't be named.
+A point `p` is written `PointRef::Point(id)` for a point entity, `Start(id)` or `End(id)` for a line's ends, `Center(id)` for a circle's or arc's center, or `ArcStart(id)` or `ArcEnd(id)` for the point of an arc at its start or end angle. Every constraint that takes a point accepts all six.
 
 #ref-table(
   columns: (auto, 1fr),
   header: ("Tangent detail", "How it is decided"),
   [Line and circle], [The circle stays on the side of the line its center was on when the constraint was added.],
   [Two circles], [Touching from outside (centers `r1 + r2` apart) or inside (`|r1 − r2|` apart), whichever the drawing was closer to when the constraint was added.],
-  [Where they touch], [Anywhere. Tangent doesn't say where a line stops; add other constraints for its ends.],
+  [Line end joined to arc end], [When a coincident joins one of the line's ends directly to one of the arc's ends, tangent means the line is square to the arc's radius at that shared point. This holds whichever of the two constraints is added first; a join made through a separate point entity is not recognized.],
+  [Where they touch], [Otherwise anywhere along the line. Tangent alone doesn't say where a line stops; add other constraints for its ends.],
 )
 
 #idx("tangent")
@@ -284,6 +287,47 @@ A `swx_core::Document` keeps its parameters in creation order (@sec-param-table)
   [`value`], [The number.], [any number],
   [`unit`], [Free text; not checked yet.], [any, may be empty],
   [`comment`], [A note for people.], [any; empty by default],
+)
+
+#idx("bind_dimension")
+`swx_sketch::params` ties a sketch's dimensions to a document's parameters (@sec-drive-sketch). A sketch remembers each binding as a pair of constraint and parameter name; `sketch.bindings()` lists them in the order they were made.
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("Call", "What it does"),
+  [`bind_dimension(sketch, doc, c)`], [Adds dimension `c` (a `Distance`, `Radius` or `Diameter`) to the sketch, and a model parameter with the same value and unit `mm` to the document; returns the constraint id and the parameter's name. A diameter's parameter holds the diameter. On error neither changes.],
+  [`apply_params(sketch, doc)`], [Copies each bound parameter's current value into its dimension. Checks every value first, so on error nothing changes. Solve afterwards to move the geometry.],
+  [`rename_bound(sketch, old, new)`], [Points the sketch's bindings from `old` to `new`; returns how many changed. Call it with every `doc.rename_param`.],
+  [`sketch.set_dimension_value(id, value)`], [Changes one dimension's value directly. Value finite and > 0.],
+)
+
+== Expressions <sec-ref-expr>
+
+#idx("expression")
+`swx_core::expr` reads and works out expressions (@sec-expressions). `parse(text)` turns the text into an `Expr`; `eval(&expr, &resolve, default_length)` works it out, asking `resolve(name)` for each name's value. `expr.names()` lists the names an expression uses, each once, in first-use order. The result is a `Quantity`: a `value` in millimeters and radians and a `dim` (its powers of length and angle). `q.in_unit(unit)` converts the value for display. `default_length` is the unit for showing lengths; it doesn't change the result.
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("Part", "Rule"),
+  [Numbers], [`5`, `2.5`, `.5`, `1e-3`. A bare number has no unit.],
+  [Names], [A letter or `_`, then letters, digits or `_`, as for parameters.],
+  [Operators], [`+ - * /`, unary `-`, and `( )`. `*` and `/` before `+` and `-`; left to right otherwise.],
+  [Units], [Written straight after a number or a `)`: `5 mm`, `(2 + 3) mm`. After a name, a word is not a unit.],
+  [`+` and `-`], [Both sides must have the same dimension: two lengths, two angles, or two bare numbers.],
+  [`*` and `/`], [Any dimensions; they multiply or divide. A length times a length is an area.],
+  [Limits], [At most 1024 pieces and 64 levels of brackets or minus signs.],
+)
+
+#ref-table(
+  columns: (auto, auto, auto),
+  header: ("Unit", "Measures", "Size"),
+  [`mm`], [length], [1 mm],
+  [`cm`], [length], [10 mm],
+  [`m`], [length], [1000 mm],
+  [`in`], [length], [25.4 mm],
+  [`ft`], [length], [304.8 mm],
+  [`deg`], [angle], [π/180 rad],
+  [`rad`], [angle], [1 rad],
 )
 
 == File formats and units

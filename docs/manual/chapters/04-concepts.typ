@@ -114,7 +114,7 @@ The plate sketch starts with 19 degrees of freedom: four lines and a circle. @fi
 
 #tip[Constrain the shape first (coincident, horizontal, vertical), then add dimensions. Then anchor one point with fixed, so the whole sketch can't slide around.]
 
-*In Saulitwerx today:* all of the constraints and dimensions in these tables work, and the solver reports whether it found a shape that meets them. A degree-of-freedom report gives the count and the state, and names each redundant constraint (@sec-check-dof). One gap: a constraint can name an arc's center but not its two ends, so an arc's ends can't be joined to anything (@sec-slot).
+*In Saulitwerx today:* all of the constraints and dimensions in these tables work, and the solver reports whether it found a shape that meets them. A degree-of-freedom report gives the count and the state, and names each redundant constraint (@sec-check-dof). Constraints can name every point of a sketch: a point, a line's ends, a circle's or arc's center, and an arc's two ends, so lines and arcs join into closed outlines such as a slot (@sec-slot).
 
 == Profiles and regions <sec-profile>
 
@@ -142,7 +142,9 @@ This is the "parametric" in parametric CAD. One plate design, with its thickness
 
 Parameters come in two kinds. Each dimension owns a _model parameter_, named `d0`, `d1`, … in the order the dimensions were made. You add _user parameters_ yourself, with names you choose. Rename `d0` to `thickness`, and everything that uses it follows.
 
-*In Saulitwerx today:* parts keep a parameter table with both kinds, units and comments, and features refer to parameters by name (@sec-param-table). Sketch dimensions don't create their model parameters by themselves yet, and expressions such as `d3 = d1 / 2 + 5 mm` are on the roadmap.
+An #term[expression] is a small formula with units, such as `d1 / 2 + 5 mm`: half of `d1`, plus 5 millimeters. Saulitwerx checks that the units make sense, so adding a length to an angle is an error, not a silent wrong answer.
+
+*In Saulitwerx today:* parts keep a parameter table with both kinds, units and comments, and features refer to parameters by name (@sec-param-table). A sketch's distance, radius and diameter dimensions can each make their own model parameter and follow it when it changes (@sec-drive-sketch). Expressions can be worked out (@sec-expressions), but a parameter can't hold one yet: it holds a plain number.
 
 == Features <sec-feature>
 

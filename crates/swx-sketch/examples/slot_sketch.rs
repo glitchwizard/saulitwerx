@@ -1,12 +1,12 @@
 //! Sketches a slot: two straight sides joined by two half-circle ends,
-//! 30 mm between the centers of the ends, radius 5 mm. Shows tangent and
-//! equal, then finds the region to extrude.
+//! 30 mm between the centers of the ends, radius 5 mm. Shows coincident on
+//! an arc's ends, tangent and equal, then finds the region to extrude.
 //!
-//! Constraints can't name the ends of an arc yet, only its center, so each
-//! straight side's ends are lined up under the arc centers (vertical points)
-//! and the arcs must be drawn as exact half circles to meet them. The last
-//! stage draws one arc 10° short to show what happens when they don't. Used
-//! by the user manual ("Draw a slot").
+//! The slot is drawn roughly on purpose: the ends are different sizes, the
+//! slot is tilted, and the left arc stops 10° short, so the outline has gaps.
+//! Coincident constraints join each side's ends to the arcs' ends
+//! (`PointRef::ArcStart` / `ArcEnd`), and solving closes the gaps. Used by the
+//! user manual ("Draw a slot").
 //!
 //! Run: `cargo run -p swx-sketch --example slot_sketch`
 
@@ -15,20 +15,20 @@ use std::f64::consts::{FRAC_PI_2, PI};
 use swx_sketch::dof::{analyze, DofOptions};
 use swx_sketch::profile::{profile_report, ProfileOptions};
 use swx_sketch::solver::SolveOptions;
-use swx_sketch::{Arc, Constraint, Geometry, Line, Point, PointRef, Sketch};
+use swx_sketch::{Arc, Constraint, GeomId, Geometry, Line, Point, PointRef, Sketch};
 
-/// Builds and solves the slot. `left_end` is the end angle of the left arc,
-/// in radians; 3π/2 makes it an exact half circle.
-fn slot(left_end: f64) -> Result<(Sketch, [swx_sketch::GeomId; 4]), Box<dyn std::error::Error>> {
+/// Draws the slot roughly and adds its constraints, without solving.
+fn slot() -> Result<(Sketch, [GeomId; 4]), Box<dyn std::error::Error>> {
     let mut s = Sketch::new();
     let p = |x, y| Point::new(x, y);
 
-    // Roughly drawn: the ends are different sizes and the slot is tilted.
+    // Roughly drawn: the ends are different sizes, the slot is tilted, and
+    // the left arc stops 10° before the bottom side.
     let left = s.add(Geometry::Arc(Arc::new(
         p(0.0, 0.0)?,
         4.0,
         FRAC_PI_2,
-        left_end,
+        3.0 * FRAC_PI_2 - PI / 18.0,
     )?))?;
     let right = s.add(Geometry::Arc(Arc::new(
         p(28.0, 1.0)?,
@@ -39,7 +39,17 @@ fn slot(left_end: f64) -> Result<(Sketch, [swx_sketch::GeomId; 4]), Box<dyn std:
     let bottom = s.add(Geometry::Line(Line::new(p(0.0, -4.0)?, p(28.0, -5.0)?)?))?;
     let top = s.add(Geometry::Line(Line::new(p(28.0, 7.0)?, p(0.0, 4.0)?)?))?;
 
-    // Both sides touch both ends without crossing them.
+    // Join the outline end to end. An arc runs counterclockwise from its
+    // start to its end, so the left arc ends at the bottom side.
+    for (a, b) in [
+        (PointRef::Start(bottom), PointRef::ArcEnd(left)),
+        (PointRef::End(bottom), PointRef::ArcStart(right)),
+        (PointRef::Start(top), PointRef::ArcEnd(right)),
+        (PointRef::End(top), PointRef::ArcStart(left)),
+    ] {
+        s.add_constraint(Constraint::Coincident(a, b))?;
+    }
+    // Both sides run smoothly into both ends.
     for (line, arc) in [(bottom, left), (bottom, right), (top, left), (top, right)] {
         s.add_constraint(Constraint::Tangent(line, arc))?;
     }
@@ -61,16 +71,6 @@ fn slot(left_end: f64) -> Result<(Sketch, [swx_sketch::GeomId; 4]), Box<dyn std:
         b: PointRef::Center(right),
         value: 30.0,
     })?;
-    // Each side ends straight above or below an arc's center.
-    for (end, arc) in [
-        (PointRef::Start(bottom), left),
-        (PointRef::End(bottom), right),
-        (PointRef::Start(top), right),
-        (PointRef::End(top), left),
-    ] {
-        s.add_constraint(Constraint::VerticalPoints(end, PointRef::Center(arc)))?;
-    }
-    s.solve(SolveOptions::default())?;
     Ok((s, [left, right, bottom, top]))
 }
 
@@ -83,24 +83,27 @@ fn tidy(v: f64) -> f64 {
     }
 }
 
-fn report(s: &Sketch, ids: [swx_sketch::GeomId; 4]) -> Result<(), Box<dyn std::error::Error>> {
-    let dof = analyze(s, s.params(), DofOptions::default())?;
-    println!("  dof {} {:?}", dof.dof, dof.state);
+fn report(s: &Sketch, ids: [GeomId; 4]) -> Result<(), Box<dyn std::error::Error>> {
     let [left, right, bottom, _] = ids;
     for (name, id) in [("left", left), ("right", right)] {
         if let Geometry::Arc(a) = s.get(id)? {
             println!(
-                "  {name:<6} arc center ({:6.2}, {:5.2})  radius {:.2} mm",
+                "  {name:<6} arc center ({:6.2}, {:5.2})  radius {:.2} mm  from {:4.0}° to {:4.0}°",
                 tidy(a.center.x),
                 tidy(a.center.y),
-                a.radius
+                a.radius,
+                tidy(a.start_angle.to_degrees()),
+                tidy(a.end_angle.to_degrees())
             );
         }
     }
     if let Geometry::Line(l) = s.get(bottom)? {
         println!(
             "  bottom ({:6.2}, {:5.2}) -> ({:6.2}, {:5.2})",
-            l.start.x, l.start.y, l.end.x, l.end.y
+            tidy(l.start.x),
+            tidy(l.start.y),
+            tidy(l.end.x),
+            tidy(l.end.y)
         );
     }
     let profile = profile_report(s, &ProfileOptions::default())?;
@@ -119,12 +122,14 @@ fn report(s: &Sketch, ids: [swx_sketch::GeomId; 4]) -> Result<(), Box<dyn std::e
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("1 half-circle ends");
-    let (s, ids) = slot(3.0 * FRAC_PI_2)?;
+    let (mut s, ids) = slot()?;
+    println!("1 as drawn");
     report(&s, ids)?;
 
-    println!("2 left end drawn 10 degrees short");
-    let (s, ids) = slot(3.0 * FRAC_PI_2 - PI / 18.0)?;
+    let solved = s.solve(SolveOptions::default())?;
+    println!("2 solved: {}", solved.converged);
+    let dof = analyze(&s, s.params(), DofOptions::default())?;
+    println!("  dof {} {:?}", dof.dof, dof.state);
     report(&s, ids)?;
     Ok(())
 }
