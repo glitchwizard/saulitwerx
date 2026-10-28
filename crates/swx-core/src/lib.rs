@@ -5,6 +5,8 @@
 //! features must be rebuilt when something changes. Geometry evaluation lives
 //! in a separate kernel crate (OpenCascade bindings, see docs/ARCHITECTURE.md).
 
+pub mod expr;
+
 use std::collections::BTreeSet;
 use std::fmt;
 
