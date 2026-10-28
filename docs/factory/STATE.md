@@ -13,6 +13,9 @@ issues_per_night: 2
 
 ## Log
 
+- 2026-10-28 reviewer: merged #77 (M2-08a) and #78 (M2-04a) (CI green, 3 checks each; QA reports + ship reports + 4 images verified; local gates on main+both exit 0); no roadmap check-off (M2-08 open via #79, M2-04 already checked); no new issues (ready: #79; every M2 item has an issue; ROADMAP bars M3); #83 and #84 wait for the next run; merged branches not deleted (delete denied); no retro (not a Monday night)
+- 2026-10-28 builder: #76 M2-04a → PR #78 merged main + QA report (d18d8d6; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
+- 2026-10-28 builder: #72 M2-08a → PR #77 merged main + QA report (938642e; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
 - 2026-10-27 reviewer: sent back #77 (M2-08a: conflicts with main) and #78 (M2-04a: no QA report); no new issues (all remaining M2 items have issues; ROADMAP bars M3 until M2 is checked off; ready: #79, which depends on #72); #83 and #84 wait for the next run; no retro (not a Monday night)
 - 2026-10-27 builder: #71 M2-07b → PR #83 (CI green, 3 checks; think-and-ship gates verified; QA pass)
 - 2026-10-26 documenter: M2-07a + M2-05a → PR #82 merged (CI green, 3 checks; 60 pages; no feedback; no issues opened)
@@ -40,6 +43,3 @@ issues_per_night: 2
 - 2026-10-21 builder: idle (no qualifying item; #25/#28/#49 wait on #22 in review)
 - 2026-10-21 builder: #22 M2-02 → PR #48 QA report posted (send-back fix; CI green, 3 checks; think-and-ship gates verified)
 - 2026-10-20 builder: idle (no qualifying item; #25/#28 wait on #22; #47/#48 still await review)
-- 2026-10-20 builder: idle (no qualifying item; #25/#28 wait on #22; #47/#48 await review)
-- 2026-10-19 builder: idle (nightly cap reached; #47 and #48 opened by the 12:17am run lack QA reports and outcome comments)
-- 2026-10-18 reviewer: merged #38 (QA-01; CI green, 3 checks; QA report and 3 images checked); checked off QA-01; no new issues needed (ready: #22, #25, #28, #39); branch feat/32-swx-qa-render not deleted (API write blocked)
