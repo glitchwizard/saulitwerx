@@ -279,6 +279,8 @@ pub struct Sketch {
     slots: Vec<Slot>,
     constraints: Vec<Constraint>,
     rows: Vec<constraint::Resolved>,
+    /// Index in `rows` of each constraint's first row.
+    first_row: Vec<usize>,
     /// The constraint that produced each entry of `rows`.
     row_owners: Vec<ConstraintId>,
 }

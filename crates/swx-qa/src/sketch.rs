@@ -152,7 +152,12 @@ pub fn glyph(c: char) -> Option<[u8; 7]> {
 /// Model coordinates of a point reference, or `None` if it doesn't resolve.
 fn point_xy(s: &Sketch, p: PointRef) -> Option<Point> {
     let id = match p {
-        PointRef::Point(id) | PointRef::Start(id) | PointRef::End(id) | PointRef::Center(id) => id,
+        PointRef::Point(id)
+        | PointRef::Start(id)
+        | PointRef::End(id)
+        | PointRef::Center(id)
+        | PointRef::ArcStart(id)
+        | PointRef::ArcEnd(id) => id,
     };
     match (s.get(id).ok()?, p) {
         (Geometry::Point(pt), PointRef::Point(_)) => Some(pt),
@@ -160,6 +165,8 @@ fn point_xy(s: &Sketch, p: PointRef) -> Option<Point> {
         (Geometry::Line(l), PointRef::End(_)) => Some(l.end),
         (Geometry::Circle(c), PointRef::Center(_)) => Some(c.center),
         (Geometry::Arc(a), PointRef::Center(_)) => Some(a.center),
+        (Geometry::Arc(a), PointRef::ArcStart(_)) => Some(a.start_point()),
+        (Geometry::Arc(a), PointRef::ArcEnd(_)) => Some(a.end_point()),
         _ => None,
     }
 }

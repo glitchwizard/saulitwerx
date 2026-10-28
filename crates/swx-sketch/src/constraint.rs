@@ -20,6 +20,7 @@
 //! | `Symmetric { a, b, line }` | 2 | `u × ((a + b)/2 − s)`, `(b − a) · u` |
 //! | `Tangent` (line, circle/arc) | 1 | `σ·(u × (c − s))/‖u‖ − r` |
 //! | `Tangent` (circle/arc, circle/arc) | 1 | `‖c₂ − c₁‖ − (r₁ + r₂)` or `‖c₂ − c₁‖ − σ·(r₁ − r₂)` |
+//! | `Tangent` (line, arc, sharing an end) | 1 | `u · (a − c)/‖u‖` |
 //!
 //! Here `s` and `e` are a line's start and end, `u = e − s` its direction,
 //! `c` and `r` a circle's center and radius, and `×` the 2D cross product
@@ -45,12 +46,32 @@
 //! keeps every residual smooth near its solution. Whether two circles are
 //! tangent externally or internally is likewise chosen when the constraint is
 //! added, as whichever condition the current geometry is closer to.
+//!
+//! **Arc ends.** An arc's start and end points ([`PointRef::ArcStart`],
+//! [`PointRef::ArcEnd`]) are not stored; every row that takes a point
+//! evaluates them as `c + r·(cos θ, sin θ)` from the arc's center, radius and
+//! start or end angle θ (Bowyer & Woodwark, ch. 5, the parametric circle).
+//! Their gradient follows by the chain rule: a gradient `g` with respect to
+//! the point adds `g` to the center, `g · (cos θ, sin θ)` to the radius and
+//! `r·g · (−sin θ, cos θ)` to the angle.
+//!
+//! **Tangent at a shared end.** When a line end is coincident with an end
+//! of the arc it is tangent to, the distance form above is, to first order,
+//! the same equation as the normal component of that coincidence, so the
+//! pair would be redundant and the sketch could never be fully constrained.
+//! Such a tangent instead uses the endpoint form `u · (a − c)/‖u‖ = 0`: the
+//! line is perpendicular to the radius at the shared arc end `a` (a line
+//! through a point of a circle is tangent there exactly when it is
+//! perpendicular to the radius, Bowyer & Woodwark ch. 5). This applies
+//! whichever of the two constraints is added first; a coincidence through
+//! another point entity is not detected.
 
 use crate::solver::{self, Residuals, SolveError, SolveOptions, SolveReport};
 use crate::{GeomId, GeomKind, Sketch, SketchError};
+use std::f64::consts::TAU;
 
-/// A point-valued location in a sketch: a point entity, a line endpoint, or
-/// the center of a circle or arc.
+/// A point-valued location in a sketch: a point entity, a line endpoint,
+/// the center of a circle or arc, or an arc's start or end point.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PointRef {
     /// A [`Point`](crate::Point) entity.
@@ -61,6 +82,10 @@ pub enum PointRef {
     End(GeomId),
     /// The center of a [`Circle`](crate::Circle) or [`Arc`](crate::Arc).
     Center(GeomId),
+    /// The start point of an [`Arc`](crate::Arc), at its start angle.
+    ArcStart(GeomId),
+    /// The end point of an [`Arc`](crate::Arc), at its end angle.
+    ArcEnd(GeomId),
 }
 
 impl PointRef {
@@ -69,7 +94,9 @@ impl PointRef {
             PointRef::Point(id)
             | PointRef::Start(id)
             | PointRef::End(id)
-            | PointRef::Center(id) => id,
+            | PointRef::Center(id)
+            | PointRef::ArcStart(id)
+            | PointRef::ArcEnd(id) => id,
         }
     }
 }
@@ -124,42 +151,88 @@ pub enum Constraint {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ConstraintId(pub u32);
 
-/// Parameter indices `(x, y)` of one point in the sketch vector.
-type Xy = (usize, usize);
+/// A point as the residuals see it: two stored coordinates, or an arc's
+/// start or end point, evaluated from the arc's parameters (module docs).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum Pt {
+    /// Parameter indices `(x, y)`.
+    Xy(usize, usize),
+    /// `c + r·(cos θ, sin θ)` for the arc whose `cx, cy, r` start at index
+    /// `arc`, with `θ = params[angle]`.
+    OnArc { arc: usize, angle: usize },
+}
+
+impl Pt {
+    /// The point's coordinates at `params`.
+    fn at(self, params: &[f64]) -> (f64, f64) {
+        match self {
+            Pt::Xy(x, y) => (params[x], params[y]),
+            Pt::OnArc { arc, angle } => {
+                let (r, (sin, cos)) = (params[arc + 2], params[angle].sin_cos());
+                (params[arc] + r * cos, params[arc + 1] + r * sin)
+            }
+        }
+    }
+
+    /// Adds `g`, a gradient with respect to this point's coordinates, to
+    /// the gradients of the parameters the point depends on (chain rule).
+    fn add_grad(self, params: &[f64], row: &mut [f64], (gx, gy): (f64, f64)) {
+        match self {
+            Pt::Xy(x, y) => {
+                row[x] += gx;
+                row[y] += gy;
+            }
+            Pt::OnArc { arc, angle } => {
+                let (r, (sin, cos)) = (params[arc + 2], params[angle].sin_cos());
+                row[arc] += gx;
+                row[arc + 1] += gy;
+                row[arc + 2] += gx * cos + gy * sin;
+                row[angle] += r * (gy * cos - gx * sin);
+            }
+        }
+    }
+}
 
 /// Two points `(from, to)`, standing for the vector `to − from`.
-type Seg = (Xy, Xy);
+type Seg = (Pt, Pt);
 
-/// A constraint reduced to parameter indices `(x, y)` of the sketch vector.
+/// A constraint reduced to points and parameter indices of the sketch vector.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum Resolved {
     /// `params[b] − params[a] = 0` (one row).
     Equal { a: usize, b: usize },
     /// `params[i] − value = 0` (one row).
     Value { i: usize, value: f64 },
-    /// `‖(xb, yb) − (xa, ya)‖ − value = 0` (one row).
-    Distance { a: Xy, b: Xy, value: f64 },
+    /// `b[axis] − a[axis] = 0` (one row; axis 0 is x, 1 is y).
+    Coord { a: Pt, b: Pt, axis: usize },
+    /// `p[axis] − value = 0` (one row).
+    CoordValue { p: Pt, axis: usize, value: f64 },
+    /// `‖b − a‖ − value = 0` (one row).
+    Distance { a: Pt, b: Pt, value: f64 },
     /// `u × w = 0` for the vectors `u = a.1 − a.0`, `w = b.1 − b.0`.
     Cross { a: Seg, b: Seg },
     /// `u · w = 0` for the vectors `u = a.1 − a.0`, `w = b.1 − b.0`.
     Dot { a: Seg, b: Seg },
     /// `‖w‖ − ‖u‖ = 0` for the vectors `u = a.1 − a.0`, `w = b.1 − b.0`.
     LengthDiff { a: Seg, b: Seg },
-    /// `(params[a] + params[b])/2 − params[m] = 0`.
-    Midpoint { m: usize, a: usize, b: usize },
+    /// `(s[axis] + e[axis])/2 − m[axis] = 0` for `line = (s, e)`.
+    Midpoint { m: Pt, line: Seg, axis: usize },
     /// `u × ((a + b)/2 − s) = 0` with `u = e − s` for `line = (s, e)`.
-    MidOnLine { line: Seg, a: Xy, b: Xy },
+    MidOnLine { line: Seg, a: Pt, b: Pt },
     /// `side·(u × (c − s))/‖u‖ − params[r] = 0` with `u = e − s`.
     LineTangent {
         line: Seg,
-        c: Xy,
+        c: Pt,
         r: usize,
         side: f64,
     },
+    /// `u · (joint − c)/‖u‖ = 0` with `u = e − s`: the line is perpendicular
+    /// to the radius at the arc end `joint` it shares with the line.
+    JointTangent { line: Seg, c: Pt, joint: Pt },
     /// `‖c2 − c1‖ − (k1·params[r1] + k2·params[r2]) = 0`.
     CircleTangent {
-        c1: Xy,
-        c2: Xy,
+        c1: Pt,
+        c2: Pt,
         r1: usize,
         r2: usize,
         k1: f64,
@@ -169,20 +242,37 @@ pub(crate) enum Resolved {
 
 /// The vector `seg.1 − seg.0` at `params`.
 fn vec2(params: &[f64], (p, q): Seg) -> (f64, f64) {
-    (params[q.0] - params[p.0], params[q.1] - params[p.1])
+    let (p, q) = (p.at(params), q.at(params));
+    (q.0 - p.0, q.1 - p.1)
 }
 
 fn cross(a: (f64, f64), b: (f64, f64)) -> f64 {
     a.0 * b.1 - a.1 * b.0
 }
 
+/// Component `axis` (0 for x, 1 for y) of `v`.
+fn coord(v: (f64, f64), axis: usize) -> f64 {
+    if axis == 0 {
+        v.0
+    } else {
+        v.1
+    }
+}
+
+/// `k` times the unit vector along `axis`.
+fn along(axis: usize, k: f64) -> (f64, f64) {
+    if axis == 0 {
+        (k, 0.0)
+    } else {
+        (0.0, k)
+    }
+}
+
 /// Adds the gradient `(gx, gy)` with respect to the vector `seg.1 − seg.0`
 /// to the gradients of its two points.
-fn add_vec(row: &mut [f64], (p, q): Seg, (gx, gy): (f64, f64)) {
-    row[q.0] += gx;
-    row[q.1] += gy;
-    row[p.0] -= gx;
-    row[p.1] -= gy;
+fn add_vec(params: &[f64], row: &mut [f64], (p, q): Seg, (gx, gy): (f64, f64)) {
+    q.add_grad(params, row, (gx, gy));
+    p.add_grad(params, row, (-gx, -gy));
 }
 
 /// `‖v‖` and `v/‖v‖`, or a zero direction when `v = 0`.
@@ -200,8 +290,11 @@ impl Resolved {
         match *self {
             Resolved::Equal { a, b } => params[b] - params[a],
             Resolved::Value { i, value } => params[i] - value,
+            Resolved::Coord { a, b, axis } => coord(vec2(params, (a, b)), axis),
+            Resolved::CoordValue { p, axis, value } => coord(p.at(params), axis) - value,
             Resolved::Distance { a, b, value } => {
-                (params[b.0] - params[a.0]).hypot(params[b.1] - params[a.1]) - value
+                let d = vec2(params, (a, b));
+                d.0.hypot(d.1) - value
             }
             Resolved::Cross { a, b } => cross(vec2(params, a), vec2(params, b)),
             Resolved::Dot { a, b } => {
@@ -212,14 +305,14 @@ impl Resolved {
                 let (u, w) = (vec2(params, a), vec2(params, b));
                 w.0.hypot(w.1) - u.0.hypot(u.1)
             }
-            Resolved::Midpoint { m, a, b } => (params[a] + params[b]) / 2.0 - params[m],
+            Resolved::Midpoint { m, line, axis } => {
+                let (s, e, m) = (line.0.at(params), line.1.at(params), m.at(params));
+                (coord(s, axis) + coord(e, axis)) / 2.0 - coord(m, axis)
+            }
             Resolved::MidOnLine { line, a, b } => {
                 let u = vec2(params, line);
-                let s = line.0;
-                let v = (
-                    (params[a.0] + params[b.0]) / 2.0 - params[s.0],
-                    (params[a.1] + params[b.1]) / 2.0 - params[s.1],
-                );
+                let (s, a, b) = (line.0.at(params), a.at(params), b.at(params));
+                let v = ((a.0 + b.0) / 2.0 - s.0, (a.1 + b.1) / 2.0 - s.1);
                 cross(u, v)
             }
             Resolved::LineTangent { line, c, r, side } => {
@@ -231,6 +324,15 @@ impl Resolved {
                     0.0
                 };
                 side * dist - params[r]
+            }
+            Resolved::JointTangent { line, c, joint } => {
+                let (len, ux, uy) = unit(vec2(params, line));
+                let w = vec2(params, (c, joint));
+                if len > 0.0 {
+                    ux * w.0 + uy * w.1
+                } else {
+                    0.0
+                }
             }
             Resolved::CircleTangent {
                 c1,
@@ -255,54 +357,43 @@ impl Resolved {
                 row[b] += 1.0;
             }
             Resolved::Value { i, .. } => row[i] = 1.0,
+            Resolved::Coord { a, b, axis } => add_vec(params, row, (a, b), along(axis, 1.0)),
+            Resolved::CoordValue { p, axis, .. } => p.add_grad(params, row, along(axis, 1.0)),
             Resolved::Distance { a, b, .. } => {
-                let dx = params[b.0] - params[a.0];
-                let dy = params[b.1] - params[a.1];
-                let len = dx.hypot(dy);
-                if len > 0.0 {
-                    let (ux, uy) = (dx / len, dy / len);
-                    row[a.0] -= ux;
-                    row[a.1] -= uy;
-                    row[b.0] += ux;
-                    row[b.1] += uy;
-                }
+                let (_, ux, uy) = unit(vec2(params, (a, b)));
+                add_vec(params, row, (a, b), (ux, uy));
             }
             Resolved::Cross { a, b } => {
                 let (u, w) = (vec2(params, a), vec2(params, b));
-                add_vec(row, a, (w.1, -w.0));
-                add_vec(row, b, (-u.1, u.0));
+                add_vec(params, row, a, (w.1, -w.0));
+                add_vec(params, row, b, (-u.1, u.0));
             }
             Resolved::Dot { a, b } => {
                 let (u, w) = (vec2(params, a), vec2(params, b));
-                add_vec(row, a, w);
-                add_vec(row, b, u);
+                add_vec(params, row, a, w);
+                add_vec(params, row, b, u);
             }
             Resolved::LengthDiff { a, b } => {
                 let (_, ux, uy) = unit(vec2(params, a));
                 let (_, wx, wy) = unit(vec2(params, b));
-                add_vec(row, a, (-ux, -uy));
-                add_vec(row, b, (wx, wy));
+                add_vec(params, row, a, (-ux, -uy));
+                add_vec(params, row, b, (wx, wy));
             }
-            Resolved::Midpoint { m, a, b } => {
-                row[a] += 0.5;
-                row[b] += 0.5;
-                row[m] -= 1.0;
+            Resolved::Midpoint { m, line, axis } => {
+                line.0.add_grad(params, row, along(axis, 0.5));
+                line.1.add_grad(params, row, along(axis, 0.5));
+                m.add_grad(params, row, along(axis, -1.0));
             }
             Resolved::MidOnLine { line, a, b } => {
                 let u = vec2(params, line);
-                let s = line.0;
-                let v = (
-                    (params[a.0] + params[b.0]) / 2.0 - params[s.0],
-                    (params[a.1] + params[b.1]) / 2.0 - params[s.1],
-                );
-                add_vec(row, line, (v.1, -v.0));
+                let (s, pa, pb) = (line.0.at(params), a.at(params), b.at(params));
+                let v = ((pa.0 + pb.0) / 2.0 - s.0, (pa.1 + pb.1) / 2.0 - s.1);
+                add_vec(params, row, line, (v.1, -v.0));
                 // ∂/∂v = (−uy, ux); v = (a + b)/2 − s.
                 for p in [a, b] {
-                    row[p.0] -= u.1 / 2.0;
-                    row[p.1] += u.0 / 2.0;
+                    p.add_grad(params, row, (-u.1 / 2.0, u.0 / 2.0));
                 }
-                row[s.0] += u.1;
-                row[s.1] -= u.0;
+                line.0.add_grad(params, row, (u.1, -u.0));
             }
             Resolved::LineTangent { line, c, r, side } => {
                 row[r] -= 1.0;
@@ -314,11 +405,28 @@ impl Resolved {
                     let k = cross(u, v) / (len * len * len);
                     // d(C/L)/du = (vy, −vx)/L − C·u/L³, d(C/L)/dv = (−uy, ux)/L.
                     add_vec(
+                        params,
                         row,
                         line,
                         (side * (v.1 / len - k * u.0), side * (-v.0 / len - k * u.1)),
                     );
-                    add_vec(row, cs, (side * -u.1 / len, side * u.0 / len));
+                    add_vec(params, row, cs, (side * -u.1 / len, side * u.0 / len));
+                }
+            }
+            Resolved::JointTangent { line, c, joint } => {
+                let (len, ux, uy) = unit(vec2(params, line));
+                if len > 0.0 {
+                    let cj = (c, joint);
+                    let w = vec2(params, cj);
+                    // f = û · w: df/du = (w − (û · w) û)/L, df/dw = û.
+                    let k = ux * w.0 + uy * w.1;
+                    add_vec(
+                        params,
+                        row,
+                        line,
+                        ((w.0 - k * ux) / len, (w.1 - k * uy) / len),
+                    );
+                    add_vec(params, row, cj, (ux, uy));
                 }
             }
             Resolved::CircleTangent {
@@ -330,7 +438,7 @@ impl Resolved {
                 k2,
             } => {
                 let (_, ux, uy) = unit(vec2(params, (c1, c2)));
-                add_vec(row, (c1, c2), (ux, uy));
+                add_vec(params, row, (c1, c2), (ux, uy));
                 row[r1] -= k1;
                 row[r2] -= k2;
             }
@@ -349,20 +457,27 @@ fn check_value(value: f64) -> Result<(), SketchError> {
 }
 
 impl Sketch {
-    /// Parameter indices `(x, y)` of a point reference.
-    fn point_index(&self, p: PointRef) -> Result<Xy, SketchError> {
+    /// Where a point reference lives in the sketch vector.
+    fn point_index(&self, p: PointRef) -> Result<Pt, SketchError> {
         let id = p.geom();
         let s = self.slot(id)?;
         let at = match (p, s.kind) {
             (PointRef::Point(_), GeomKind::Point) | (PointRef::Start(_), GeomKind::Line) => 0,
             (PointRef::End(_), GeomKind::Line) => 2,
             (PointRef::Center(_), GeomKind::Circle | GeomKind::Arc) => 0,
+            (PointRef::ArcStart(_) | PointRef::ArcEnd(_), GeomKind::Arc) => {
+                let angle = s.offset + if let PointRef::ArcStart(_) = p { 3 } else { 4 };
+                return Ok(Pt::OnArc {
+                    arc: s.offset,
+                    angle,
+                });
+            }
             _ => return Err(SketchError::KindMismatch(id)),
         };
-        Ok((s.offset + at, s.offset + at + 1))
+        Ok(Pt::Xy(s.offset + at, s.offset + at + 1))
     }
 
-    fn line_points(&self, id: GeomId) -> Result<(Xy, Xy), SketchError> {
+    fn line_points(&self, id: GeomId) -> Result<Seg, SketchError> {
         Ok((
             self.point_index(PointRef::Start(id))?,
             self.point_index(PointRef::End(id))?,
@@ -379,33 +494,36 @@ impl Sketch {
 
     fn resolve(&self, c: &Constraint) -> Result<Vec<Resolved>, SketchError> {
         let equal = |a: usize, b: usize| Resolved::Equal { a, b };
+        let same = |(a, b): Seg, axis| Resolved::Coord { a, b, axis };
         Ok(match *c {
             Constraint::Coincident(p, q) => {
-                let (p, q) = (self.point_index(p)?, self.point_index(q)?);
-                vec![equal(p.0, q.0), equal(p.1, q.1)]
+                let pq = (self.point_index(p)?, self.point_index(q)?);
+                vec![same(pq, 0), same(pq, 1)]
             }
-            Constraint::Horizontal(line) => {
-                let (p, q) = self.line_points(line)?;
-                vec![equal(p.1, q.1)]
-            }
+            Constraint::Horizontal(line) => vec![same(self.line_points(line)?, 1)],
             Constraint::HorizontalPoints(p, q) => {
-                vec![equal(self.point_index(p)?.1, self.point_index(q)?.1)]
+                vec![same((self.point_index(p)?, self.point_index(q)?), 1)]
             }
-            Constraint::Vertical(line) => {
-                let (p, q) = self.line_points(line)?;
-                vec![equal(p.0, q.0)]
-            }
+            Constraint::Vertical(line) => vec![same(self.line_points(line)?, 0)],
             Constraint::VerticalPoints(p, q) => {
-                vec![equal(self.point_index(p)?.0, self.point_index(q)?.0)]
+                vec![same((self.point_index(p)?, self.point_index(q)?), 0)]
             }
             Constraint::Fixed { point, x, y } => {
                 if !(x.is_finite() && y.is_finite()) {
                     return Err(SketchError::NonFinite);
                 }
-                let (ix, iy) = self.point_index(point)?;
+                let p = self.point_index(point)?;
                 vec![
-                    Resolved::Value { i: ix, value: x },
-                    Resolved::Value { i: iy, value: y },
+                    Resolved::CoordValue {
+                        p,
+                        axis: 0,
+                        value: x,
+                    },
+                    Resolved::CoordValue {
+                        p,
+                        axis: 1,
+                        value: y,
+                    },
                 ]
             }
             Constraint::Distance { a, b, value } => {
@@ -448,18 +566,10 @@ impl Sketch {
             },
             Constraint::Midpoint { point, line } => {
                 let m = self.point_index(point)?;
-                let (s, e) = self.line_points(line)?;
+                let line = self.line_points(line)?;
                 vec![
-                    Resolved::Midpoint {
-                        m: m.0,
-                        a: s.0,
-                        b: e.0,
-                    },
-                    Resolved::Midpoint {
-                        m: m.1,
-                        a: s.1,
-                        b: e.1,
-                    },
+                    Resolved::Midpoint { m, line, axis: 0 },
+                    Resolved::Midpoint { m, line, axis: 1 },
                 ]
             }
             Constraint::Symmetric { a, b, line } => {
@@ -489,9 +599,26 @@ impl Sketch {
         }
     }
 
-    fn line_tangent(&self, line: GeomId, circle: GeomId) -> Result<Resolved, SketchError> {
-        let line = self.line_points(line)?;
+    /// The end of `arc` that an existing coincident constraint joins to an
+    /// end of `line`, if any.
+    fn joint(&self, line: GeomId, arc: GeomId) -> Option<Pt> {
+        let joins = |l: PointRef, a: PointRef| {
+            matches!(l, PointRef::Start(id) | PointRef::End(id) if id == line)
+                && matches!(a, PointRef::ArcStart(id) | PointRef::ArcEnd(id) if id == arc)
+        };
+        self.constraints.iter().find_map(|c| match *c {
+            Constraint::Coincident(p, q) if joins(p, q) => self.point_index(q).ok(),
+            Constraint::Coincident(p, q) if joins(q, p) => self.point_index(p).ok(),
+            _ => None,
+        })
+    }
+
+    fn line_tangent(&self, line_id: GeomId, circle: GeomId) -> Result<Resolved, SketchError> {
+        let line = self.line_points(line_id)?;
         let c = self.point_index(PointRef::Center(circle))?;
+        if let Some(joint) = self.joint(line_id, circle) {
+            return Ok(Resolved::JointTangent { line, c, joint });
+        }
         let side = if cross(vec2(&self.params, line), vec2(&self.params, (line.0, c))) < 0.0 {
             -1.0
         } else {
@@ -536,9 +663,23 @@ impl Sketch {
         let rows = self.resolve(&c)?;
         let id = ConstraintId(self.constraints.len() as u32);
         self.constraints.push(c);
+        self.first_row.push(self.rows.len());
         self.row_owners
             .resize(self.row_owners.len() + rows.len(), id);
         self.rows.extend(rows);
+        if let Constraint::Coincident(..) = c {
+            // A line-arc tangent added earlier may now share an end with its
+            // arc; switch it to the endpoint form (module docs).
+            for i in 0..self.constraints.len() {
+                if let Constraint::Tangent(..) = self.constraints[i] {
+                    if let Ok(rows) = self.resolve(&self.constraints[i]) {
+                        if let [row @ Resolved::JointTangent { .. }] = rows[..] {
+                            self.rows[self.first_row[i]] = row;
+                        }
+                    }
+                }
+            }
+        }
         Ok(id)
     }
 
@@ -558,9 +699,23 @@ impl Sketch {
 
     /// Solves all constraints, updating the geometry in place. On a solver
     /// error the geometry is unchanged.
+    ///
+    /// Afterwards every arc's end angle is shifted by a multiple of 2π so its
+    /// sweep lies in (0, 2π], as [`Arc::new`](crate::Arc::new) would build
+    /// it. The residuals only see angles through `cos` and `sin`, so this
+    /// changes no point. An arc whose end the solver moved back past its
+    /// start (sweep ≤ 0) therefore becomes the complementary arc: the same
+    /// two end points, joined the other way around the circle.
     pub fn solve(&mut self, options: SolveOptions) -> Result<SolveReport, SolveError> {
         let mut params = self.params.clone();
         let report = solver::solve(self, &mut params, options)?;
+        for s in self.slots.iter().filter(|s| s.kind == GeomKind::Arc) {
+            let (a0, a1) = (params[s.offset + 3], params[s.offset + 4]);
+            if !(a1 > a0 && a1 - a0 <= TAU) {
+                let sweep = (a1 - a0).rem_euclid(TAU);
+                params[s.offset + 4] = a0 + if sweep > 0.0 { sweep } else { TAU };
+            }
+        }
         self.params = params;
         Ok(report)
     }
@@ -613,8 +768,7 @@ mod tests {
     }
 
     fn xy(s: &Sketch, p: PointRef) -> (f64, f64) {
-        let (ix, iy) = s.point_index(p).unwrap();
-        (s.params()[ix], s.params()[iy])
+        s.point_index(p).unwrap().at(s.params())
     }
 
     fn solved(s: &mut Sketch) {
@@ -1144,6 +1298,268 @@ mod tests {
         }
         assert_eq!(s.constraints().len(), 11);
         assert_eq!(s.num_residuals(), 16);
+    }
+
+    /// An arc around `(x, y)` from `a0` to `a1`.
+    fn arc_from(s: &mut Sketch, x: f64, y: f64, r: f64, a0: f64, a1: f64) -> GeomId {
+        s.add(Geometry::Arc(Arc::new(pt(x, y), r, a0, a1).unwrap()))
+            .unwrap()
+    }
+
+    #[test]
+    fn arc_end_rows_have_analytic_jacobians() {
+        let (start, end) = (PointRef::ArcStart, PointRef::ArcEnd);
+        let mut cases: Vec<fn(GeomId, GeomId, GeomId) -> Constraint> = vec![
+            |a, b, _| Constraint::Coincident(PointRef::ArcEnd(a), PointRef::ArcStart(b)),
+            |a, b, _| Constraint::HorizontalPoints(PointRef::ArcStart(a), PointRef::ArcEnd(b)),
+            |a, _, l| Constraint::VerticalPoints(PointRef::Start(l), PointRef::ArcEnd(a)),
+            |a, _, _| Constraint::Fixed {
+                point: PointRef::ArcStart(a),
+                x: 1.0,
+                y: 2.0,
+            },
+            |a, b, _| Constraint::Distance {
+                a: PointRef::ArcStart(a),
+                b: PointRef::ArcEnd(b),
+                value: 3.0,
+            },
+            |a, _, l| Constraint::Midpoint {
+                point: PointRef::ArcEnd(a),
+                line: l,
+            },
+            |a, b, l| Constraint::Symmetric {
+                a: PointRef::ArcStart(a),
+                b: PointRef::ArcEnd(b),
+                line: l,
+            },
+        ];
+        // Distance between the two ends of one arc.
+        cases.push(|a, _, _| Constraint::Distance {
+            a: PointRef::ArcStart(a),
+            b: PointRef::ArcEnd(a),
+            value: 1.0,
+        });
+        for c in cases {
+            let mut s = Sketch::new();
+            let a = arc_from(&mut s, 0.4, -0.3, 1.7, 0.6, 2.9);
+            let b = arc_from(&mut s, 3.1, 1.2, 0.8, -1.1, 1.4);
+            let l = line(&mut s, -0.5, 0.3, 4.1, 1.2);
+            s.add_constraint(c(a, b, l)).unwrap();
+            assert_jacobian_matches(&s);
+        }
+        // Tangent at a shared end, either order.
+        for coincident_first in [false, true] {
+            let mut s = Sketch::new();
+            let a = arc_from(&mut s, 0.4, -0.3, 1.7, 0.6, 2.9);
+            let l = line(&mut s, -0.5, 0.3, 4.1, 1.2);
+            let joint = Constraint::Coincident(PointRef::End(l), start(a));
+            if coincident_first {
+                s.add_constraint(joint).unwrap();
+            }
+            s.add_constraint(Constraint::Tangent(l, a)).unwrap();
+            if !coincident_first {
+                s.add_constraint(joint).unwrap();
+            }
+            assert!(matches!(
+                s.rows[..],
+                [_, _, Resolved::JointTangent { .. }] | [Resolved::JointTangent { .. }, _, _]
+            ));
+            assert_jacobian_matches(&s);
+        }
+        // A coincidence with a different arc's end leaves the distance form.
+        let mut s = Sketch::new();
+        let a = arc_from(&mut s, 0.4, -0.3, 1.7, 0.6, 2.9);
+        let b = arc_from(&mut s, 3.1, 1.2, 0.8, -1.1, 1.4);
+        let l = line(&mut s, -0.5, 0.3, 4.1, 1.2);
+        s.add_constraint(Constraint::Tangent(l, a)).unwrap();
+        s.add_constraint(Constraint::Coincident(PointRef::End(l), end(b)))
+            .unwrap();
+        assert!(matches!(s.rows[0], Resolved::LineTangent { .. }));
+    }
+
+    #[test]
+    fn arc_ends_on_other_kinds_are_kind_mismatches() {
+        let mut s = Sketch::new();
+        let p = point(&mut s, 0.0, 0.0);
+        let l = line(&mut s, 0.0, 0.0, 1.0, 0.0);
+        let c = circle(&mut s, 0.0, 0.0, 1.0);
+        let a = arc(&mut s, 0.0, 0.0, 1.0);
+        for id in [p, l, c] {
+            for r in [PointRef::ArcStart(id), PointRef::ArcEnd(id)] {
+                let c = Constraint::Coincident(r, PointRef::ArcStart(a));
+                assert_eq!(s.add_constraint(c), Err(SketchError::KindMismatch(id)));
+            }
+        }
+        for r in [PointRef::Start(a), PointRef::End(a), PointRef::Point(a)] {
+            let c = Constraint::Coincident(r, PointRef::ArcEnd(a));
+            assert_eq!(s.add_constraint(c), Err(SketchError::KindMismatch(a)));
+        }
+        assert_eq!(s.num_residuals(), 0);
+    }
+
+    /// A slot, radius 5 with centers 30 apart, drawn roughly: arcs of the
+    /// wrong size, each end angle 10° to 17° off, and lines that miss them.
+    /// Returns the sketch and `[left, right, bottom, top]`.
+    fn rough_slot() -> (Sketch, [GeomId; 4]) {
+        let (q, h) = (
+            std::f64::consts::FRAC_PI_2,
+            3.0 * std::f64::consts::FRAC_PI_2,
+        );
+        let mut s = Sketch::new();
+        let left = arc_from(&mut s, 0.0, 0.0, 4.0, q + 0.2, h - 0.25);
+        let right = arc_from(&mut s, 28.0, 1.0, 6.0, -q - 0.3, q + 0.18);
+        let bottom = line(&mut s, 0.5, -4.0, 28.0, -5.0);
+        let top = line(&mut s, 28.0, 7.0, -0.5, 4.0);
+        (s, [left, right, bottom, top])
+    }
+
+    /// The four coincidences that close the slot.
+    fn slot_joints([left, right, bottom, top]: [GeomId; 4]) -> [Constraint; 4] {
+        [
+            Constraint::Coincident(PointRef::Start(bottom), PointRef::ArcEnd(left)),
+            Constraint::Coincident(PointRef::End(bottom), PointRef::ArcStart(right)),
+            Constraint::Coincident(PointRef::Start(top), PointRef::ArcEnd(right)),
+            Constraint::Coincident(PointRef::End(top), PointRef::ArcStart(left)),
+        ]
+    }
+
+    /// Tangent ×4, equal, radius 5, horizontal, fixed left center and
+    /// center distance 30.
+    fn slot_dimensions([left, right, bottom, top]: [GeomId; 4]) -> Vec<Constraint> {
+        let mut out: Vec<_> = [(bottom, left), (bottom, right), (top, left), (top, right)]
+            .map(|(l, a)| Constraint::Tangent(l, a))
+            .to_vec();
+        out.extend([
+            Constraint::Equal(left, right),
+            Constraint::Radius {
+                geom: left,
+                value: 5.0,
+            },
+            Constraint::Horizontal(bottom),
+            Constraint::Fixed {
+                point: PointRef::Center(left),
+                x: 0.0,
+                y: 0.0,
+            },
+            Constraint::Distance {
+                a: PointRef::Center(left),
+                b: PointRef::Center(right),
+                value: 30.0,
+            },
+        ]);
+        out
+    }
+
+    fn assert_closed_slot(s: &Sketch, ids: [GeomId; 4]) {
+        for c in slot_joints(ids) {
+            let Constraint::Coincident(p, q) = c else {
+                unreachable!()
+            };
+            let (p, q) = (xy(s, p), xy(s, q));
+            assert!((p.0 - q.0).hypot(p.1 - q.1) <= TOL, "{p:?} != {q:?}");
+        }
+        for id in &ids[..2] {
+            let Geometry::Arc(a) = s.get(*id).unwrap() else {
+                unreachable!()
+            };
+            assert!(a.sweep() > 0.0 && a.sweep() < TAU, "{a:?}");
+            assert!((a.sweep() - std::f64::consts::PI).abs() <= TOL, "{a:?}");
+        }
+        let regions = crate::profile::profiles(s, &Default::default()).unwrap();
+        assert_eq!(regions.len(), 1);
+        let area = 300.0 + 25.0 * std::f64::consts::PI;
+        assert!(
+            (regions[0].area() - area).abs() <= 1e-6,
+            "{}",
+            regions[0].area()
+        );
+    }
+
+    #[test]
+    fn slot_is_closed_by_four_arc_end_coincidences() {
+        let (mut s, ids) = rough_slot();
+        for c in slot_dimensions(ids) {
+            s.add_constraint(c).unwrap();
+        }
+        // Without the joints the arcs keep their rough angles: no region.
+        let mut open = s.clone();
+        solved(&mut open);
+        assert!(crate::profile::profiles(&open, &Default::default())
+            .unwrap()
+            .is_empty());
+        for c in slot_joints(ids) {
+            s.add_constraint(c).unwrap();
+        }
+        assert_jacobian_matches(&s);
+        solved(&mut s);
+        assert_closed_slot(&s, ids);
+    }
+
+    #[test]
+    fn dimensioned_slot_with_joints_is_fully_constrained() {
+        use crate::dof::{analyze, DofOptions, DofState};
+        for joints_first in [false, true] {
+            let (mut s, ids) = rough_slot();
+            let (joints, dims) = (slot_joints(ids), slot_dimensions(ids));
+            let all: Vec<_> = if joints_first {
+                joints.iter().chain(&dims).copied().collect()
+            } else {
+                dims.iter().chain(&joints).copied().collect()
+            };
+            for c in all {
+                s.add_constraint(c).unwrap();
+            }
+            // 10 rows of dimensions and 2 per coincidence over 18 parameters.
+            assert_eq!((s.num_residuals(), s.num_params()), (18, 18));
+            solved(&mut s);
+            assert_closed_slot(&s, ids);
+            let report = analyze(&s, s.params(), DofOptions::default()).unwrap();
+            assert_eq!(report.state, DofState::FullyConstrained, "{report:?}");
+            assert_eq!((report.dof, report.rank), (0, 18));
+        }
+        // Without the joints the four arc angles and the four line ends
+        // (along their lines) are free.
+        let (mut s, ids) = rough_slot();
+        for c in slot_dimensions(ids) {
+            s.add_constraint(c).unwrap();
+        }
+        solved(&mut s);
+        let report = analyze(&s, s.params(), DofOptions::default()).unwrap();
+        assert_eq!((report.dof, report.state), (8, DofState::UnderConstrained));
+    }
+
+    #[test]
+    fn arc_dragged_past_its_start_becomes_the_complementary_arc() {
+        let mut s = Sketch::new();
+        let a = arc_from(&mut s, 0.0, 0.0, 1.0, 0.0, 0.5);
+        for c in [
+            Constraint::Fixed {
+                point: PointRef::Center(a),
+                x: 0.0,
+                y: 0.0,
+            },
+            Constraint::Fixed {
+                point: PointRef::ArcStart(a),
+                x: 1.0,
+                y: 0.0,
+            },
+            Constraint::Fixed {
+                point: PointRef::ArcEnd(a),
+                x: (-0.5f64).cos(),
+                y: (-0.5f64).sin(),
+            },
+        ] {
+            s.add_constraint(c).unwrap();
+        }
+        solved(&mut s);
+        let p = s.params();
+        assert!(p[4] > p[3] && p[4] - p[3] <= TAU, "{p:?}");
+        let Geometry::Arc(arc) = s.get(a).unwrap() else {
+            unreachable!()
+        };
+        assert!((arc.sweep() - (TAU - 0.5)).abs() <= TOL, "{arc:?}");
+        let e = arc.end_point();
+        assert!((e.x - (-0.5f64).cos()).abs() <= TOL && (e.y - (-0.5f64).sin()).abs() <= TOL);
     }
 
     #[test]
