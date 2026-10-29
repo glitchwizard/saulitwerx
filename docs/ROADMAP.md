@@ -33,8 +33,8 @@ Tools the Builder uses for the visuals in its QA reports (FACTORY §6b).
 - [x] M2-05 DOF analysis: report under-, fully- and over-constrained states, and conflicting constraints.
 - [x] M2-06 Profile extraction: closed loops → regions with holes, ready for the kernel.
 - [x] M2-07 Dimensions bound to document parameters (`swx-core` integration). Every dimension auto-creates a model parameter `d0`, `d1`, … (PRODUCT §2.2).
-- [ ] M2-08 Parameter expressions with units (`d3 = d1 / 2 + 5 mm`), user parameters, dependency ordering and cycle detection.
-- [ ] M2-09 Sketch inference: auto-apply coincident/horizontal/vertical/tangent/perpendicular/parallel while drawing (solver-level API, no UI).
+- [x] M2-08 Parameter expressions with units (`d3 = d1 / 2 + 5 mm`), user parameters, dependency ordering and cycle detection.
+- [x] M2-09 Sketch inference: auto-apply coincident/horizontal/vertical/tangent/perpendicular/parallel while drawing (solver-level API, no UI).
 
 ## M3: Part features
 
