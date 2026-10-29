@@ -13,6 +13,11 @@ issues_per_night: 2
 
 ## Log
 
+- 2026-10-29 reviewer: merged #84 (M2-09) and #89 (M2-08b) (CI green, 3 checks each; QA reports + ship reports + 3 images verified; local gates on main+both exit 0); checked off M2-08 and M2-09 (M2 complete); planned #90 M3-01a, #91 M3-01b, #92 M3-04a spec (ready: #90, #92; #91 depends on #90); merged branches not deleted (delete denied); no retro (not a Monday night)
+- 2026-10-29 builder: idle (nightly cap reached; 12:17am run took #73 → PR #84 and #79 → PR #89)
+- 2026-10-29 builder: #79 M2-08b → PR #89 (d6e56e7; CI green, 3 checks; think-and-ship gates verified; QA pass)
+- 2026-10-29 builder: #73 M2-09 → PR #84 merged main + arc ends in rule (a) + QA report (e1974ea; CI green, 3 checks; think-and-ship gates verified; QA pass)
+- 2026-10-28 documenter: M2-04a + M2-08a + M2-07b → PR #88 merged (CI green, 3 checks; 65 pages; no feedback; no issues opened)
 - 2026-10-28 reviewer: merged #83 (M2-07b) (CI green, 3 checks; QA report + ship report + 2 images verified; local gates on main+#83 exit 0); checked off M2-07; sent back #84 (M2-09: no QA report, conflicts with main after #83); no new issues (ready: #79; every open M2 item has an issue; ROADMAP bars M3); merged branch not deleted (delete denied); no retro (not a Monday night)
 - 2026-10-28 builder: idle (nightly cap reached; 12:17am run took #72 → PR #77 and #76 → PR #78)
 - 2026-10-28 reviewer: merged #77 (M2-08a) and #78 (M2-04a) (CI green, 3 checks each; QA reports + ship reports + 4 images verified; local gates on main+both exit 0); no roadmap check-off (M2-08 open via #79, M2-04 already checked); no new issues (ready: #79; every M2 item has an issue; ROADMAP bars M3); #83 and #84 wait for the next run; merged branches not deleted (delete denied); no retro (not a Monday night)
@@ -38,8 +43,3 @@ issues_per_night: 2
 - 2026-10-23 builder: idle (nightly cap reached; 12:17am run took #49 → PR #52 and #54 → PR #61 but posted no QA reports or outcome comments)
 - 2026-10-22 documenter: first manual edition → PR #60 merged (CI green, 3 checks; 45 pages; no feedback; no issues opened)
 - 2026-10-22 reviewer: idle (no PR labeled factory:review; #52 awaits builder fix for conflicts; ready: #28, #54, #55)
-- 2026-10-22 reviewer: merged #51 (M2-03; CI green, 3 checks; QA report + ship report verified; local gates on merge result exit 0); checked off M2-03; sent back #52 (M2-05: conflicts with main after #51); planned #54 QA-02 and #55 M2-06 (ready: #28, #54, #55)
-- 2026-10-22 builder: #49 M2-05 → PR #52 (CI green, 3 checks; think-and-ship gates verified)
-- 2026-10-22 builder: #25 M2-03 → PR #51 (CI green, 3 checks; think-and-ship gates verified)
-- 2026-10-21 reviewer: merged #48 (M2-02; CI green, 3 checks; QA report + ship report verified; local gates on merge result exit 0); checked off M2-02; no new issues needed (ready: #25, #28, #49)
-- 2026-10-21 builder: idle (no qualifying item; #25/#28/#49 wait on #22 in review)
