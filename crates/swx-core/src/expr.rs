@@ -199,7 +199,7 @@ impl Expr {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExprErrorKind {
     Syntax(String),
     UnknownUnit(String),
@@ -209,7 +209,7 @@ pub enum ExprErrorKind {
 }
 
 /// An expression error with the byte offset in the source where it applies.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExprError {
     pub kind: ExprErrorKind,
     pub offset: usize,

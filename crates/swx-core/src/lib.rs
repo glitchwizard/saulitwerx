@@ -7,6 +7,7 @@
 
 pub mod expr;
 
+use expr::{Dim, Expr, ExprError, ExprErrorKind, Quantity, Unit};
 use std::collections::BTreeSet;
 use std::fmt;
 
@@ -70,6 +71,21 @@ pub enum ModelError {
         feature: FeatureId,
         input: FeatureId,
     },
+    /// The expression for `param` doesn't parse, names an unknown parameter,
+    /// or fails to evaluate.
+    Expr {
+        param: String,
+        error: ExprError,
+    },
+    /// Parameter expressions would depend on each other in a loop; the names
+    /// on the cycle, in dependency order.
+    ParameterCycle(Vec<String>),
+    /// The expression's dimension doesn't match the parameter's unit.
+    ParameterDimension {
+        param: String,
+        expected: Dim,
+        found: Dim,
+    },
 }
 
 impl fmt::Display for ModelError {
@@ -89,6 +105,25 @@ impl fmt::Display for ModelError {
                 f,
                 "feature {} references feature {} which is not earlier in the history",
                 feature.0, input.0
+            ),
+            ModelError::Expr { param, error } => {
+                write!(f, "expression for `{param}`: {error}")
+            }
+            ModelError::ParameterCycle(names) => {
+                let first = names.first().map(String::as_str).unwrap_or("");
+                write!(
+                    f,
+                    "parameter expressions form a cycle: {} -> {first}",
+                    names.join(" -> ")
+                )
+            }
+            ModelError::ParameterDimension {
+                param,
+                expected,
+                found,
+            } => write!(
+                f,
+                "expression for `{param}` gives {found}, but its unit expects {expected}"
             ),
         }
     }
@@ -115,6 +150,9 @@ pub struct Parameter {
     /// Free-text unit such as `"mm"` or `"deg"`; may be empty.
     pub unit: String,
     pub comment: String,
+    /// The expression source the user typed (see [`Document::set_param_expr`]),
+    /// or `None` for a plain value.
+    pub expr: Option<String>,
 }
 
 /// Whether `name` is a valid parameter name: `[A-Za-z_][A-Za-z0-9_]*` (ASCII only).
@@ -147,11 +185,62 @@ impl Document {
     /// Set the value of parameter `name`. An unknown name creates a
     /// [`ParamKind::User`] parameter with an empty unit (the name is not validated,
     /// to keep existing callers working; prefer [`Document::add_user_param`]).
+    ///
+    /// A parameter that had an expression keeps only the plain value. Every
+    /// parameter whose expression depends on `name` is re-evaluated; if that
+    /// fails (e.g. a division by zero), those dependents keep their old values.
     pub fn set_param(&mut self, name: &str, value: f64) {
         match self.find_mut(name) {
-            Some(p) => p.value = value,
+            Some(p) => {
+                p.value = value;
+                p.expr = None;
+                let mut params = self.params.clone();
+                if evaluate(&mut params).is_ok() {
+                    self.params = params;
+                }
+            }
             None => self.push_param(name.to_owned(), ParamKind::User, value, ""),
         }
+    }
+
+    /// Give parameter `name` the expression `src` (e.g. `d0 / 2 + 5 mm`) and
+    /// re-evaluate the table. A unitless result is taken in the parameter's
+    /// own unit. On any error the document is left exactly as it was.
+    pub fn set_param_expr(&mut self, name: &str, src: &str) -> Result<(), ModelError> {
+        let i = self
+            .params
+            .iter()
+            .position(|p| p.name == name)
+            .ok_or_else(|| ModelError::UnknownParameter(name.to_owned()))?;
+        let expr_err = |error| ModelError::Expr {
+            param: name.to_owned(),
+            error,
+        };
+        let e = expr::parse(src).map_err(expr_err)?;
+        for (n, offset) in name_refs(&e) {
+            if self.find(&n).is_none() {
+                return Err(expr_err(ExprError {
+                    kind: ExprErrorKind::UnknownName(n),
+                    offset,
+                }));
+            }
+        }
+        let mut params = self.params.clone();
+        params[i].expr = Some(src.to_owned());
+        evaluate(&mut params)?;
+        self.params = params;
+        Ok(())
+    }
+
+    /// Every parameter name, each after the parameters its expression names,
+    /// ties broken by creation order (see [`dependency_order`]).
+    pub fn evaluation_order(&self) -> Vec<String> {
+        let (mut order, rest) = dependency_order(&self.params);
+        order.extend(rest);
+        order
+            .into_iter()
+            .map(|i| self.params[i].name.clone())
+            .collect()
     }
 
     pub fn param(&self, name: &str) -> Option<f64> {
@@ -195,6 +284,11 @@ impl Document {
         self.check_new_name(new)?;
         if let Some(p) = self.find_mut(old) {
             p.name = new.to_owned();
+        }
+        for p in &mut self.params {
+            if let Some(src) = &mut p.expr {
+                *src = rename_in_expr(src, old, new);
+            }
         }
         for f in &mut self.history {
             match &mut f.kind {
@@ -244,6 +338,7 @@ impl Document {
             value,
             unit: unit.to_owned(),
             comment: String::new(),
+            expr: None,
         });
     }
 
@@ -274,11 +369,31 @@ impl Document {
     }
 
     /// Features that must be rebuilt, in history order, after `param` changes.
+    /// Features reading a parameter whose expression depends on `param`,
+    /// directly or through other expressions, count too.
     pub fn dirty_after_param_change(&self, param: &str) -> Vec<FeatureId> {
+        let mut changed = vec![param.to_owned()];
+        // Parameters in dependency order, so one pass reaches every dependent.
+        for i in dependency_order(&self.params).0 {
+            let p = &self.params[i];
+            let reads_changed = p
+                .expr
+                .as_deref()
+                .and_then(|src| expr::parse(src).ok())
+                .is_some_and(|e| e.names().iter().any(|n| changed.contains(n)));
+            if reads_changed && !changed.contains(&p.name) {
+                changed.push(p.name.clone());
+            }
+        }
         let seeds = self
             .history
             .iter()
-            .filter(|f| f.kind.params().contains(&param))
+            .filter(|f| {
+                f.kind
+                    .params()
+                    .iter()
+                    .any(|n| changed.iter().any(|c| c == n))
+            })
             .map(|f| f.id);
         self.propagate(seeds)
     }
@@ -306,6 +421,152 @@ impl Document {
         }
         out
     }
+}
+
+/// Identifiers referenced by `e`, with their byte offsets, in source order.
+fn name_refs(e: &Expr) -> Vec<(String, usize)> {
+    fn walk(e: &Expr, out: &mut Vec<(String, usize)>) {
+        match e {
+            Expr::Num(_) => {}
+            Expr::Name { name, offset } => out.push((name.clone(), *offset)),
+            Expr::WithUnit { inner, .. } | Expr::Neg(inner) => walk(inner, out),
+            Expr::Bin { lhs, rhs, .. } => {
+                walk(lhs, out);
+                walk(rhs, out);
+            }
+        }
+    }
+    let mut out = Vec::new();
+    walk(e, &mut out);
+    out
+}
+
+/// `src` with every identifier `old` replaced by `new`. Only whole
+/// identifiers change (as the parser sees them), never unit suffixes or
+/// longer names such as `d10` for `d1`.
+fn rename_in_expr(src: &str, old: &str, new: &str) -> String {
+    let Ok(e) = expr::parse(src) else {
+        return src.to_owned();
+    };
+    let mut out = src.to_owned();
+    let mut refs = name_refs(&e);
+    refs.sort_by_key(|&(_, offset)| std::cmp::Reverse(offset));
+    for (name, offset) in refs {
+        if name == old {
+            out.replace_range(offset..offset + old.len(), new);
+        }
+    }
+    out
+}
+
+/// For each parameter, the indices of the parameters its expression names.
+fn dependencies(params: &[Parameter]) -> Vec<Vec<usize>> {
+    params
+        .iter()
+        .map(|p| {
+            let names = p
+                .expr
+                .as_deref()
+                .and_then(|src| expr::parse(src).ok())
+                .map(|e| e.names())
+                .unwrap_or_default();
+            names
+                .iter()
+                .filter_map(|n| params.iter().position(|q| &q.name == n))
+                .collect()
+        })
+        .collect()
+}
+
+/// Topological order of the parameter table by Kahn's algorithm (A. B. Kahn,
+/// "Topological sorting of large networks", *CACM* 5(11), 1962; Cormen et
+/// al., *Introduction to Algorithms*, 3rd ed., §22.4): repeatedly take the
+/// earliest-created parameter whose dependencies are all placed, so ties
+/// follow creation order. Returns the ordered indices and the indices left
+/// over, which are non-empty only when expressions form a cycle.
+fn dependency_order(params: &[Parameter]) -> (Vec<usize>, Vec<usize>) {
+    let deps = dependencies(params);
+    let mut waiting: Vec<usize> = deps.iter().map(Vec::len).collect();
+    let mut ready: BTreeSet<usize> = (0..params.len()).filter(|&i| waiting[i] == 0).collect();
+    let mut order = Vec::with_capacity(params.len());
+    while let Some(i) = ready.pop_first() {
+        order.push(i);
+        for (j, d) in deps.iter().enumerate() {
+            if d.contains(&i) {
+                waiting[j] -= 1;
+                if waiting[j] == 0 {
+                    ready.insert(j);
+                }
+            }
+        }
+    }
+    let rest = (0..params.len()).filter(|i| !order.contains(i)).collect();
+    (order, rest)
+}
+
+/// A cycle among the `rest` of [`dependency_order`]. Each left-over
+/// parameter depends on another left-over one, so following the first such
+/// dependency from the earliest must revisit a parameter.
+fn find_cycle(params: &[Parameter], rest: &[usize]) -> Vec<String> {
+    let deps = dependencies(params);
+    let mut path: Vec<usize> = Vec::new();
+    let mut cur = rest[0];
+    while !path.contains(&cur) {
+        path.push(cur);
+        match deps[cur].iter().find(|d| rest.contains(d)) {
+            Some(&next) => cur = next,
+            None => return Vec::new(),
+        }
+    }
+    let start = path.iter().position(|&i| i == cur).unwrap_or(0);
+    path[start..]
+        .iter()
+        .map(|&i| params[i].name.clone())
+        .collect()
+}
+
+/// The dimension and base-unit factor a parameter's `unit` stands for.
+/// Units that aren't length or angle units count as unitless.
+fn unit_dim(p: &Parameter) -> (Dim, f64) {
+    Unit::from_suffix(&p.unit).map_or((Dim::NONE, 1.0), |u| (u.dim(), u.factor()))
+}
+
+fn param_quantity(p: &Parameter) -> Quantity {
+    let (dim, factor) = unit_dim(p);
+    Quantity::new(p.value * factor, dim)
+}
+
+/// Re-evaluate every expression in dependency order, writing the values.
+fn evaluate(params: &mut [Parameter]) -> Result<(), ModelError> {
+    let (order, rest) = dependency_order(params);
+    if !rest.is_empty() {
+        return Err(ModelError::ParameterCycle(find_cycle(params, &rest)));
+    }
+    for i in order {
+        let Some(src) = params[i].expr.clone() else {
+            continue;
+        };
+        let err = |error| ModelError::Expr {
+            param: params[i].name.clone(),
+            error,
+        };
+        let e = expr::parse(&src).map_err(err)?;
+        let resolve = |n: &str| params.iter().find(|p| p.name == n).map(param_quantity);
+        let q = expr::eval(&e, &resolve, Unit::Mm).map_err(err)?;
+        let (dim, factor) = unit_dim(&params[i]);
+        params[i].value = if q.dim == dim {
+            q.value / factor
+        } else if q.dim == Dim::NONE {
+            q.value
+        } else {
+            return Err(ModelError::ParameterDimension {
+                param: params[i].name.clone(),
+                expected: dim,
+                found: q.dim,
+            });
+        };
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -519,5 +780,207 @@ mod tests {
         );
         let msg = ModelError::InvalidParameterName("2a".into()).to_string();
         assert!(msg.starts_with("invalid parameter name `2a`"), "{msg}");
+    }
+
+    fn close(a: Option<f64>, b: f64, tol: f64) -> bool {
+        a.is_some_and(|a| (a - b).abs() <= tol)
+    }
+
+    #[test]
+    fn expressions_take_the_parameter_unit() {
+        let mut d = Document::new();
+        let d0 = d.add_model_param(40.0, "mm");
+        let d1 = d.add_model_param(0.0, "mm");
+        assert!(d.parameters().iter().all(|p| p.expr.is_none()));
+        d.set_param_expr(&d1, "d0 / 2 + 5 mm").unwrap();
+        assert!(close(d.param(&d1), 25.0, 1e-12));
+        assert_eq!(d.parameters()[1].expr.as_deref(), Some("d0 / 2 + 5 mm"));
+        d.add_user_param("w", 0.0, "in").unwrap();
+        d.set_param_expr("w", "1 in").unwrap();
+        assert!(close(d.param("w"), 1.0, 1e-12));
+        d.add_user_param("ang", 0.0, "deg").unwrap();
+        d.set_param_expr("ang", "90 deg").unwrap();
+        assert!(close(d.param("ang"), 90.0, 1e-9));
+        // Unitless results are taken in the parameter's own unit.
+        d.set_param_expr("ang", "5").unwrap();
+        assert!(close(d.param("ang"), 5.0, 1e-12));
+        d.set_param_expr(&d0, "5").unwrap();
+        assert!(close(d.param(&d0), 5.0, 1e-12));
+        assert!(close(d.param(&d1), 7.5, 1e-12));
+        assert_eq!(
+            d.set_param_expr(&d1, "2 deg"),
+            Err(ModelError::ParameterDimension {
+                param: d1.clone(),
+                expected: Dim::LENGTH,
+                found: Dim::ANGLE,
+            })
+        );
+        assert!(close(d.param(&d1), 7.5, 1e-12));
+    }
+
+    #[test]
+    fn evaluation_order_puts_dependencies_first() {
+        let mut d = Document::new();
+        for n in ["c", "b", "a"] {
+            d.add_user_param(n, 0.0, "mm").unwrap();
+        }
+        assert_eq!(d.evaluation_order(), ["c", "b", "a"]);
+        d.set_param_expr("a", "3 mm").unwrap();
+        d.set_param_expr("b", "a * 2").unwrap();
+        d.set_param_expr("c", "a + b").unwrap();
+        assert_eq!(d.evaluation_order(), ["a", "b", "c"]);
+        assert!(close(d.param("c"), 9.0, 1e-12));
+    }
+
+    #[test]
+    fn cycles_are_rejected() {
+        let mut d = Document::new();
+        for n in ["a", "b", "c"] {
+            d.add_user_param(n, 1.0, "mm").unwrap();
+        }
+        d.set_param_expr("a", "b + 1 mm").unwrap();
+        let Err(ModelError::ParameterCycle(cycle)) = d.set_param_expr("b", "a") else {
+            panic!("expected a cycle");
+        };
+        assert!(cycle == ["a", "b"] || cycle == ["b", "a"], "{cycle:?}");
+        d.set_param_expr("b", "c").unwrap();
+        let Err(ModelError::ParameterCycle(cycle)) = d.set_param_expr("c", "a * 2") else {
+            panic!("expected a cycle");
+        };
+        assert_eq!(cycle.len(), 3, "{cycle:?}");
+        let Err(ModelError::ParameterCycle(cycle)) = d.set_param_expr("c", "c + 1 mm") else {
+            panic!("expected a cycle");
+        };
+        assert_eq!(cycle, ["c"]);
+        assert!(d.parameters()[2].expr.is_none());
+    }
+
+    #[test]
+    fn set_param_re_evaluates_dependents() {
+        let mut d = Document::new();
+        for _ in 0..3 {
+            d.add_model_param(0.0, "mm");
+        }
+        d.set_param_expr("d0", "40 mm").unwrap();
+        d.set_param_expr("d1", "d0 / 2").unwrap();
+        d.set_param_expr("d2", "d1 + d0").unwrap();
+        d.set_param("d0", 60.0);
+        assert!(close(d.param("d1"), 30.0, 1e-12));
+        assert!(close(d.param("d2"), 90.0, 1e-12));
+        assert!(d.parameters()[0].expr.is_none());
+        d.set_param("d1", 7.0);
+        assert!(d.parameters()[1].expr.is_none());
+        assert!(close(d.param("d2"), 67.0, 1e-12));
+    }
+
+    #[test]
+    fn set_param_keeps_dependents_when_re_evaluation_fails() {
+        let mut d = Document::new();
+        d.add_user_param("n", 2.0, "").unwrap();
+        d.add_user_param("w", 0.0, "mm").unwrap();
+        d.set_param_expr("w", "10 mm / n").unwrap();
+        d.set_param("n", 0.0);
+        assert_eq!(d.param("n"), Some(0.0));
+        assert!(close(d.param("w"), 5.0, 1e-12));
+    }
+
+    #[test]
+    fn dirty_propagates_through_expressions() {
+        let (mut d, _s1, e1, _s2, _r1) = block_and_shaft();
+        d.set_param("base_t", 5.0);
+        d.set_param_expr("thickness", "base_t * 2").unwrap();
+        assert_eq!(d.param("thickness"), Some(10.0));
+        assert_eq!(
+            d.dirty_after_param_change("base_t"),
+            d.dirty_after_param_change("thickness")
+        );
+        assert_eq!(d.dirty_after_param_change("base_t"), vec![e1]);
+    }
+
+    #[test]
+    fn rename_rewrites_whole_identifiers_in_expressions() {
+        let mut d = Document::new();
+        for i in 0..11 {
+            d.add_model_param(i as f64 + 1.0, "mm");
+        }
+        d.add_user_param("in", 2.0, "mm").unwrap();
+        d.set_param_expr("d5", "d1 / 2 + d10 + 2 in + in").unwrap();
+        let before: Vec<f64> = d.parameters().iter().map(|p| p.value).collect();
+        d.rename_param("d1", "width").unwrap();
+        d.rename_param("in", "inch").unwrap();
+        assert_eq!(
+            d.parameters()[5].expr.as_deref(),
+            Some("width / 2 + d10 + 2 in + inch")
+        );
+        let after: Vec<f64> = d.parameters().iter().map(|p| p.value).collect();
+        assert_eq!(before, after);
+        d.set_param("width", 4.0);
+        assert!(close(d.param("d5"), 2.0 + 11.0 + 50.8 + 2.0, 1e-12));
+    }
+
+    #[test]
+    fn invalid_expressions_leave_the_document_unchanged() {
+        let mut d = Document::new();
+        for _ in 0..2 {
+            d.add_model_param(10.0, "mm");
+        }
+        d.add_user_param("n", 3.0, "").unwrap();
+        d.set_param_expr("d1", "d0 / 2").unwrap();
+        let snapshot = d.parameters().to_vec();
+        let cases = [
+            ("nope", "1 mm"),
+            ("d0", ""),
+            ("d0", "1 +"),
+            ("d0", "(1 mm"),
+            ("d0", "2 kg"),
+            ("d0", "missing + 1 mm"),
+            ("d0", "5 mm / 0"),
+            ("d0", "2 deg"),
+            ("d0", "d1 * d1"),
+            ("d0", "d1 + 2 deg"),
+            ("d0", "d1"),
+            ("d1", "d1 + 1 mm"),
+            ("n", "1 mm"),
+            ("d0", "1 $"),
+            ("d0", "))"),
+        ];
+        for (name, src) in cases {
+            assert!(d.set_param_expr(name, src).is_err(), "{name} = {src}");
+            assert_eq!(d.parameters(), &snapshot[..], "{name} = {src}");
+        }
+    }
+
+    #[test]
+    fn expression_errors_have_clear_messages() {
+        let mut d = Document::new();
+        d.add_user_param("a", 1.0, "mm").unwrap();
+        let e = d.set_param_expr("a", "b + 1").unwrap_err();
+        assert_eq!(
+            e,
+            ModelError::Expr {
+                param: "a".into(),
+                error: ExprError {
+                    kind: ExprErrorKind::UnknownName("b".into()),
+                    offset: 0,
+                },
+            }
+        );
+        assert_eq!(
+            e.to_string(),
+            "expression for `a`: unknown name `b` at byte 0"
+        );
+        assert_eq!(
+            ModelError::ParameterCycle(vec!["a".into(), "b".into()]).to_string(),
+            "parameter expressions form a cycle: a -> b -> a"
+        );
+        assert_eq!(
+            ModelError::ParameterDimension {
+                param: "d1".into(),
+                expected: Dim::LENGTH,
+                found: Dim::ANGLE,
+            }
+            .to_string(),
+            "expression for `d1` gives angle, but its unit expects length"
+        );
     }
 }
