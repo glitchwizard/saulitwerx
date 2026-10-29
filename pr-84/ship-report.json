@@ -1,0 +1,79 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "PR #84 head",
+      "ref": "e1974ea",
+      "task_id": "gates-73",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-73",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-73",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-73",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`InferOptions { point_tol: f64, angle_tol_deg: f64 }` with defaults `point_tol = 1e-3 × the sketch's bounding-box diagonal` (or 1e-3 for an empty sketch) and `angle_tol_deg = 1.0`. Invalid options (≤ 0 or not finite) return an error.",
+      "`infer(sketch: &Sketch, new: GeomId, opts: &InferOptions) -> Result<Vec<Constraint>, SketchError>` returns suggestions for `new` only, against all other geometry, in a fixed, documented order: coincident first, then horizontal/vertical, then parallel/perpendicular, then tangent. It never suggests a constraint that `add_constraint` would reject.",
+      "Rules, each with a test: (a) an endpoint of `new` within `point_tol` of an existing endpoint, point or center → `Coincident`. Only the nearest candidate per endpoint is suggested. (b) a line within `angle_tol_deg` of horizontal → `Horizontal`; of vertical → `Vertical`. Never both. (c) a line within `angle_tol_deg` of parallel to an existing line → `Parallel`; of perpendicular → `Perpendicular`. Skipped when (b) already fixes the direction and the other line is itself horizontal or vertical, so the result is not redundant. (d) a line whose distance to a circle or arc center differs from the radius by less than `point_tol` → `Tangent`; two circles/arcs whose center distance is within `point_tol` of `r1 + r2` or `|r1 − r2|` → `Tangent`. (e) nothing within tolerance → empty list.",
+      "`add_inferred(sketch: &mut Sketch, new: GeomId, opts) -> Result<Vec<ConstraintId>, …>` adds the suggestions in order, then solves. Test: a rectangle drawn as 4 lines with corners off by up to 5e-4 and sides tilted by up to 0.5° (diagonal ≈ 47, so `point_tol` ≈ 0.047). After `add_inferred` on each new line, the sketch solves (`converged`), the corners coincide within 1e-8, and the sides are exactly horizontal/vertical within 1e-8. DOF analysis (`dof::analyze`) shows no redundant rows.",
+      "A line drawn 0.5° off a horizontal existing line gets `Horizontal` and no redundant `Parallel` (rule (c)); a line at 3° gets nothing.",
+      "No `unsafe`; no new dependencies.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` passes.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-10-29T07:25:30.045314217+00:00",
+    "constraints": [],
+    "created_at": "2026-10-29T07:25:12.146812658+00:00",
+    "description": "M2-09: Sketch inference: auto-apply coincident/horizontal/vertical/tangent/perpendicular/parallel while drawing (solver-level API, no UI)",
+    "project_id": "saulitwerx",
+    "scope": "crates/swx-sketch (PR #84, head e1974ea)",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 3,
+      "estimate": "small",
+      "id": "gates-73",
+      "status": "completed",
+      "title": "Run gates on PR #84 head e1974ea",
+      "type": "test"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
