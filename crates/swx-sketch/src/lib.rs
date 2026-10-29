@@ -17,6 +17,8 @@
 //! module reports how many degrees of freedom such a system leaves and which
 //! of its equations are redundant or conflicting. The [`profile`] module
 //! turns closed loops of lines, arcs and circles into regions with holes.
+//! The [`infer`] module suggests the constraints a newly drawn entity already
+//! almost satisfies.
 //! The [`params`] module binds dimensional constraints to the parameter table
 //! of a `swx_core::Document`.
 //!
@@ -24,6 +26,7 @@
 
 pub mod constraint;
 pub mod dof;
+pub mod infer;
 pub mod params;
 pub mod profile;
 pub mod solver;
