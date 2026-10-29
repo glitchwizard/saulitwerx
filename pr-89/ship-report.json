@@ -1,0 +1,82 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "PR #89 head",
+      "ref": "d6e56e7",
+      "task_id": "gates-79",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-79",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-79",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-79",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`Parameter` gains `expr: Option<String>`, the source text the user typed. `None` means a plain value (today's behavior). Existing constructors leave it `None`, and every existing test passes unchanged.",
+      "`Document::set_param_expr(name, src) -> Result<(), ModelError>` parses `src` and stores it, then re-evaluates the table. It returns an error, and leaves the document exactly as it was (all names, values and expressions), when: the parameter is unknown; `src` doesn't parse (the error carries the `ExprError`); the expression names a parameter that doesn't exist; it would create a cycle (`ModelError::ParameterCycle(Vec<String>)` naming the parameters on the cycle in order, e.g. `a = b + 1 mm`, `b = a` gives `[\"a\", \"b\"]` or a rotation of it); or the result's dimension doesn't match the parameter's unit (see the next item). A self-reference (`a = a + 1 mm`) is a cycle.",
+      "Units: a parameter whose `unit` is `mm`, `cm`, `m`, `in` or `ft` expects a length, `deg` or `rad` an angle, and an empty unit a unitless number. A unitless result for a length or angle parameter is taken in that parameter's unit (`5` typed into an `mm` parameter is 5 mm; into a `deg` parameter, 5°). `Parameter::value` stays in the parameter's own unit, so existing callers of `param()` see the same numbers. Test: `d0 = 40` (mm), `d1` (mm) `= d0 / 2 + 5 mm` gives 25 ± 1e-12; `w` (in) `= 1 in` gives 1.0 ± 1e-12; `ang` (deg) `= 90 deg` gives 90 ± 1e-9; `d1 = 2 deg` is a dimension error.",
+      "`Document::evaluation_order() -> Vec<String>`: every parameter, each after the parameters its expression names, ties broken by creation order. Test: `c = a + b`, `b = a * 2`, `a = 3 mm`, created in the order `c`, `b`, `a`, give `[a, b, c]`.",
+      "Re-evaluation: `set_param(name, value)` on a parameter that others depend on updates them all. Test: `d0 = 40 mm`, `d1 = d0 / 2`, `d2 = d1 + d0`; `set_param(\"d0\", 60.0)` gives `d1` = 30 and `d2` = 90, each ± 1e-12. `set_param` on a parameter that has an expression replaces the expression with the plain value (`expr` becomes `None`).",
+      "`dirty_after_param_change(name)` also covers features that read a parameter which depends on `name` through expressions. Test: in the `block_and_shaft` fixture, make `thickness` = `base_t * 2`; the features dirty after a change to `base_t` equal those dirty after a change to `thickness`.",
+      "`rename_param(old, new)` also rewrites `old` in every stored expression, as a whole identifier only (`d1` → `width` changes `d1 / 2` but not `d10`). Values are unchanged afterwards.",
+      "New `ModelError` variants have clear `Display` messages. No panics on any input; a test runs at least 10 invalid `set_param_expr` calls and checks the document is unchanged after each.",
+      "No `unsafe`; no new dependencies; `swx-core` still has no workspace dependencies.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` passes.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-10-29T07:32:10.347619832+00:00",
+    "constraints": [],
+    "created_at": "2026-10-29T07:31:50.845087826+00:00",
+    "description": "M2-08b: Parameter table stores expressions: dependency ordering, cycle detection and re-evaluation on change",
+    "project_id": "saulitwerx",
+    "scope": "crates/swx-core (PR #89, head d6e56e7)",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 3,
+      "estimate": "small",
+      "id": "gates-79",
+      "status": "completed",
+      "title": "Run gates on PR #89 head d6e56e7",
+      "type": "test"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
