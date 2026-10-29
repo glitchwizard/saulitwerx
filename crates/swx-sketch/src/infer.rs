@@ -5,10 +5,10 @@
 //! and suggests, in this fixed order:
 //!
 //! 1. **Coincident** — for each point of the new entity (a line's start, then
-//!    its end; a point; a circle's or arc's center), the nearest other point,
-//!    line endpoint or center within `point_tol`. Only that nearest candidate
-//!    is suggested; ties go to the lower [`GeomId`], then to the order start,
-//!    end, point, center.
+//!    its end; a point; a circle's center; an arc's center, start, then end),
+//!    the nearest other point, line or arc endpoint, or center within
+//!    `point_tol`. Only that nearest candidate is suggested; ties go to the
+//!    lower [`GeomId`], then to that same order.
 //! 2. **Horizontal / Vertical** — a line within `angle_tol_deg` of the x or y
 //!    axis. Never both, since the tolerance is below 45°.
 //! 3. **Parallel / Perpendicular** — a line within `angle_tol_deg` of
@@ -27,9 +27,8 @@
 //! The line-to-circle test uses the infinite line through the segment, like
 //! the tangent constraint itself. A suggestion that the sketch already holds
 //! (in either argument order) is left out, so inferring twice adds nothing.
-//! Arc endpoints are not suggested: they aren't a [`PointRef`] yet, and
-//! [`infer`] never suggests a constraint that
-//! [`Sketch::add_constraint`] would reject.
+//! [`infer`] never suggests a constraint that [`Sketch::add_constraint`]
+//! would reject.
 
 use crate::solver::{SolveError, SolveOptions, SolveReport};
 use crate::{Constraint, ConstraintId, GeomId, GeomKind, PointRef, Sketch, SketchError};
@@ -250,7 +249,15 @@ fn point_refs(sketch: &Sketch, id: GeomId) -> Vec<(PointRef, Xy)> {
             (PointRef::Start(id), (p[0], p[1])),
             (PointRef::End(id), (p[2], p[3])),
         ],
-        GeomKind::Circle | GeomKind::Arc => vec![(PointRef::Center(id), (p[0], p[1]))],
+        GeomKind::Circle => vec![(PointRef::Center(id), (p[0], p[1]))],
+        GeomKind::Arc => {
+            let at = |a: f64| (p[0] + p[2] * a.cos(), p[1] + p[2] * a.sin());
+            vec![
+                (PointRef::Center(id), (p[0], p[1])),
+                (PointRef::ArcStart(id), at(p[3])),
+                (PointRef::ArcEnd(id), at(p[4])),
+            ]
+        }
     }
 }
 
@@ -354,6 +361,7 @@ mod tests {
     use super::*;
     use crate::dof::DofOptions;
     use crate::{Arc, Circle, Geometry, Line, Point};
+    use std::f64::consts::FRAC_PI_2;
 
     fn pt(x: f64, y: f64) -> Point {
         Point::new(x, y).unwrap()
@@ -437,6 +445,44 @@ mod tests {
             ]
         );
         let _ = a;
+    }
+
+    #[test]
+    fn rule_a_arc_ends_are_candidates_both_ways() {
+        // Quarter arc from (5, 0) to (0, 5); a line drawn down from near its
+        // start joins it, tangent and vertical.
+        let mut s = Sketch::new();
+        let arc = s
+            .add(Geometry::Arc(
+                Arc::new(pt(0.0, 0.0), 5.0, 0.0, FRAC_PI_2).unwrap(),
+            ))
+            .unwrap();
+        let l = line(&mut s, 5.004, -0.003, 5.004, -10.0);
+        assert_eq!(
+            infer(&s, l, &opts()).unwrap(),
+            vec![
+                Constraint::Coincident(PointRef::Start(l), PointRef::ArcStart(arc)),
+                Constraint::Vertical(l),
+                Constraint::Tangent(l, arc),
+            ]
+        );
+        add_inferred(&mut s, l, &opts()).unwrap();
+        let (q, a) = (s.entity_params(l).unwrap(), s.entity_params(arc).unwrap());
+        let start = (a[0] + a[2] * a[3].cos(), a[1] + a[2] * a[3].sin());
+        assert!(dist((q[0], q[1]), start) < 1e-8, "{q:?} {a:?}");
+
+        // A new arc whose end lands near an existing line's start.
+        let mut s = Sketch::new();
+        let l = line(&mut s, -0.002, 5.003, -10.0, 5.003);
+        let arc = s
+            .add(Geometry::Arc(
+                Arc::new(pt(0.0, 0.0), 5.0, 0.0, FRAC_PI_2).unwrap(),
+            ))
+            .unwrap();
+        assert_eq!(
+            infer(&s, arc, &opts()).unwrap()[0],
+            Constraint::Coincident(PointRef::ArcEnd(arc), PointRef::Start(l))
+        );
     }
 
     #[test]
