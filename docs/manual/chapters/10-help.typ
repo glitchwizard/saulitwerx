@@ -17,8 +17,9 @@
   [A curved part is covered in lines], [Raise `--crease`, for example to 45.],
   [The numbers in a sketch picture are too small to read], [Use a smaller `--size`. Labels have a fixed size in pixels, so they take up more of a small picture.],
   [A sketch solves, but its sizes aren't what you expect], [Some of it is still free to move. Check the degrees of freedom (@sec-check-dof) and add the missing dimensions.],
-  [A sketch looks closed, but has no region], [Some ends don't meet. The open-edge list names the pieces (@sec-profiles). Join line ends with coincident, and check that each arc is drawn with the angles that reach its neighbors.],
-  [An arc's ends stay where they were drawn after solving], [Expected today: no constraint can hold an arc's ends, so the solver never changes its angles (@sec-slot).],
+  [A sketch looks closed, but has no region], [Some ends don't meet. The open-edge list names the pieces (@sec-profiles). Join every end, line or arc, to its neighbor with coincident (@sec-slot).],
+  [An arc flips or bulges the wrong way after solving], [An arc runs counterclockwise from `ArcStart` to `ArcEnd`. Check that each line end is joined to the right end of the arc (@sec-slot).],
+  [A sketch dimension ignores a new parameter value], [Copy the values into the sketch with `apply_params`, then solve again (@sec-drive-sketch).],
   [The solver stops with `Stagnated`], [Two or more rules contradict each other. Check the degrees of freedom: the report says `Conflicting` and gives the clashing equation's number.],
 )
 
@@ -72,7 +73,11 @@ Every message starts with `swx-qa: `. No picture is written when there is an err
   [`radius must be > 0, got r`], [A circle or arc needs a positive radius.],
   [`value must be > 0, got v`], [A distance, radius or diameter constraint needs a positive value.],
   [`unknown geometry N`], [The constraint names an entity that isn't in this sketch.],
-  [`geometry N has a different kind`], [Wrong kind of point or entity, such as `Center` of a line, a circle in parallel, or a line made equal to a circle (@ch-sketching).],
+  [`geometry N has a different kind`], [Wrong kind of point or entity, such as `Center` of a line, `ArcStart` of a circle, a circle in parallel, or a line made equal to a circle (@ch-sketching).],
+  [`unknown constraint N`], [No constraint with that number is in this sketch.],
+  [`constraint N is not a dimension`], [Only a distance, radius or diameter has a value to change.],
+  [#raw("only distance, radius and diameter can be bound, got …")], [`bind_dimension` was given another kind of constraint. Add it with `add_constraint` instead (@sec-drive-sketch).],
+  [#raw("a sketch dimension is bound to unknown parameter `p`")], [The parameter was renamed or never existed. After `doc.rename_param`, call `rename_bound` with the same names (@sec-drive-sketch).],
 )
 
 === From profiles
@@ -98,6 +103,20 @@ Any sketch message above can also come from profiles, when the sketch itself is 
   [`feature N references feature M which is not earlier in the history`], [A feature can use only features made before it.],
 )
 
+=== From expressions
+
+Each message gives the byte where the problem is, counting from 0 at the first character (@sec-expressions).
+
+#ref-table(
+  columns: (1fr, 1fr),
+  header: ("Message", "Meaning and fix"),
+  [`syntax error at byte n: …`], [The text isn't a formula: an unexpected character, a missing `)` or number, or an expression too long or too deeply nested. The rest of the message says which.],
+  [#raw("unknown unit `u` at byte n (expected mm, cm, m, in, ft, deg or rad)")], [A word after a number isn't one of the seven units. Check the spelling.],
+  [#raw("unknown name `p` at byte n")], [No parameter has that name. Names are case-sensitive.],
+  [#raw("dimension mismatch at byte n: cannot apply `+` to length and angle")], [Both sides of `+` or `-` must measure the same thing. Give a bare number its unit, as in `d1 + 5 mm`.],
+  [`division by zero at byte n`], [The part after `/` works out to zero.],
+)
+
 == Questions
 
 *Is there a version with windows and buttons?* Not yet. The desktop app is a later milestone; see *Coming next*.
@@ -116,7 +135,8 @@ Any sketch message above can also come from profiles, when the sketch itself is 
 - No features that turn sketches into solids yet: no extrude, revolve, fillet or hole. Solids are made from boxes, cylinders and spheres.
 - No native part files; work can't be saved with its history.
 - `swx-qa sketch` draws only its two built-in sketches. Your own sketches need a short program (@sec-picture-sketch). Sketch pictures show no dimension arrows and no marks for constraints such as horizontal.
-- A constraint can't name an arc's two ends, only its center. Arcs must be drawn with the angles that reach their neighbors; the solver never changes them (@sec-slot).
+- Parameters hold plain numbers. Expressions can be worked out (@sec-expressions), but a parameter can't be set to one yet.
+- Renaming a parameter doesn't update the sketches bound to it by itself; call `rename_bound` too (@sec-drive-sketch).
 - There are no angle dimensions and no point-to-line distance yet.
 - Profiles don't split pieces where they cross; crossing pieces are an error.
 - Only built on and tested on Ubuntu Linux.

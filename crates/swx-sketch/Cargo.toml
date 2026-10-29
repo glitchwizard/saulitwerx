@@ -8,6 +8,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+swx-core = { path = "../swx-core" }
 
 [lints]
 workspace = true

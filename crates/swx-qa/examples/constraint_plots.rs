@@ -1,12 +1,12 @@
 //! Plots the sketches of `swx-sketch`'s `centered_plate` example at two
-//! widths, and stage 2 of its `slot_sketch` example (one arc drawn short).
+//! widths, and its `slot_sketch` example as drawn and solved.
 //!
 //! Used by the user manual for its pictures of the parallel, perpendicular,
 //! midpoint, tangent and equal constraints.
 //!
 //! Run: `cargo run -p swx-qa --example constraint_plots -- <out-dir> [<W>x<H>]`
-//! Writes `sketch-centered-40.png`, `sketch-centered-60.png`
-//! and `sketch-slot-gap.png`.
+//! Writes `sketch-centered-40.png`, `sketch-centered-60.png`,
+//! `sketch-slot-rough.png` and `sketch-slot.png`.
 
 use std::f64::consts::{FRAC_PI_2, PI};
 use std::path::PathBuf;
@@ -73,15 +73,16 @@ fn centered_plate(width: f64) -> Res<Sketch> {
     Ok(s)
 }
 
-/// The `slot_sketch` sketch, with the left arc ending at `left_end`.
-fn slot(left_end: f64) -> Res<Sketch> {
+/// The `slot_sketch` sketch: as drawn (with gaps) when `solve` is false,
+/// closed by its coincident and tangent constraints when it is true.
+fn slot(solve: bool) -> Res<Sketch> {
     let mut s = Sketch::new();
     let p = |x, y| Point::new(x, y);
     let left = s.add(Geometry::Arc(Arc::new(
         p(0.0, 0.0)?,
         4.0,
         FRAC_PI_2,
-        left_end,
+        3.0 * FRAC_PI_2 - PI / 18.0,
     )?))?;
     let right = s.add(Geometry::Arc(Arc::new(
         p(28.0, 1.0)?,
@@ -91,6 +92,14 @@ fn slot(left_end: f64) -> Res<Sketch> {
     )?))?;
     let bottom = s.add(Geometry::Line(Line::new(p(0.0, -4.0)?, p(28.0, -5.0)?)?))?;
     let top = s.add(Geometry::Line(Line::new(p(28.0, 7.0)?, p(0.0, 4.0)?)?))?;
+    for (a, b) in [
+        (PointRef::Start(bottom), PointRef::ArcEnd(left)),
+        (PointRef::End(bottom), PointRef::ArcStart(right)),
+        (PointRef::Start(top), PointRef::ArcEnd(right)),
+        (PointRef::End(top), PointRef::ArcStart(left)),
+    ] {
+        s.add_constraint(Constraint::Coincident(a, b))?;
+    }
     for (line, arc) in [(bottom, left), (bottom, right), (top, left), (top, right)] {
         s.add_constraint(Constraint::Tangent(line, arc))?;
     }
@@ -111,14 +120,12 @@ fn slot(left_end: f64) -> Res<Sketch> {
             b: PointRef::Center(right),
             value: 30.0,
         },
-        Constraint::VerticalPoints(PointRef::Start(bottom), PointRef::Center(left)),
-        Constraint::VerticalPoints(PointRef::End(bottom), PointRef::Center(right)),
-        Constraint::VerticalPoints(PointRef::Start(top), PointRef::Center(right)),
-        Constraint::VerticalPoints(PointRef::End(top), PointRef::Center(left)),
     ] {
         s.add_constraint(c)?;
     }
-    s.solve(SolveOptions::default())?;
+    if solve {
+        s.solve(SolveOptions::default())?;
+    }
     Ok(s)
 }
 
@@ -135,7 +142,8 @@ fn main() -> Res<()> {
     for (s, name) in [
         (centered_plate(40.0)?, "sketch-centered-40.png"),
         (centered_plate(60.0)?, "sketch-centered-60.png"),
-        (slot(3.0 * FRAC_PI_2 - PI / 18.0)?, "sketch-slot-gap.png"),
+        (slot(false)?, "sketch-slot-rough.png"),
+        (slot(true)?, "sketch-slot.png"),
     ] {
         let path = dir.join(name);
         std::fs::write(&path, plot(&s, &opts)?.to_png()?)?;

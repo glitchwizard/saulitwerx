@@ -19,12 +19,15 @@
 //! turns closed loops of lines, arcs and circles into regions with holes.
 //! The [`infer`] module suggests the constraints a newly drawn entity already
 //! almost satisfies.
+//! The [`params`] module binds dimensional constraints to the parameter table
+//! of a `swx_core::Document`.
 //!
 //! This crate must never depend on the geometry kernel (docs/ARCHITECTURE.md).
 
 pub mod constraint;
 pub mod dof;
 pub mod infer;
+pub mod params;
 pub mod profile;
 pub mod solver;
 
@@ -51,6 +54,10 @@ pub enum SketchError {
     KindMismatch(GeomId),
     /// A constraint value (distance, radius, diameter) was zero or negative.
     NonPositiveValue(f64),
+    /// No constraint with this id exists in the sketch.
+    UnknownConstraint(ConstraintId),
+    /// The constraint is not a dimension (`Distance`, `Radius`, `Diameter`).
+    NotADimension(ConstraintId),
 }
 
 impl fmt::Display for SketchError {
@@ -61,6 +68,10 @@ impl fmt::Display for SketchError {
             SketchError::UnknownGeom(id) => write!(f, "unknown geometry {}", id.0),
             SketchError::KindMismatch(id) => write!(f, "geometry {} has a different kind", id.0),
             SketchError::NonPositiveValue(v) => write!(f, "value must be > 0, got {v}"),
+            SketchError::UnknownConstraint(id) => write!(f, "unknown constraint {}", id.0),
+            SketchError::NotADimension(id) => {
+                write!(f, "constraint {} is not a dimension", id.0)
+            }
         }
     }
 }
@@ -282,8 +293,12 @@ pub struct Sketch {
     slots: Vec<Slot>,
     constraints: Vec<Constraint>,
     rows: Vec<constraint::Resolved>,
+    /// Index in `rows` of each constraint's first row.
+    first_row: Vec<usize>,
     /// The constraint that produced each entry of `rows`.
     row_owners: Vec<ConstraintId>,
+    /// Dimensions bound to document parameters (see [`params`]).
+    bindings: Vec<(ConstraintId, String)>,
 }
 
 impl Sketch {
