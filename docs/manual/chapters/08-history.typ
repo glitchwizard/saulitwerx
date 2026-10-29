@@ -90,7 +90,7 @@ for p in doc.parameters() { /* name, kind, value, unit, comment */ }
 
 The unit is free text, such as `"mm"` or `"deg"`, and may be empty; Saulitwerx doesn't check it yet. `set_param`, used in the history sample above, changes a parameter's value; given a new name, it makes a user parameter with no unit. @sec-ref-params lists every call.
 
-*In Saulitwerx today:* parameters hold plain numbers. You can work out an expression such as `d1 / 2 + 5 mm` (@sec-expressions), but you can't yet store one in the table.
+A parameter can also hold a formula instead of a plain number, so that it follows other parameters (@sec-param-formulas).
 
 == Drive a sketch with parameters <sec-drive-sketch>
 
@@ -179,6 +179,53 @@ The parameter table stores a unit as plain text, so the sample turns it into a `
 #tip(title: [Give every number its unit])[`d1 + 5` is an error, because `d1` is a length and `5` is a bare number. Write `d1 + 5 mm`. A bare number is right only where it scales something, as in `d1 / 2`.]
 
 
+== Make one size follow another <sec-param-formulas>
+
+A parameter can hold an expression instead of a plain number. Then it is worked out from the parameters it names, and it changes whenever they do. Give a plate's hole the formula `d0 / 2 + 5 mm`, and when you make the plate wider, the hole grows with it. You change one number; the rest follow.
+
+Saulitwerx works the formulas out in #idx("dependency order")#term[dependency order]: every parameter after the ones its formula uses. It also refuses a formula that would make a loop, such as `a` from `b` while `b` comes from `a`, because a loop has no answer.
+
+#task-intro(
+  goal: [Give two parameters formulas, change and rename the one they depend on, and see which formulas are refused.],
+  needs: [Saulitwerx built (@ch-install).],
+  time: [5 minutes.],
+)
+
+#steps(
+  [Run the sample:
+  #term-block("cargo run -p swx-core --example parameter_formulas")
+  The table starts with `d0` = 40 mm, the plate's width, and `wall` = 2.5 mm. `d1` gets the formula `d0 / 2 + 5 mm` and `d2` gets `(d0 - 2 * wall) / 3`.
+  #term-block(label: "Output", "  name   value  unit  formula\n  d0     40.00  mm\n  d1     25.00  mm    d0 / 2 + 5 mm\n  d2     11.67  mm    (d0 - 2 * wall) / 3\n  wall    2.50  mm\nworked out in order: d0, d1, wall, d2\nchange d0 -> rebuild Extrude1\nafter d0 = 60:\n  name   value  unit  formula\n  d0     60.00  mm\n  d1     35.00  mm    d0 / 2 + 5 mm\n  d2     18.33  mm    (d0 - 2 * wall) / 3\n  wall    2.50  mm\nafter renaming d0 to width:\n  name   value  unit  formula\n  width  60.00  mm\n  d1     35.00  mm    width / 2 + 5 mm\n  d2     18.33  mm    (width - 2 * wall) / 3\n  wall    2.50  mm\nwidth = d1 - 5 mm -> error: parameter expressions form a cycle: width -> d1 -> width\nd1 = width * wall -> error: expression for `d1` gives length^2, but its unit expects length\nd1 = height / 2 -> error: expression for `d1`: unknown name `height` at byte 0\nafter d1 = 30 (typed as a plain number):\n  name   value  unit  formula\n  width  60.00  mm\n  d1     30.00  mm\n  d2     18.33  mm    (width - 2 * wall) / 3\n  wall    2.50  mm")],
+  [Read the first table. Each parameter with a formula shows it, and its value is the formula's result: 40 / 2 + 5 = 25 mm, and (40 − 5) / 3 = 11.67 mm.],
+  [Read `worked out in order`. `d2` needs `wall`, which was made after it, so `d2` is worked out last. Parameters that need nothing keep the order they were made in.],
+  [Read `change d0 -> rebuild Extrude1`. The sample's one extrude has depth `d1`, and `d1` comes from `d0`, so changing `d0` rebuilds the extrude, though the extrude never names `d0` (@sec-history).],
+  [Read the table after `d0 = 60`. `d1` and `d2` followed on their own: 35 mm and 18.33 mm.],
+  [Read the table after the rename. The formulas now say `width`, and every value is the same.],
+  [Read the three errors. `width` from `d1` would make a loop, so it is refused, and the message traces it. `width * wall` is an area, which can't go in a length. `height` doesn't exist. Each time the table is left exactly as it was.],
+  [Read the last table. Typing a plain number into `d1` replaced its formula. `d1` is 30 mm from now on, and no longer follows `width`.],
+)
+
+#result[A parameter table where one change updates every size that depends on it.]
+
+=== How the sample is built
+
+The program is `crates/swx-core/examples/parameter_formulas.rs`. `set_param_expr` stores a formula and works out the whole table:
+
+```rust
+let width = doc.add_model_param(40.0, "mm");     // d0
+let hole = doc.add_model_param(0.0, "mm");       // d1
+doc.add_user_param("wall", 2.5, "mm")?;
+doc.set_param_expr(&hole, "d0 / 2 + 5 mm")?;    // d1 is now 25
+doc.set_param(&width, 60.0);                     // d1 follows: 35
+doc.evaluation_order();                          // names, dependencies first
+```
+
+Each `Parameter` has an `expr` field holding the formula as typed, or `None` for a plain number. The result is stored in the parameter's own unit: a formula giving 1 inch, in a parameter whose unit is `mm`, stores 25.4. A bare number, such as `5`, is taken in the parameter's unit. @sec-ref-params lists every call.
+
+#caution(title: [A plain number replaces the formula])[`set_param` stores a number and drops any formula the parameter had. To change how a parameter is worked out, give it a new formula with `set_param_expr` instead.]
+
+#tip(title: [When a change can't be worked out])[If a new value would break a formula that depends on it, such as a count of 0 under `10 mm / n`, the value is still stored, but the formulas that depend on it keep their old results without an error. Check the values after such a change.]
+
 == Common mistakes
 
 - *Using a parameter before it exists.* Call `set_param` first; otherwise `add_feature` fails with `unknown parameter`.
@@ -186,4 +233,6 @@ The parameter table stores a unit as plain text, so the sample turns it into a `
 - *Reusing a name.* Every parameter needs its own name, whether it is a model or a user parameter. To swap two names, rename one of them to a spare name first.
 - *Renaming a bound parameter in one place only.* Call `rename_bound` after `rename_param` (@sec-drive-sketch).
 - *Forgetting to apply and solve.* Changing a parameter changes the table only. Call `apply_params`, then `solve`, to move the sketch.
+- *A formula that loops.* A parameter can't depend on itself, directly or through others. Break the loop by making one of them a plain number.
+- *Replacing a formula by accident.* `set_param` drops the formula (@sec-param-formulas).
 - *Using a feature that comes later.* A feature may use only features already in the history. Otherwise `add_feature` fails with `feature N references feature M which is not earlier in the history`.

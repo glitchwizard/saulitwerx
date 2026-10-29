@@ -64,6 +64,8 @@ A #term[constraint] is a rule about the shape of a sketch: "this line is horizon
 #idx("coincident")#idx("horizontal")#idx("vertical")#idx("fixed")#idx("parallel")#idx("perpendicular")#idx("equal")#idx("midpoint")#idx("symmetric")#idx("tangent")
 Some constraints are about direction (horizontal, vertical, parallel, perpendicular), some about position (coincident, fixed, midpoint, symmetric), and some about how curves meet (tangent) or match (equal). Parallel and perpendicular are relative: a parallel pair can lean at any angle, as long as both lean the same way. That is why a rectangle usually gets one horizontal side, to say which way is level, and perpendicular and parallel for the rest.
 
+You don't have to add every constraint by hand. Saulitwerx can add the ones your drawing already almost shows, such as a corner that nearly touches or a line that is nearly level (@sec-infer).
+
 Saulitwerx satisfies constraints with a #term[solver]: a calculation that nudges every point until all the rules hold at once. You give it a rough drawing and the rules; it gives back the exact shape.
 
 #shot(
@@ -144,7 +146,7 @@ Parameters come in two kinds. Each dimension owns a _model parameter_, named `d0
 
 An #term[expression] is a small formula with units, such as `d1 / 2 + 5 mm`: half of `d1`, plus 5 millimeters. Saulitwerx checks that the units make sense, so adding a length to an angle is an error, not a silent wrong answer.
 
-*In Saulitwerx today:* parts keep a parameter table with both kinds, units and comments, and features refer to parameters by name (@sec-param-table). A sketch's distance, radius and diameter dimensions can each make their own model parameter and follow it when it changes (@sec-drive-sketch). Expressions can be worked out (@sec-expressions), but a parameter can't hold one yet: it holds a plain number.
+*In Saulitwerx today:* parts keep a parameter table with both kinds, units and comments, and features refer to parameters by name (@sec-param-table). A sketch's distance, radius and diameter dimensions can each make their own model parameter and follow it when it changes (@sec-drive-sketch). A parameter can hold an expression, and follows the parameters it names (@sec-param-formulas).
 
 == Features <sec-feature>
 

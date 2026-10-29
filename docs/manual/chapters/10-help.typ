@@ -20,6 +20,10 @@
   [A sketch looks closed, but has no region], [Some ends don't meet. The open-edge list names the pieces (@sec-profiles). Join every end, line or arc, to its neighbor with coincident (@sec-slot).],
   [An arc flips or bulges the wrong way after solving], [An arc runs counterclockwise from `ArcStart` to `ArcEnd`. Check that each line end is joined to the right end of the arc (@sec-slot).],
   [A sketch dimension ignores a new parameter value], [Copy the values into the sketch with `apply_params`, then solve again (@sec-drive-sketch).],
+  [Inference left a corner open], [The ends were farther apart than `point_tol`. Draw the new piece from where the last one ended, or widen `point_tol` (@sec-infer).],
+  [Inference made a line level that you meant to lean], [It was within `angle_tol_deg` of level. Lower the setting, or don't add the suggestion (@sec-infer).],
+  [A parameter stopped following its formula], [`set_param` replaced the formula with a plain number. Give it the formula again with `set_param_expr` (@sec-param-formulas).],
+  [A formula's value didn't change after its inputs did], [The new inputs made the formula fail, for example by dividing by zero, so it kept its old value. Change the inputs back, or give a formula that works (@sec-param-formulas).],
   [The solver stops with `Stagnated`], [Two or more rules contradict each other. Check the degrees of freedom: the report says `Conflicting` and gives the clashing equation's number.],
 )
 
@@ -101,10 +105,14 @@ Any sketch message above can also come from profiles, when the sketch itself is 
   [#raw("invalid parameter name `p`: must start with a letter or `_` and contain only letters, digits and `_`")], [Use a name like `hole_2`: no leading digit, no spaces, dashes, dots or accents.],
   [`unknown feature N`], [No feature with that number is in the history.],
   [`feature N references feature M which is not earlier in the history`], [A feature can use only features made before it.],
+  [#raw("expression for `p`: …")], [The formula for `p` doesn't parse, names an unknown parameter, or can't be worked out. The rest is an expression message, below.],
+  [#raw("parameter expressions form a cycle: a -> b -> a")], [The formulas would depend on each other in a loop, traced in the message. Make one of them a plain number (@sec-param-formulas).],
+  [#raw("expression for `p` gives length^2, but its unit expects length")], [The formula's result is the wrong kind of quantity for the parameter's unit, here an area for a length. A parameter with no unit, or a unit outside the seven, expects `unitless`.],
 )
 
 === From expressions
 
+#block(breakable: false)[
 Each message gives the byte where the problem is, counting from 0 at the first character (@sec-expressions).
 
 #ref-table(
@@ -115,6 +123,19 @@ Each message gives the byte where the problem is, counting from 0 at the first c
   [#raw("unknown name `p` at byte n")], [No parameter has that name. Names are case-sensitive.],
   [#raw("dimension mismatch at byte n: cannot apply `+` to length and angle")], [Both sides of `+` or `-` must measure the same thing. Give a bare number its unit, as in `d1 + 5 mm`.],
   [`division by zero at byte n`], [The part after `/` works out to zero.],
+)
+]
+
+=== From inference
+
+For an unknown entity, `infer` and `add_inferred` give the sketch messages above. They can also give:
+
+#ref-table(
+  columns: (1fr, 1fr),
+  header: ("Message", "Meaning and fix"),
+  [`geometry values must be finite`], [A setting is infinite or not a number (@sec-ref-infer).],
+  [`value must be > 0, got v`], [A setting is zero or less. Both tolerances must be greater than zero.],
+  [`solve did not converge (residual r)`], [From `add_inferred` only. The suggested constraints were added, but couldn't all be met. Check the degrees of freedom for a conflict (@sec-check-dof). A constraint can't be removed yet, so build the sketch again and add only the suggestions you want (@sec-infer).],
 )
 
 == Questions
@@ -135,7 +156,10 @@ Each message gives the byte where the problem is, counting from 0 at the first c
 - No features that turn sketches into solids yet: no extrude, revolve, fillet or hole. Solids are made from boxes, cylinders and spheres.
 - No native part files; work can't be saved with its history.
 - `swx-qa sketch` draws only its two built-in sketches. Your own sketches need a short program (@sec-picture-sketch). Sketch pictures show no dimension arrows and no marks for constraints such as horizontal.
-- Parameters hold plain numbers. Expressions can be worked out (@sec-expressions), but a parameter can't be set to one yet.
+- A parameter's unit is free text. Only the seven units of @sec-ref-expr are understood by formulas; any other unit counts as none.
+- When a new value breaks a formula that depends on it, the formula keeps its old value without an error (@sec-param-formulas).
+- A constraint can't be removed from a sketch once added; build the sketch again without it.
+- Inference needs a program: there is no drawing with the mouse yet, so nothing is inferred as you move the pointer (@sec-infer).
 - Renaming a parameter doesn't update the sketches bound to it by itself; call `rename_bound` too (@sec-drive-sketch).
 - There are no angle dimensions and no point-to-line distance yet.
 - Profiles don't split pieces where they cross; crossing pieces are an error.

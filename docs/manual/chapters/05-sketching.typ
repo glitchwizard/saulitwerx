@@ -294,6 +294,61 @@ println!("open edges: {:?}", profile.open_edges);
 
 #caution(title: [Crossing pieces stop the search])[If two pieces cross, overlap or touch away from their ends, `profile_report` returns an error naming both, such as `geometry 2 and 5 intersect`, and no regions. Saulitwerx doesn't split pieces where they cross. Move or shorten one of them so they meet only end to end.]
 
+== Let Saulitwerx add constraints as you draw <sec-infer>
+
+Most of a sketch's constraints say what your drawing already almost shows: this corner joins that one, this line is level, this circle touches that line. Adding each of them by hand is slow. #term[Inference] does it for you. After you add a piece, Saulitwerx compares it with everything already in the sketch, suggests the constraints it nearly satisfies, adds them and solves. It never adds a dimension: sizes stay yours to set.
+
+#image-equation(
+  (
+    // cargo run -p swx-qa --example inference_plots -- docs/manual/img 600x420
+    ("img/sketch-infer-drawn.png", "As drawn"),
+    ("img/sketch-infer.png", "After inference"),
+  ),
+  ("→",),
+  marks: (((10%, 84%, [gap]),), ()),
+  caption: [The sketch before and after inference. As drawn, the sides lean slightly and the left side stops short of the bottom-left corner (ringed). After inference and solving, the sides are level and upright, every corner is joined, and the circle touches the top and bottom.],
+) <fig-infer>
+
+#task-intro(
+  goal: [Draw a rough rectangle and a circle one piece at a time, and see which constraints inference adds after each.],
+  needs: [Saulitwerx built (@ch-install). OpenCascade is not needed.],
+  time: [5 minutes.],
+)
+
+#steps(
+  [Run the inference sample:
+  #term-block("cargo run -p swx-sketch --example inferred_sketch")
+  It draws four sides and then a circle, and after each one lists what inference suggested.
+  #term-block(label: "Output", "bottom: 1 suggested\n  horizontal: bottom\nright: 2 suggested\n  coincident: start of right = end of bottom\n  vertical: right\ntop: 2 suggested\n  coincident: start of top = end of right\n  horizontal: top\nleft: 2 suggested\n  coincident: start of left = end of top\n  vertical: left\n  (missed the first corner by 1.31 mm; the default point_tol is 0.047 mm)\nagain with point_tol 2 mm:\nleft: 3 suggested\n  coincident: start of left = end of top\n  coincident: end of left = start of bottom\n  vertical: left\ncorners: (0.13, 0.52) (39.90, 0.52) (39.90, 25.07) (0.13, 25.07)\ncircle: 2 suggested\n  tangent: circle and bottom\n  tangent: circle and top")],
+  [Read the first three pieces. The bottom was drawn 0.6° off level, so it got horizontal. The right side starts a few hundredths of a millimeter from the bottom's end, so its start was joined to that end, and it got vertical. The top went the same way. No piece was made parallel or perpendicular to another: once a line is horizontal or vertical, those would only repeat the rule.],
+  [Read the first try at the left side. Its start was joined to the top, but its end stopped 1.31 mm short of the first corner. That is far more than the default reach of 0.047 mm, so that corner was left open.],
+  [Read the second try. With a reach of 2 mm the gap was closed, and the rectangle is complete. Its corners are now exactly square (@fig-infer).],
+  [Read the circle. It was drawn 0.01 mm short of touching the top and bottom, so it got tangent to both.],
+)
+
+#result[A closed rectangle with a circle touching its top and bottom, held by ten constraints you didn't have to add yourself.]
+
+Inference doesn't make a sketch fully defined. This rectangle has no sizes yet, and its corner is not fixed, so it still has degrees of freedom (@sec-check-dof). Add a fixed point and the dimensions next.
+
+=== How the sample is built
+
+The program is `crates/swx-sketch/examples/inferred_sketch.rs`. After each `add`, one call infers, adds and solves:
+
+```rust
+use swx_sketch::infer::{add_inferred, infer, InferOptions};
+
+let right = s.add(Geometry::Line(Line::new(start, end)?))?;
+let opts = InferOptions::for_sketch(&s);
+let suggested = infer(&s, right, &opts)?;      // look only
+let added = add_inferred(&mut s, right, &opts)?; // add and solve
+```
+
+`infer` only looks and changes nothing, so you can show the suggestions first and let the user choose. `add_inferred` adds every suggestion and solves. Two settings decide how near is near enough. `point_tol` is the reach for joining points and for tangency; by default it is a thousandth of the sketch's overall size, its diagonal. `angle_tol_deg` is the reach for directions; by default 1°. @sec-ref-infer gives the full rules.
+
+#tip(title: [Draw from where you stopped])[Inference joins only points that are very close by default. Start each new piece where the last one ended, as precisely as you can, and the corners join themselves. When a drawing is coarser, widen `point_tol`, but not so far that it joins points you meant to keep apart.]
+
+#caution(title: [It adds what it sees])[A line drawn half a degree off level becomes level, even if you meant it to lean, and a constraint can't be taken out of a sketch yet. When that matters, call `infer` first, and add only the suggestions you want with `add_constraint`. A constraint already in the sketch is never suggested again.]
+
 == Common mistakes
 
 - *A value of zero or less.* Distance, radius and diameter must be greater than zero. Adding `value: 0.0` fails with `value must be > 0, got 0`.
@@ -301,4 +356,5 @@ println!("open edges: {:?}", profile.open_edges);
 - *Rules that fight each other.* Two fixed points 30 mm apart with a distance of 40 mm between them can't both hold. The solver then stops with `solved: false` and a reason of `Stagnated`, and moves the points as close to meeting the rules as it can. A degree-of-freedom check then says `Conflicting` and names the clashing constraint (@sec-check-dof).
 - *The wrong kind of entity.* Parallel and perpendicular take two lines. Equal takes two lines or two round pieces (circles and arcs), not one of each. Tangent takes a line and a round piece, or two round pieces, never two lines. Each of these fails with `geometry N has a different kind`.
 - *An outline with a gap.* Pieces that look joined but aren't leave no region. Join every corner with coincident, including where a line meets an arc (@sec-slot).
+- *Expecting inference to set sizes.* Inference adds coincident, horizontal, vertical, parallel, perpendicular and tangent only. Add distances, radii and diameters yourself (@sec-infer).
 - *Too few rules.* A sketch can solve and still be under-constrained: the solver keeps unconstrained pieces near where you drew them. Check that the degrees of freedom reach zero before you rely on the sizes.

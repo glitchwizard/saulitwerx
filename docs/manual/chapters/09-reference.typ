@@ -84,6 +84,9 @@ Success and errors work as for `render`. `--step` and `--crease` belong to `rend
   [`cargo run -p swx-core --example parameter_table`], [Runs the parameter-table sample (@sec-param-table).],
   [`cargo run -p swx-sketch --example driven_plate`], [Runs the bound-dimension sample (@sec-drive-sketch).],
   [`cargo run -p swx-core --example expressions`], [Runs the expression sample (@sec-expressions).],
+  [`cargo run -p swx-core --example parameter_formulas`], [Runs the stored-formula sample (@sec-param-formulas).],
+  [`cargo run -p swx-sketch --example inferred_sketch`], [Runs the inference sample (@sec-infer).],
+  [`cargo run -p swx-qa --example inference_plots -- <dir> [<W>x<H>]`], [Draws the inference sketch as drawn and after inference, as PNGs in `<dir>`.],
 )
 
 #idx("occt feature")
@@ -261,6 +264,39 @@ Loops are found by walking around each corner in angle order, the standard metho
 #idx("Householder QR")
 The count uses a Householder QR factorization, taking the equations in the order they were added; see G. H. Golub and C. F. Van Loan, _Matrix Computations_, 4th ed., §5.2.
 
+== Inference <sec-ref-infer>
+
+#idx("inference")
+`swx_sketch::infer` suggests the constraints a newly added entity already almost satisfies (@sec-infer). `infer(&sketch, new, &options)` returns them and changes nothing. `add_inferred(&mut sketch, new, &options)` adds them in order, then solves, and returns the new constraint ids. Both fail if `new` doesn't exist or a setting is invalid.
+
+#ref-table(
+  columns: (auto, 1fr, auto),
+  header: ("Setting", "Meaning", "Default"),
+  [`point_tol`], [How close, in mm, two points must be to be joined, and how near a line or circle must come to touching to be made tangent. Finite and > 0.], [diagonal ÷ 1000],
+  [`angle_tol_deg`], [How close, in degrees, a line must be to level, upright, parallel or perpendicular. Finite and > 0.], [1],
+)
+
+`InferOptions::for_sketch(&sketch)` gives the defaults for that sketch. The diagonal is that of the smallest axis-aligned box holding the whole sketch, with circles and arcs counted as full circles; for an empty sketch `point_tol` is 0.001. The suggestions come in this order:
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("Suggestion", "When"),
+  [Coincident], [For each point of the new entity (a line's start, then end; a circle's center; an arc's center, start, then end), the nearest other point within `point_tol`, if any: a point, a line end, an arc end or a center. Ties go to the entity added first.],
+  [Horizontal, vertical], [The new entity is a line within `angle_tol_deg` of level or upright.],
+  [Parallel, perpendicular], [The new line is within `angle_tol_deg` of parallel or square to another line. At most one, the closest. When the new line got horizontal or vertical, lines that are themselves level or upright are skipped.],
+  [Tangent], [A line whose distance to a circle's or arc's center is within `point_tol` of the radius (the line counted as endless); or two circles or arcs whose centers are within `point_tol` of touching, outside or inside. Circles with the same center are skipped.],
+)
+
+A constraint the sketch already holds, in either order, is never suggested, so inferring twice adds nothing. Inference never suggests a dimension.
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("Error from add_inferred", "Meaning"),
+  [`Sketch`], [The entity doesn't exist, or a setting is not finite or not > 0. Nothing is added.],
+  [`Solve`], [The solver could not start.],
+  [`NotConverged`], [The constraints were added, but the solve did not finish; the geometry is the solver's best attempt.],
+)
+
 == Parameters <sec-ref-params>
 
 #idx("Document")
@@ -271,9 +307,12 @@ A `swx_core::Document` keeps its parameters in creation order (@sec-param-table)
   header: ("Call", "What it does"),
   [`add_model_param(value, unit)`], [Makes a model parameter named `d<N>` and returns the name. `N` starts at 0 and only goes up; a name already taken is skipped.],
   [`add_user_param(name, value, unit)`], [Makes a user parameter. Fails if the name is invalid or taken.],
-  [`rename_param(old, new)`], [Renames a parameter and every feature that uses it. The kind is kept. Renaming to the same name does nothing.],
+  [`rename_param(old, new)`], [Renames a parameter, every feature that uses it, and every formula that names it (whole names only: renaming `d1` leaves `d10` alone). The kind is kept. Renaming to the same name does nothing.],
   [`set_param_comment(name, comment)`], [Sets the comment. Fails if there is no such parameter.],
-  [`set_param(name, value)`], [Sets the value. An unknown name makes a user parameter with an empty unit; this name is not checked.],
+  [`set_param(name, value)`], [Sets the value and drops the parameter's formula, if it had one, then works out every formula that depends on it. If one of those fails, they keep their old values, with no error. An unknown name makes a user parameter with an empty unit; this name is not checked.],
+  [`set_param_expr(name, text)`], [Gives the parameter a formula (@sec-ref-expr) and works out the whole table. The result is stored in the parameter's unit; a unitless result is taken in that unit. Fails if the parameter or a name in the formula is unknown, the formula doesn't parse or can't be worked out, its result is the wrong kind of quantity for the unit, or formulas would form a loop.],
+  [`evaluation_order()`], [Every parameter name, each after the parameters its formula names; ties keep creation order.],
+  [`dirty_after_param_change(name)`], [The features to rebuild when `name` changes, including those that use a parameter whose formula depends on it, directly or through other formulas.],
   [`param(name)`], [The value, or `None`.],
   [`parameters()`], [Every parameter, in creation order.],
   [`is_valid_param_name(name)`], [Whether a name is allowed.],
@@ -284,10 +323,16 @@ A `swx_core::Document` keeps its parameters in creation order (@sec-param-table)
   header: ("Parameter field", "Meaning", "Allowed values"),
   [`name`], [Unique within the part. Case-sensitive.], [a letter or `_`, then letters, digits or `_` (ASCII)],
   [`kind`], [Where it came from.], [`Model`, `User`],
-  [`value`], [The number.], [any number],
-  [`unit`], [Free text; not checked yet.], [any, may be empty],
+  [`value`], [The number; for a parameter with a formula, its latest result.], [any number],
+  [`unit`], [Free text; not checked. Formulas understand only the units in @sec-ref-expr.], [any, may be empty],
   [`comment`], [A note for people.], [any; empty by default],
+  [`expr`], [The formula as typed, or `None` for a plain number.], [`None` by default],
 )
+
+#idx("Kahn's algorithm")
+The dependency order uses Kahn's algorithm, always taking the earliest-made parameter that is ready; see A. B. Kahn, "Topological sorting of large networks", _Communications of the ACM_ 5(11), 1962, and T. H. Cormen et al., _Introduction to Algorithms_, 3rd ed., §22.4.
+
+A unit that is not one of the seven in @sec-ref-expr, including an empty one, counts as unitless when a formula reads or stores the parameter.
 
 #idx("bind_dimension")
 `swx_sketch::params` ties a sketch's dimensions to a document's parameters (@sec-drive-sketch). A sketch remembers each binding as a pair of constraint and parameter name; `sketch.bindings()` lists them in the order they were made.

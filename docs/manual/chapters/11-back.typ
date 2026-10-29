@@ -14,6 +14,7 @@
     ("Constraint", [A rule about a sketch's shape, such as "horizontal" or "these points touch".]),
     ("Cut", [A Boolean operation that removes one solid from another.]),
     ("Degree of freedom (DOF)", [One way a piece of a sketch can still move. A free point has two.]),
+    ("Dependency order", [The order formulas are worked out in: each parameter after the parameters its formula uses.]),
     ("Diameter", [The width of a circle through its center; twice the radius.]),
     ("Dimension", [A constraint with a number: a distance, radius or diameter.]),
     ("Dirty", [Said of a feature that must be rebuilt after a change.]),
@@ -28,6 +29,7 @@
     ("Fully constrained", [A sketch whose constraints and dimensions leave nothing free to move.]),
     ("Geometry kernel", [The part of a CAD program that does the 3D math. Saulitwerx uses OpenCascade.]),
     ("History", [A part's features, in the order they were made.]),
+    ("Inference", [Saulitwerx adding the constraints a newly drawn piece already almost satisfies, such as coincident or horizontal.]),
     ("Intersect", [A Boolean operation that keeps only what two solids share.]),
     ("Island", [A region inside a hole of another region.]),
     ("Isometric", [A view from a corner, looking down at an angle, so that three sides of a box show equally.]),
@@ -65,6 +67,13 @@
 }
 
 = What's new
+
+== 2026-10-29: formulas in parameters, and inference
+
+- *New:* a parameter can hold a formula, such as `d0 / 2 + 5 mm`, and follows the parameters it names. Formulas are worked out in dependency order, loops and wrong units are refused, and renaming a parameter rewrites the formulas that use it (@sec-param-formulas, @sec-ref-params).
+- *New:* inference adds the coincident, horizontal, vertical, parallel, perpendicular and tangent constraints a newly drawn piece already almost satisfies (@sec-infer, @sec-ref-infer).
+- *Pictures:* a rough rectangle and circle before and after inference.
+- Help: new error messages for formulas and inference, four troubleshooting rows, new common mistakes, and known limitations updated. The limitation that parameters hold only plain numbers is gone.
 
 == 2026-10-28: dimensions as parameters, expressions, and joined arcs
 
@@ -115,9 +124,8 @@ These are the next items on the public roadmap. None of them works yet. When one
 #ref-table(
   columns: (auto, 1fr),
   header: ("Soon", "What you'll be able to do"),
-  [Parameters as formulas], [Set a parameter to an expression such as `d1 / 2 + 5 mm`, with the table kept in dependency order and loops refused.],
-  [Sketch inference], [Constraints such as horizontal, tangent and coincident added for you while you draw.],
-  [Part features], [Extrude, revolve, fillet, chamfer, shell and hole, driven by sketches.],
+  [Extrude], [Turn a sketch's region into a solid by pushing it a distance, and join it to, cut it from or intersect it with the part.],
+  [More part features], [Revolve, fillet, chamfer, shell and hole, driven by sketches.],
   [Part files], [Save a part with its full history, and open it again.],
   [Desktop app], [A window with a 3D view, a model browser, sketch mode and property panels.],
 )
@@ -140,7 +148,7 @@ Later milestones add assemblies, 2D drawings and exploded views. The full plan i
       #text(font: sans, weight: "bold", fill: accent, "DRAW A SKETCH")
       #term-block("swx-qa sketch --fixture rectangle -o r.png\n  (or triangle-345)")
       #text(font: sans, weight: "bold", fill: accent, "SAMPLES")
-      #term-block("cargo run -p swx-sketch \\\n  --example plate_sketch\ncargo run -p swx-sketch \\\n  --example sketch_dof\ncargo run -p swx-sketch \\\n  --example centered_plate -- 60 25\ncargo run -p swx-sketch \\\n  --example slot_sketch\ncargo run -p swx-kernel --features occt \\\n  --example plate_with_hole -- plate.step\ncargo run -p swx-core \\\n  --example feature_history\ncargo run -p swx-core \\\n  --example parameter_table\ncargo run -p swx-sketch \\\n  --example driven_plate\ncargo run -p swx-core \\\n  --example expressions")
+      #term-block("cargo run -p swx-sketch \\\n  --example plate_sketch\ncargo run -p swx-sketch \\\n  --example sketch_dof\ncargo run -p swx-sketch \\\n  --example centered_plate -- 60 25\ncargo run -p swx-sketch \\\n  --example slot_sketch\ncargo run -p swx-kernel --features occt \\\n  --example plate_with_hole -- plate.step\ncargo run -p swx-core \\\n  --example feature_history\ncargo run -p swx-core \\\n  --example parameter_table\ncargo run -p swx-sketch \\\n  --example driven_plate\ncargo run -p swx-core \\\n  --example expressions\ncargo run -p swx-core \\\n  --example parameter_formulas\ncargo run -p swx-sketch \\\n  --example inferred_sketch")
     ],
     [
       #text(font: sans, weight: "bold", fill: accent, "SKETCH CONSTRAINTS")
