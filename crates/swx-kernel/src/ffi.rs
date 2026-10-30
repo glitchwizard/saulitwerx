@@ -55,6 +55,19 @@ extern "C" {
         b: *const RawShape,
         out: *mut *mut RawShape,
     ) -> c_int;
+    fn swx_occt_make_face(
+        plane: *const c_double,
+        n_loops: usize,
+        loop_sizes: *const usize,
+        edges: *const c_double,
+        out: *mut *mut RawShape,
+    ) -> c_int;
+    fn swx_occt_extrude(
+        s: *const RawShape,
+        offset: c_double,
+        length: c_double,
+        out: *mut *mut RawShape,
+    ) -> c_int;
     fn swx_occt_volume(s: *const RawShape, out: *mut c_double) -> c_int;
     fn swx_occt_surface_area(s: *const RawShape, out: *mut c_double) -> c_int;
     fn swx_occt_bounding_box(s: *const RawShape, out: *mut c_double) -> c_int;
@@ -139,6 +152,42 @@ pub(crate) fn boolean(op: BooleanOp, a: &ShapeHandle, b: &ShapeHandle) -> Option
     // only reads them and does not retain the pointers. `raw` is a valid
     // out-pointer that receives a new, independently owned handle.
     let status = unsafe { swx_occt_boolean(op as c_int, a.0.as_ptr(), b.0.as_ptr(), &mut raw) };
+    take(status, raw)
+}
+
+/// Builds a planar face. `plane` is origin, x direction and normal;
+/// `loop_sizes` gives each loop's edge count and `edges` holds 8 doubles per
+/// edge, in the layout of `PreparedFace::encode`.
+pub(crate) fn make_face(
+    plane: &[f64; 9],
+    loop_sizes: &[usize],
+    edges: &[f64],
+) -> Option<ShapeHandle> {
+    if loop_sizes.is_empty() || edges.len() != 8 * loop_sizes.iter().sum::<usize>() {
+        return None;
+    }
+    let mut raw = ptr::null_mut();
+    // SAFETY: `plane` points to the 9 doubles the shim reads; `loop_sizes` has
+    // `n_loops` entries, and `edges` holds exactly 8 doubles for each edge they
+    // count (checked above). The shim only reads them during the call and
+    // retains nothing. `raw` is a valid out-pointer for a new owned handle.
+    let status = unsafe {
+        swx_occt_make_face(
+            plane.as_ptr(),
+            loop_sizes.len(),
+            loop_sizes.as_ptr(),
+            edges.as_ptr(),
+            &mut raw,
+        )
+    };
+    take(status, raw)
+}
+
+pub(crate) fn extrude(face: &ShapeHandle, offset: f64, length: f64) -> Option<ShapeHandle> {
+    let mut raw = ptr::null_mut();
+    // SAFETY: as in `boolean`: `face` is a live handle read-only for the call
+    // and not retained; `raw` receives a new, independently owned handle.
+    let status = unsafe { swx_occt_extrude(face.0.as_ptr(), offset, length, &mut raw) };
     take(status, raw)
 }
 

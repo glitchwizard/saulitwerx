@@ -3,9 +3,10 @@
 use std::path::Path;
 
 use crate::ffi::{self, BooleanOp, ShapeHandle};
+use crate::profile::prepare_face;
 use crate::{
-    input_file_cstring, path_to_cstring, validate_point, validate_size, BoundingBox, Kernel,
-    KernelError, Mesh, Point3,
+    input_file_cstring, path_to_cstring, validate_point, validate_size, BoundingBox, Extent,
+    Kernel, KernelError, Mesh, Point3, ProfileLoop, Workplane,
 };
 
 /// [`Kernel`] backed by the system OpenCascade libraries.
@@ -53,6 +54,32 @@ impl Kernel for OcctKernel {
         ffi::make_sphere(center, radius)
             .map(OcctShape)
             .ok_or_else(|| backend("make_sphere"))
+    }
+
+    fn make_face(
+        &self,
+        plane: &Workplane,
+        outer: &ProfileLoop,
+        holes: &[ProfileLoop],
+    ) -> Result<OcctShape, KernelError> {
+        let face = prepare_face(plane, outer, holes)?;
+        let (loop_sizes, edges) = face.encode();
+        ffi::make_face(&face.plane_array(), &loop_sizes, &edges)
+            .map(OcctShape)
+            .ok_or_else(|| {
+                KernelError::Backend(
+                    "make_face failed: the face is invalid (e.g. a self-intersecting loop \
+                     or a hole outside the outer loop)"
+                        .to_string(),
+                )
+            })
+    }
+
+    fn extrude(&self, face: &OcctShape, extent: Extent) -> Result<OcctShape, KernelError> {
+        let (offset, length) = extent.offset_and_length()?;
+        ffi::extrude(&face.0, offset, length)
+            .map(OcctShape)
+            .ok_or_else(|| backend("extrude"))
     }
 
     fn union(&self, a: &OcctShape, b: &OcctShape) -> Result<OcctShape, KernelError> {
@@ -121,6 +148,7 @@ impl Kernel for OcctKernel {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Segment2;
     use std::f64::consts::PI;
     use std::path::PathBuf;
 
@@ -351,6 +379,170 @@ mod tests {
         std::fs::write(&garbage, "this is not an ISO 10303-21 file\n").unwrap();
         assert!(K.import_step(&garbage).is_err());
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    fn line(start: [f64; 2], end: [f64; 2]) -> Segment2 {
+        Segment2::Line { start, end }
+    }
+
+    fn polygon(points: &[[f64; 2]]) -> ProfileLoop {
+        let n = points.len();
+        ProfileLoop {
+            segments: (0..n)
+                .map(|i| line(points[i], points[(i + 1) % n]))
+                .collect(),
+        }
+    }
+
+    fn rect(w: f64, h: f64) -> ProfileLoop {
+        polygon(&[[0.0, 0.0], [w, 0.0], [w, h], [0.0, h]])
+    }
+
+    fn circle(center: [f64; 2], radius: f64) -> ProfileLoop {
+        ProfileLoop {
+            segments: vec![Segment2::Circle { center, radius }],
+        }
+    }
+
+    const PLATE_VOLUME: f64 = 10000.0 - 250.0 * PI;
+
+    fn plate_face(plane: &Workplane) -> OcctShape {
+        K.make_face(plane, &rect(40.0, 25.0), &[circle([20.0, 12.5], 5.0)])
+            .unwrap()
+    }
+
+    fn assert_bbox(s: &OcctShape, min: Point3, max: Point3) {
+        let bb = K.bounding_box(s).unwrap();
+        for axis in 0..3 {
+            assert_close(bb.min[axis], min[axis]);
+            assert_close(bb.max[axis], max[axis]);
+        }
+    }
+
+    #[test]
+    fn extrude_plate_with_hole() {
+        let plate = K
+            .extrude(&plate_face(&Workplane::XY), Extent::Distance(10.0))
+            .unwrap();
+        assert_close(K.volume(&plate).unwrap(), PLATE_VOLUME);
+        assert_bbox(&plate, [0.0; 3], [40.0, 25.0, 10.0]);
+        assert_eq!(K.face_count(&plate).unwrap(), 7);
+    }
+
+    #[test]
+    fn extrude_slot_of_lines_and_arcs() {
+        let slot = ProfileLoop {
+            segments: vec![
+                line([0.0, 0.0], [30.0, 0.0]),
+                Segment2::Arc {
+                    center: [30.0, 5.0],
+                    radius: 5.0,
+                    start_angle: -PI / 2.0,
+                    end_angle: PI / 2.0,
+                },
+                line([30.0, 10.0], [0.0, 10.0]),
+                Segment2::Arc {
+                    center: [0.0, 5.0],
+                    radius: 5.0,
+                    start_angle: PI / 2.0,
+                    end_angle: 3.0 * PI / 2.0,
+                },
+            ],
+        };
+        let face = K.make_face(&Workplane::XY, &slot, &[]).unwrap();
+        let solid = K.extrude(&face, Extent::Distance(4.0)).unwrap();
+        assert_close(K.volume(&solid).unwrap(), 4.0 * (300.0 + 25.0 * PI));
+        assert_eq!(K.face_count(&solid).unwrap(), 6);
+    }
+
+    #[test]
+    fn extrude_directions_and_workplanes() {
+        let face = plate_face(&Workplane::XY);
+        let down = K.extrude(&face, Extent::Distance(-10.0)).unwrap();
+        assert_bbox(&down, [0.0, 0.0, -10.0], [40.0, 25.0, 0.0]);
+        assert_close(K.volume(&down).unwrap(), PLATE_VOLUME);
+        let both = K.extrude(&face, Extent::Symmetric(10.0)).unwrap();
+        assert_bbox(&both, [0.0, 0.0, -5.0], [40.0, 25.0, 5.0]);
+        assert_close(K.volume(&both).unwrap(), PLATE_VOLUME);
+
+        let yz = K.make_face(&Workplane::YZ, &rect(40.0, 25.0), &[]).unwrap();
+        let yz = K.extrude(&yz, Extent::Distance(10.0)).unwrap();
+        assert_bbox(&yz, [0.0; 3], [10.0, 40.0, 25.0]);
+
+        let raised = Workplane {
+            origin: [0.0, 0.0, 20.0],
+            ..Workplane::XY
+        };
+        let raised = K
+            .extrude(&plate_face(&raised), Extent::Distance(10.0))
+            .unwrap();
+        assert_bbox(&raised, [0.0, 0.0, 20.0], [40.0, 25.0, 30.0]);
+    }
+
+    #[test]
+    fn step_round_trip_extruded_plate() {
+        let plate = K
+            .extrude(&plate_face(&Workplane::XY), Extent::Distance(10.0))
+            .unwrap();
+        assert_step_round_trip("extruded-plate", &plate, PLATE_VOLUME, 7);
+    }
+
+    #[test]
+    fn make_face_rejects_bad_inputs_before_the_backend() {
+        let invalid =
+            |r: Result<OcctShape, KernelError>| matches!(r, Err(KernelError::InvalidInput(_)));
+        let wp = Workplane::XY;
+        assert!(invalid(K.make_face(&wp, &ProfileLoop::default(), &[])));
+        let mut gap = rect(1.0, 1.0);
+        gap.segments[2] = line([1.0, 1.0 + 1e-6], [0.0, 1.0]);
+        assert!(invalid(K.make_face(&wp, &gap, &[])));
+        assert!(invalid(K.make_face(
+            &wp,
+            &circle([0.0, f64::NAN], 1.0),
+            &[]
+        )));
+        assert!(invalid(K.make_face(&wp, &circle([0.0; 2], 0.0), &[])));
+        let skew = Workplane {
+            x_dir: [1.0, 0.0, 0.1],
+            ..wp
+        };
+        assert!(invalid(K.make_face(&skew, &rect(1.0, 1.0), &[])));
+        let zero = Workplane {
+            normal: [0.0; 3],
+            ..wp
+        };
+        assert!(invalid(K.make_face(&zero, &rect(1.0, 1.0), &[])));
+    }
+
+    #[test]
+    fn make_face_rejects_faces_occt_finds_invalid() {
+        let backend = |r: Result<OcctShape, KernelError>| matches!(r, Err(KernelError::Backend(_)));
+        let wp = Workplane::XY;
+        // A bow-tie outer loop crosses itself between (5, 5) and (10, 0).
+        let bow_tie = polygon(&[[0.0, 0.0], [10.0, 10.0], [10.0, 0.0], [0.0, 4.0]]);
+        assert!(backend(K.make_face(&wp, &bow_tie, &[])));
+        let outside = circle([60.0, 12.5], 5.0);
+        assert!(backend(K.make_face(&wp, &rect(40.0, 25.0), &[outside])));
+        let crossing = circle([40.0, 12.5], 5.0);
+        assert!(backend(K.make_face(&wp, &rect(40.0, 25.0), &[crossing])));
+    }
+
+    #[test]
+    fn extrude_rejects_bad_extents_and_non_faces() {
+        let face = plate_face(&Workplane::XY);
+        for bad in [0.0, f64::NAN, f64::INFINITY] {
+            for extent in [Extent::Distance(bad), Extent::Symmetric(bad)] {
+                assert!(matches!(
+                    K.extrude(&face, extent),
+                    Err(KernelError::InvalidInput(_))
+                ));
+            }
+        }
+        let solid = unit_box([0.0; 3], 1.0);
+        assert!(matches!(
+            K.extrude(&solid, Extent::Distance(1.0)),
+            Err(KernelError::Backend(_))
+        ));
     }
 
     #[test]
