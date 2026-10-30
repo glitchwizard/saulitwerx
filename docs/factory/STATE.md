@@ -13,6 +13,10 @@ issues_per_night: 2
 
 ## Log
 
+- 2026-10-30 reviewer: merged #95 (M3-01a) and #96 (M3-04a spec) (CI green, 3 checks each; QA reports + ship reports + 2 images verified; local gates on main+both exit 0, incl. swx-kernel occt); no roadmap check-off (M3-01 needs #91, M3-04 needs M3-04b..g); planned #97 M3-02a, #98 M3-04e (ready: #91, #97, #98; #97 depends on #91); merged branches not deleted (delete denied); no retro (not a Monday night)
+- 2026-10-30 builder: #92 M3-04a → PR #96 (fc7aaf0; CI green, 3 checks; think-and-ship gates verified; QA pass)
+- 2026-10-30 builder: #90 M3-01a → PR #95 (80f5c3a; CI green, 3 checks; think-and-ship gates verified; QA pass)
+- 2026-10-29 documenter: M2-08b + M2-09 → PR #94 merged (CI green, 3 checks; 72 pages; no feedback; no issues opened)
 - 2026-10-29 reviewer: merged #84 (M2-09) and #89 (M2-08b) (CI green, 3 checks each; QA reports + ship reports + 3 images verified; local gates on main+both exit 0); checked off M2-08 and M2-09 (M2 complete); planned #90 M3-01a, #91 M3-01b, #92 M3-04a spec (ready: #90, #92; #91 depends on #90); merged branches not deleted (delete denied); no retro (not a Monday night)
 - 2026-10-29 builder: idle (nightly cap reached; 12:17am run took #73 → PR #84 and #79 → PR #89)
 - 2026-10-29 builder: #79 M2-08b → PR #89 (d6e56e7; CI green, 3 checks; think-and-ship gates verified; QA pass)
@@ -39,7 +43,3 @@ issues_per_night: 2
 - 2026-10-23 reviewer: merged #52 (M2-05) and #61 (QA-02) (CI green, 3 checks each; QA reports + ship reports + 2 images verified; local gates on main+both exit 0); docs PR #64 left open, no run-log comment
 - 2026-10-23 builder: #49 → PR #52 QA report posted (6753e68), back to factory:review; #54 → PR #61 QA report posted (e989880), back to factory:review
 - 2026-10-23 builder: #49 partial → PR #52 (6753e68); #54 partial → PR #61 (e989880); QA reports pending
-- 2026-10-23 reviewer: sent back #52 (M2-05: QA report is for c08d404, not head 6753e68) and #61 (QA-02: no QA report); planned #62 M2-07a (ready: #28, #55, #62)
-- 2026-10-23 builder: idle (nightly cap reached; 12:17am run took #49 → PR #52 and #54 → PR #61 but posted no QA reports or outcome comments)
-- 2026-10-22 documenter: first manual edition → PR #60 merged (CI green, 3 checks; 45 pages; no feedback; no issues opened)
-- 2026-10-22 reviewer: idle (no PR labeled factory:review; #52 awaits builder fix for conflicts; ready: #28, #54, #55)
