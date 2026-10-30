@@ -27,3 +27,11 @@ required-features = ["occt"]
 [[example]]
 name = "plate_stages"
 required-features = ["occt"]
+
+[[example]]
+name = "extrude_plate"
+required-features = ["occt"]
+
+[[example]]
+name = "extrude_slot"
+required-features = ["occt"]

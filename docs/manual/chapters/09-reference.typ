@@ -111,6 +111,27 @@ The `occt` feature switches on OpenCascade. It is off by default, so a plain bui
 
 All positions must be finite numbers; all sizes finite and greater than zero.
 
+== Profiles and extrude <sec-ref-extrude>
+
+`make_face(plane, outer, holes)` makes a flat face on `plane`, bounded by the `outer` loop, with each loop in `holes` cut out. `extrude(face, extent)` sweeps that face along the plane's normal into a new solid (@ch-extrude).
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("Type", "Fields and rules"),
+  [`Workplane`], [`origin` (a point), `x_dir` (the plane's left–right direction) and `normal` (straight out of the plane). Both directions non-zero and at right angles; their length doesn't matter. A 2D point (u, v) sits at `origin + u·x_dir + v·(normal × x_dir)`.],
+  [`Workplane::XY`, `::XZ`, `::YZ`], [Built-in planes through the origin, with normals +Z, −Y and +X (@sec-extrude-direction).],
+  [`Segment2::Line { start, end }`], [A straight piece. Its ends must be apart.],
+  [`Segment2::Arc { center, radius, start_angle, end_angle }`], [A circular arc, counterclockwise from `start_angle` to `end_angle`, in radians from the +u axis. Radius > 0; the two angles must give different end points.],
+  [`Segment2::Circle { center, radius }`], [A full circle. Radius > 0. It must be the only piece of its loop.],
+  [`ProfileLoop { segments }`], [Pieces in chain order, each meeting the next and the last meeting the first. Any piece may run backwards, and the loop may go either way round.],
+  [`Extent::Distance(d)`], [`d` mm along the normal; negative goes the other way. Not zero.],
+  [`Extent::Symmetric(l)`], [`l` mm in total, half on each side of the plane. Not zero.],
+  [`LOOP_GAP_TOLERANCE`], [1e-7 mm: the largest gap between two ends that still counts as joined. Ends that close are moved to meet exactly.],
+  [`PERPENDICULAR_TOLERANCE`], [1e-9: how far from a right angle `x_dir` and `normal` may be.],
+)
+
+All numbers must be finite. A face is refused if a loop is empty, has no area, doesn't close, or crosses itself, or if a hole isn't wholly inside the outer loop. Every refusal is an error (@sec-errors), never a crash.
+
 == Sketch entities and constraints <sec-ref-sketch>
 
 #ref-table(

@@ -31,7 +31,8 @@ Saulitwerx is built in small, tested steps, in the order of a public plan (the _
   [History], [Keep features in order with named parameters, and work out which features a change affects.], [#now],
   [Desktop app], [Windows, menus, a 3D view and mouse control.], [#later],
   [Part files], [Saving your design with its full history in a Saulitwerx part file.], [#later],
-  [Features], [Extrude, revolve, fillet, chamfer, hole, shell and more, driven by sketches.], [#later],
+  [Extrude], [Push a flat outline of lines, arcs and circles, with holes, into a solid, on any plane, one way or both.], [#now],
+  [Features], [Extrude driven by sketches and recorded in the history; revolve, fillet, chamfer, hole, shell and more.], [#later],
   [Assemblies, drawings], [Putting parts together, and making 2D shop drawings.], [#later],
 )
 
