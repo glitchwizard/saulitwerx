@@ -14,7 +14,7 @@ Think back to the plate of @ch-first. There you made it in two steps: a block, t
     // cargo run -p swx-qa --example constraint_plots -- docs/manual/img 600x420
     ("img/sketch-centered-40.png", "Profile: rectangle with a hole"),
     // cargo run -p swx-kernel --features occt --example extrude_plate -- extruded-plate.step
-    // swx-qa render --step extruded-plate.step --size 900x700 -o docs/manual/img/extruded-plate.png
+    // swx-qa render --step extruded-plate.step --size 1200x840 -o docs/manual/img/extruded-plate.png
     ("img/extruded-plate.png", "Extruded 5 mm"),
   ),
   ("→",),
@@ -88,25 +88,25 @@ An extrude doesn't have to go up. A negative distance goes the other way, below 
   time: [5 minutes.],
 )
 
+#shot(
+  // cargo run -p swx-kernel --features occt --example extrude_slot -- extruded-slot.step
+  // swx-qa render --step extruded-slot.step --size 1200x840 -o docs/manual/img/extruded-slot.png
+  "img/extruded-slot.png",
+  width: 36%,
+  caption: [The slot you will make: two lines and two half-circles, extruded 4 mm.],
+  alt: "A long flat bar with rounded ends, seen from above at an angle",
+) <fig-extrude-slot>
+
 #steps(
   [Run the slot sample:
   #term-block("cargo run -p swx-kernel --features occt --example extrude_slot -- extruded-slot.step")
-  It extrudes the same slot outline three ways, 4 mm each time, and prints each one's volume and how high it reaches:
+  It extrudes the slot three ways, 4 mm each, and prints each result's volume and height:
   #term-block(label: "Output", "Distance(4.0)   1514.16 mm³, z from 0 to 4\nDistance(-4.0)  1514.16 mm³, z from -4 to 0\nSymmetric(4.0)  1514.16 mm³, z from -2 to 2\n…  (the geometry engine's file report)\nwrote extruded-slot.step")],
   [Read the three lines. The volume is the same each time; only the position changes. `Distance(4.0)` sits on the workplane and rises to 4 mm; `Distance(-4.0)` hangs below it; `Symmetric(4.0)` straddles it, 2 mm each side.],
   [Draw the first one:
   #term-block("target/release/swx-qa render --step extruded-slot.step -o extruded-slot.png")
   You should see the slot of @fig-extrude-slot: flat sides and round ends.],
 )
-
-#shot(
-  // cargo run -p swx-kernel --features occt --example extrude_slot -- extruded-slot.step
-  // swx-qa render --step extruded-slot.step --size 900x700 -o docs/manual/img/extruded-slot.png
-  "img/extruded-slot.png",
-  width: 55%,
-  caption: [The slot outline, two lines and two half-circles, extruded 4 mm.],
-  alt: "A long flat bar with rounded ends, seen from above at an angle",
-) <fig-extrude-slot>
 
 #result[You can place an extrude above, below or across its workplane.]
 
