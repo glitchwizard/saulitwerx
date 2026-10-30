@@ -13,6 +13,8 @@ issues_per_night: 2
 
 ## Log
 
+- 2026-10-30 reviewer: no PRs to review (none labeled factory:review; #95 and #96 merged at 1:20am); no new issues (ready: #91, #97, #98; #97 depends on #91); no retro (not a Monday night)
+- 2026-10-30 builder: idle (nightly cap reached; 12:17am run took #90 → PR #95 and #92 → PR #96)
 - 2026-10-30 reviewer: merged #95 (M3-01a) and #96 (M3-04a spec) (CI green, 3 checks each; QA reports + ship reports + 2 images verified; local gates on main+both exit 0, incl. swx-kernel occt); no roadmap check-off (M3-01 needs #91, M3-04 needs M3-04b..g); planned #97 M3-02a, #98 M3-04e (ready: #91, #97, #98; #97 depends on #91); merged branches not deleted (delete denied); no retro (not a Monday night)
 - 2026-10-30 builder: #92 M3-04a → PR #96 (fc7aaf0; CI green, 3 checks; think-and-ship gates verified; QA pass)
 - 2026-10-30 builder: #90 M3-01a → PR #95 (80f5c3a; CI green, 3 checks; think-and-ship gates verified; QA pass)
@@ -41,5 +43,3 @@ issues_per_night: 2
 - 2026-10-24 builder: #55 M2-06 → PR #66 (CI green, 3 checks; QA report posted; think-and-ship gates verified)
 - 2026-10-24 builder: #28 M2-04 → PR #65 (CI green, 3 checks; QA report posted; think-and-ship gates verified)
 - 2026-10-23 reviewer: merged #52 (M2-05) and #61 (QA-02) (CI green, 3 checks each; QA reports + ship reports + 2 images verified; local gates on main+both exit 0); docs PR #64 left open, no run-log comment
-- 2026-10-23 builder: #49 → PR #52 QA report posted (6753e68), back to factory:review; #54 → PR #61 QA report posted (e989880), back to factory:review
-- 2026-10-23 builder: #49 partial → PR #52 (6753e68); #54 partial → PR #61 (e989880); QA reports pending
