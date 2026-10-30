@@ -1,0 +1,113 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(kernel): make_face and extrude",
+      "ref": "80f5c3a",
+      "task_id": "gates-90",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-90",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-90",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-90",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "clippy swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-90",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "test swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-90",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "clippy swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-90",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "test swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-90",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "New public types in `swx-kernel`: `Workplane { origin: Point3, x_dir: [f64; 3], normal: [f64; 3] }`, with `Workplane::XY`, `XZ` and `YZ` constants. `Segment2`: `Line { start, end }`, `Arc { center, radius, start_angle, end_angle }` (counterclockwise from start to end, in radians, the same convention as `swx_sketch::Arc`) and `Circle { center, radius }`. `ProfileLoop { segments: Vec<Segment2> }`. `Extent`: `Distance(f64)` (signed, along `normal`; negative goes the other way) and `Symmetric(f64)` (total length, split equally on both sides).",
+      "`Kernel::make_face(&self, plane: &Workplane, outer: &ProfileLoop, holes: &[ProfileLoop]) -> Result<Shape, KernelError>`. It returns an error, and never panics, for: a loop whose consecutive segments don't meet within 1e-7; an empty loop; non-finite numbers; `x_dir` and `normal` that are zero or not perpendicular within 1e-9 (both are normalized); a radius ≤ 0; a face OCCT reports as invalid, for example a self-intersecting outer loop or a hole outside the outer loop. A test covers each case.",
+      "`Kernel::extrude(&self, face: &Shape, extent: Extent) -> Result<Shape, KernelError>`. A distance or symmetric length of 0, or one that isn't finite, is an error.",
+      "Plate test: on `Workplane::XY`, a 40 × 25 rectangle from (0, 0), with a hole of radius 5 centered at (20, 12.5), `Distance(10)`. Volume 10000 − 250π ≈ 9214.6018 within a relative 1e-6. Bounding box (0, 0, 0)–(40, 25, 10) within 1e-6. Face count 7.",
+      "Slot test: lines and arcs. Two straight sides 30 long, two semicircular ends of radius 5, `Distance(4)`. Volume 4 × (300 + 25π) ≈ 1514.1593 within a relative 1e-6. Face count 6.",
+      "Direction tests: `Distance(-10)` on the plate gives z from −10 to 0. `Symmetric(10)` gives z from −5 to 5. The same rectangle on `Workplane::YZ` with `Distance(10)` gives the box (0, 0, 0)–(10, 40, 25). A workplane with origin (0, 0, 20) gives z from 20 to 30. Each within 1e-6.",
+      "The extruded plate round-trips through `export_step` / `import_step` with the same volume (relative 1e-6) and face count.",
+      "No new dependencies. The ARCHITECTURE.md dependency direction is unchanged: `swx-kernel` still has no workspace dependencies.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and so do the CI `swx-kernel (occt)` job commands.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-10-30T07:30:39.287180189+00:00",
+    "constraints": [],
+    "created_at": "2026-10-30T07:30:06.158925367+00:00",
+    "description": "M3-01a: Kernel face from 2D profile loops on a workplane, and extrude by distance or symmetric (new solid)",
+    "project_id": "saulitwerx",
+    "scope": "swx-kernel only; PR #95, branch feat/90-extrude, head 80f5c3a",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 7,
+      "estimate": "small",
+      "id": "gates-90",
+      "status": "completed",
+      "title": "Run the §6c gates for #90 on 80f5c3a",
+      "type": "test"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
