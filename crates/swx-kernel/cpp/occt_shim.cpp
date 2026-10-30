@@ -12,16 +12,23 @@
 #include <BRepAlgoAPI_Cut.hxx>
 #include <BRepAlgoAPI_Fuse.hxx>
 #include <BRepBndLib.hxx>
+#include <BRepBuilderAPI_MakeEdge.hxx>
+#include <BRepBuilderAPI_MakeFace.hxx>
+#include <BRepBuilderAPI_MakeVertex.hxx>
+#include <BRepBuilderAPI_MakeWire.hxx>
+#include <BRepCheck_Analyzer.hxx>
 #include <BRepGProp.hxx>
 #include <BRepLProp_SLProps.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <BRepPrimAPI_MakeCylinder.hxx>
+#include <BRepPrimAPI_MakePrism.hxx>
 #include <BRepPrimAPI_MakeSphere.hxx>
 #include <BRepTools.hxx>
 #include <BRep_Tool.hxx>
 #include <Bnd_Box.hxx>
 #include <GProp_GProps.hxx>
+#include <Geom_Plane.hxx>
 #include <IFSelect_ReturnStatus.hxx>
 #include <Poly_Triangulation.hxx>
 #include <STEPControl_Reader.hxx>
@@ -33,11 +40,17 @@
 #include <TopoDS.hxx>
 #include <TopoDS_Face.hxx>
 #include <TopoDS_Shape.hxx>
+#include <TopoDS_Vertex.hxx>
+#include <TopoDS_Wire.hxx>
 #include <TopTools_IndexedMapOfShape.hxx>
 #include <gp_Ax2.hxx>
+#include <gp_Ax3.hxx>
+#include <gp_Circ.hxx>
 #include <gp_Dir.hxx>
+#include <gp_Pln.hxx>
 #include <gp_Pnt.hxx>
 #include <gp_Trsf.hxx>
+#include <gp_Vec.hxx>
 
 #include <algorithm>
 #include <cstddef>
@@ -153,6 +166,126 @@ int swx_occt_boolean(int op, const SwxShape* a, const SwxShape* b, SwxShape** ou
             return -1;
         }
         return emit(result, out);
+    } catch (...) {
+        return -1;
+    }
+}
+
+// Planar face from oriented loops (OCCT reference documentation:
+// BRepBuilderAPI_MakeEdge, BRepBuilderAPI_MakeWire, BRepBuilderAPI_MakeFace,
+// BRepCheck_Analyzer).
+//
+// `plane` holds origin, x direction and normal (9 doubles, unit axes). The 2D
+// point (u, v) maps to origin + u * x + v * (normal x x). `loop_sizes[l]` edges
+// belong to loop l; loop 0 is the outer loop (counterclockwise about the
+// normal), the rest are holes (clockwise). Each edge is 8 doubles: kind (0 line,
+// 1/2 arc counter/clockwise, 3/4 circle counter/clockwise), from u v, to u v,
+// center u v, radius. Edge i ends exactly where edge i + 1 starts, so the
+// edges of a loop share one vertex at each junction. Fails if OCCT finds the
+// face invalid, e.g. a self-intersecting loop or a hole outside the outer loop.
+int swx_occt_make_face(const double* plane, size_t n_loops, const size_t* loop_sizes,
+                       const double* edges, SwxShape** out) noexcept {
+    if (plane == nullptr || loop_sizes == nullptr || edges == nullptr || out == nullptr ||
+        n_loops == 0) {
+        return -1;
+    }
+    try {
+        const gp_Pnt origin(plane[0], plane[1], plane[2]);
+        const gp_Dir x_dir(plane[3], plane[4], plane[5]);
+        const gp_Dir normal(plane[6], plane[7], plane[8]);
+        const gp_Ax3 axes(origin, normal, x_dir);
+        const gp_Vec u_vec(axes.XDirection());
+        const gp_Vec v_vec(axes.YDirection());
+        auto to_3d = [&](double u, double v) { return origin.Translated(u_vec * u + v_vec * v); };
+
+        std::vector<TopoDS_Wire> wires;
+        const double* e = edges;
+        for (size_t l = 0; l < n_loops; ++l) {
+            const size_t n = loop_sizes[l];
+            if (n == 0) {
+                return -1;
+            }
+            std::vector<TopoDS_Vertex> vertices;
+            for (size_t i = 0; i < n; ++i) {
+                vertices.push_back(BRepBuilderAPI_MakeVertex(to_3d(e[8 * i + 1], e[8 * i + 2])));
+            }
+            BRepBuilderAPI_MakeWire wire;
+            for (size_t i = 0; i < n; ++i, e += 8) {
+                const int kind = static_cast<int>(e[0]);
+                if (kind < 0 || kind > 4) {
+                    return -1;
+                }
+                const TopoDS_Vertex& from = vertices[i];
+                const TopoDS_Vertex& to = vertices[(i + 1) % n];
+                const gp_Dir axis = (kind == 1 || kind == 3) ? normal : normal.Reversed();
+                const gp_Circ circ(gp_Ax2(to_3d(e[5], e[6]), axis, x_dir), e[7]);
+                BRepBuilderAPI_MakeEdge edge = [&]() {
+                    switch (kind) {
+                        case 0:
+                            return BRepBuilderAPI_MakeEdge(from, to);
+                        case 1:
+                        case 2:
+                            return BRepBuilderAPI_MakeEdge(circ, from, to);
+                        default:
+                            return BRepBuilderAPI_MakeEdge(circ);
+                    }
+                }();
+                if (!edge.IsDone()) {
+                    return -1;
+                }
+                wire.Add(edge.Edge());
+                if (!wire.IsDone()) {
+                    return -1;
+                }
+            }
+            wires.push_back(wire.Wire());
+        }
+
+        BRepBuilderAPI_MakeFace face(gp_Pln(axes), wires[0], Standard_True);
+        for (size_t l = 1; l < wires.size(); ++l) {
+            face.Add(wires[l]);
+        }
+        if (!face.IsDone()) {
+            return -1;
+        }
+        const TopoDS_Face result = face.Face();
+        if (!BRepCheck_Analyzer(result).IsValid()) {
+            return -1;
+        }
+        return emit(result, out);
+    } catch (...) {
+        return -1;
+    }
+}
+
+// Solid swept from a planar face along its outward plane normal (OCCT
+// reference documentation: BRepPrimAPI_MakePrism). The face is first moved
+// `offset` along the normal, then swept `length` (> 0) along it, so the sweep
+// always follows the face normal and the solid is never inside out.
+int swx_occt_extrude(const SwxShape* s, double offset, double length, SwxShape** out) noexcept {
+    if (s == nullptr || out == nullptr || !(length > 0.0)) {
+        return -1;
+    }
+    try {
+        if (s->shape.IsNull() || s->shape.ShapeType() != TopAbs_FACE) {
+            return -1;
+        }
+        const TopoDS_Face& face = TopoDS::Face(s->shape);
+        Handle(Geom_Plane) plane = Handle(Geom_Plane)::DownCast(BRep_Tool::Surface(face));
+        if (plane.IsNull()) {
+            return -1;
+        }
+        gp_Dir normal = plane->Axis().Direction();
+        if (face.Orientation() == TopAbs_REVERSED) {
+            normal.Reverse();
+        }
+        gp_Trsf shift;
+        shift.SetTranslation(gp_Vec(normal) * offset);
+        BRepPrimAPI_MakePrism prism(face.Moved(TopLoc_Location(shift)), gp_Vec(normal) * length);
+        if (!prism.IsDone()) {
+            return -1;
+        }
+        return emit(prism.Shape(), out);
     } catch (...) {
         return -1;
     }

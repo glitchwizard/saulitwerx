@@ -14,6 +14,7 @@ use std::fmt;
 use std::path::Path;
 
 mod mesh;
+mod profile;
 
 #[cfg(feature = "occt")]
 mod ffi;
@@ -23,6 +24,9 @@ mod occt;
 pub use mesh::Mesh;
 #[cfg(feature = "occt")]
 pub use occt::{OcctKernel, OcctShape};
+pub use profile::{
+    Extent, ProfileLoop, Segment2, Workplane, LOOP_GAP_TOLERANCE, PERPENDICULAR_TOLERANCE,
+};
 
 /// A point or vector in model space, `[x, y, z]`.
 pub type Point3 = [f64; 3];
@@ -75,6 +79,25 @@ pub trait Kernel {
     ) -> Result<Self::Shape, KernelError>;
     /// Sphere centered at `center`.
     fn make_sphere(&self, center: Point3, radius: f64) -> Result<Self::Shape, KernelError>;
+
+    /// Planar face on `plane` bounded by `outer`, with `holes` cut out.
+    ///
+    /// Loops may be given in either direction. It is an error, never a panic,
+    /// when a loop is empty or doesn't close within [`LOOP_GAP_TOLERANCE`],
+    /// when a number isn't finite or a radius isn't > 0, when `plane.x_dir`
+    /// and `plane.normal` are zero or not perpendicular within
+    /// [`PERPENDICULAR_TOLERANCE`], or when the backend finds the face
+    /// invalid (e.g. a self-intersecting loop or a hole outside the outer loop).
+    fn make_face(
+        &self,
+        plane: &Workplane,
+        outer: &ProfileLoop,
+        holes: &[ProfileLoop],
+    ) -> Result<Self::Shape, KernelError>;
+    /// Solid swept from a planar `face` along its plane normal by `extent`.
+    ///
+    /// A zero or non-finite length is an error.
+    fn extrude(&self, face: &Self::Shape, extent: Extent) -> Result<Self::Shape, KernelError>;
 
     /// Boolean union `a ∪ b`.
     fn union(&self, a: &Self::Shape, b: &Self::Shape) -> Result<Self::Shape, KernelError>;
