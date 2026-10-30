@@ -1,0 +1,82 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "docs(specs): M3-04 design",
+      "ref": "fc7aaf0",
+      "task_id": "gates-92",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-92",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-92",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-92",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`docs/specs/M3-04.md` exists, with the status line `Status: proposed`. It has the sections **Problem**, **Approach**, **Data model**, **Kernel API**, **File format**, **Failure handling**, **Test scenarios**, **Implementation slices** and **References**.",
+      "**Problem** gives at least 3 concrete failure cases of naive index-based references, each a short scenario with numbers: a fillet edge after an extrude height change, a hole face after a sketch edge is added, and a face split by a later cut.",
+      "**Approach** picks one scheme and compares it with at least one alternative. An example is naming by the generating feature, the generating sketch entity and the role (side, start cap, end cap), resolved through the kernel's generated and modified history. Each scheme is tied to a public source: for example J. Kripac, \"A mechanism for persistently naming topological entities in history-based parametric solid models\", *CAD* 29(2), 1997; V. Capoyleas, X. Chen, C. M. Hoffmann, \"Generic naming in generative, constraint-based design\", *CAD* 28(1), 1996; and the OCCT reference documentation for the history API.",
+      "**Data model** names the Rust types (`TopoRef` or similar) and the crate each lives in, consistent with ARCHITECTURE.md: `swx-core` and `swx-sketch` never depend on the kernel.",
+      "**Kernel API** lists the trait additions with signatures. **File format** shows how a reference is stored in `model.json`, consistent with `docs/specs/FILE_FORMAT.md`.",
+      "**Failure handling:** a reference that no longer resolves, or resolves to several entities, puts that feature into an error state with a message. It never silently picks one. The section says what the user sees.",
+      "**Test scenarios** lists at least 6 named tests, each an upstream edit plus the reference that must still resolve. Examples: extrude height, sketch dimension, an added sketch entity, a reordered feature, a cut that splits a face, and a deleted generating entity that must report an error.",
+      "**Implementation slices** splits M3-04 into items of size:M or smaller, with IDs `M3-04b`, `M3-04c`, … and their dependencies, so the Planner can turn them into issues.",
+      "Clean room (`CLEAN_ROOM.md`): no product names, and only public sources.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass (unchanged code).",
+      "QA report (FACTORY §6b) posted on the PR. Section (c) checks the doc against two scenarios from M3-05 (fillet) and M3-02 (to face). Section (d) is `Nothing visual: design document`."
+    ],
+    "completed_at": "2026-10-30T07:38:04.327704996+00:00",
+    "constraints": [],
+    "created_at": "2026-10-30T07:37:48.638970502+00:00",
+    "description": "M3-04a: Topological naming v1 design doc (docs/specs/M3-04.md)",
+    "project_id": "saulitwerx",
+    "scope": "docs/specs/M3-04.md only; PR #96, branch feat/92-topo-naming-spec, head fc7aaf0",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 3,
+      "estimate": "trivial",
+      "id": "gates-92",
+      "status": "completed",
+      "title": "Run the §6c gates for #92 on fc7aaf0",
+      "type": "test"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
