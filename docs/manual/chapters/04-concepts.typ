@@ -134,7 +134,7 @@ A region can have holes. In the plate sketch the rectangle is one loop and the c
 
 Pieces that don't close a loop, like a line with a free end, are #term[open edges]. They are left out of every region and listed separately, so you can find the gap. Pieces that cross each other are an error: Saulitwerx won't guess which of the shapes they form you meant.
 
-*In Saulitwerx today:* profiles are worked out from any sketch of lines, circles and arcs, with holes, nested islands and open edges (@sec-profiles). Turning a region into a solid comes with the extrude feature.
+*In Saulitwerx today:* profiles are worked out from any sketch of lines, circles and arcs, with holes, nested islands and open edges (@sec-profiles). The geometry engine can extrude an outline with holes into a solid (@ch-extrude), but the outline is typed in by hand: a sketch's regions can't be passed to it yet.
 
 == Parameters <sec-parameter>
 
@@ -152,7 +152,7 @@ An #term[expression] is a small formula with units, such as `d1 / 2 + 5 mm`: hal
 
 A #term[feature] is one step in building a part: a sketch, or something done to the solid, such as pushing a sketch out into 3D or cutting a hole. Each feature records *what* it does and *which* sketch and parameters it uses, not just the shape that resulted.
 
-@fig-cut shows the idea of a cut, done directly with the geometry engine: a block, minus a cylinder, gives the plate. A future *extrude* feature will make the block from a rectangle sketch, and a *cut* feature will make the hole from the circle.
+@fig-cut shows the idea of a cut, done directly with the geometry engine: a block, minus a cylinder, gives the plate. An *extrude* can make the same plate in one step, from the outline of the rectangle and its hole (@ch-extrude). Recording those steps as features in a part's history comes later.
 
 #image-equation(
   (

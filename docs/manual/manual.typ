@@ -44,6 +44,7 @@
 #part("Tasks", [How to do things, one task per section. Until the desktop app arrives, every task here runs a real command or a small program, and is marked for developers.])
 #include "chapters/05-sketching.typ"
 #include "chapters/06-solids.typ"
+#include "chapters/06a-extrude.typ"
 #include "chapters/07-pictures.typ"
 #include "chapters/08-history.typ"
 

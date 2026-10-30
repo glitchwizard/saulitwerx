@@ -21,6 +21,8 @@
     ("Edge", [A curve where two faces of a solid meet.]),
     ("Equal", [A constraint that makes two lines the same length, or two circles or arcs the same size.]),
     ("Entity", [One piece of sketch geometry: a point, line, circle or arc.]),
+    ("Extent", [How far an extrude goes: a distance one way, or a length split evenly on both sides of the workplane.]),
+    ("Extrude", [Pushing a flat outline straight out into a solid with straight sides.]),
     ("Face", [One flat or curved patch of a solid's surface.]),
     ("Expression", [A small formula with units that works out a value, such as `d1 / 2 + 5 mm`.]),
     ("Feature", [One step in building a part, such as a sketch or a cut. Features are kept in the history.]),
@@ -59,6 +61,7 @@
     ("Unit", [What a number measures in, such as millimeters.]),
     ("User parameter", [A parameter you create yourself, with a name you choose.]),
     ("Volume", [How much space a solid fills.]),
+    ("Workplane", [The flat plane an outline is drawn on, with its own directions and a normal pointing straight out of it.]),
   )
   set par(first-line-indent: 0pt, justify: false)
   columns(2, gutter: 18pt, for (t, d) in g {
@@ -67,6 +70,13 @@
 }
 
 = What's new
+
+== 2026-10-30: extrude
+
+- *New:* extrude a flat outline into a solid. Outlines are made of lines, arcs and circles, can have holes, and can sit on any plane; the extrude goes a distance one way or splits evenly on both sides (@ch-extrude, @sec-ref-extrude).
+- *Pictures:* a profile and the plate extruded from it, and an extruded slot.
+- Concepts: the profile and feature sections now point to the extrude.
+- Help: eleven new error messages, and known limitations updated. The limitation that nothing turns outlines into solids is gone.
 
 == 2026-10-29: formulas in parameters, and inference
 
@@ -124,7 +134,8 @@ These are the next items on the public roadmap. None of them works yet. When one
 #ref-table(
   columns: (auto, 1fr),
   header: ("Soon", "What you'll be able to do"),
-  [Extrude], [Turn a sketch's region into a solid by pushing it a distance, and join it to, cut it from or intersect it with the part.],
+  [Extrude modes], [Join an extrude to the part, cut it out, or keep only the overlap, in one step.],
+  [Extrude from a sketch], [Hand a sketch's region straight to the extrude, and extrude up to a face or through everything.],
   [More part features], [Revolve, fillet, chamfer, shell and hole, driven by sketches.],
   [Part files], [Save a part with its full history, and open it again.],
   [Desktop app], [A window with a 3D view, a model browser, sketch mode and property panels.],
@@ -148,7 +159,7 @@ Later milestones add assemblies, 2D drawings and exploded views. The full plan i
       #text(font: sans, weight: "bold", fill: accent, "DRAW A SKETCH")
       #term-block("swx-qa sketch --fixture rectangle -o r.png\n  (or triangle-345)")
       #text(font: sans, weight: "bold", fill: accent, "SAMPLES")
-      #term-block("cargo run -p swx-sketch \\\n  --example plate_sketch\ncargo run -p swx-sketch \\\n  --example sketch_dof\ncargo run -p swx-sketch \\\n  --example centered_plate -- 60 25\ncargo run -p swx-sketch \\\n  --example slot_sketch\ncargo run -p swx-kernel --features occt \\\n  --example plate_with_hole -- plate.step\ncargo run -p swx-core \\\n  --example feature_history\ncargo run -p swx-core \\\n  --example parameter_table\ncargo run -p swx-sketch \\\n  --example driven_plate\ncargo run -p swx-core \\\n  --example expressions\ncargo run -p swx-core \\\n  --example parameter_formulas\ncargo run -p swx-sketch \\\n  --example inferred_sketch")
+      #term-block("cargo run -p swx-sketch \\\n  --example plate_sketch\ncargo run -p swx-sketch \\\n  --example sketch_dof\ncargo run -p swx-sketch \\\n  --example centered_plate -- 60 25\ncargo run -p swx-sketch \\\n  --example slot_sketch\ncargo run -p swx-kernel --features occt \\\n  --example plate_with_hole -- plate.step\ncargo run -p swx-kernel --features occt \\\n  --example extrude_plate\ncargo run -p swx-core \\\n  --example feature_history\ncargo run -p swx-core \\\n  --example parameter_table\ncargo run -p swx-sketch \\\n  --example driven_plate\ncargo run -p swx-core \\\n  --example expressions\ncargo run -p swx-core \\\n  --example parameter_formulas\ncargo run -p swx-sketch \\\n  --example inferred_sketch")
     ],
     [
       #text(font: sans, weight: "bold", fill: accent, "SKETCH CONSTRAINTS")
@@ -178,6 +189,7 @@ Later milestones add assemblies, 2D drawings and exploded views. The full plan i
         [`make_cylinder`], [cylinder on +Z],
         [`make_sphere`], [sphere],
         [`union` · `cut` · `intersect`], [Boolean result],
+        [`make_face` · `extrude`], [outline → face → solid],
         [`export_step` · `import_step`], [STEP file out / in],
       )
       #text(font: sans, weight: "bold", fill: accent, "UNITS")

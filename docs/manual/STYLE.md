@@ -22,9 +22,9 @@ The rules that keep the Saulitwerx user manual reading as one book, however many
 1. Front matter: cover (commit, build date, status), *How to use this manual*, contents.
 2. Part I Getting started: 1 Welcome, 2 Installing, 3 Your first part (the ~15-minute tutorial).
 3. Part II Concepts: 4 How parametric CAD works (solids, units, sketches, constraints, dimensions, degrees of freedom, parameters, features, history).
-4. Part III Tasks: 5 Sketching, 6 Solids and STEP files, 7 Pictures of parts and sketches, 8 Parameters and history. Later: part features, files, assemblies, drawings.
-5. Part IV Reference: 9 Reference (commands, build options, kernel operations, sketch entities and constraints, solver, degree-of-freedom report, formats and units, keyboard and mouse).
-6. Part V Help: 10 Help (troubleshooting by symptom, every error message, questions, known limitations).
+4. Part III Tasks: 5 Sketching, 6 Solids and STEP files, 7 Extruding a profile (`chapters/06a-extrude.typ`), 8 Pictures of parts and sketches, 9 Parameters and history. Later: part features, files, assemblies, drawings.
+5. Part IV Reference: 10 Reference (commands, build options, kernel operations, sketch entities and constraints, solver, degree-of-freedom report, formats and units, keyboard and mouse).
+6. Part V Help: 11 Help (troubleshooting by symptom, every error message, questions, known limitations).
 7. Back matter: glossary, What's new (newest first, dated by night), Coming next, quick-reference card, credits and licenses, index.
 
 When the desktop app arrives (M5), Part I's tutorial moves to the app and the command-line tutorial moves into Part III for developers.

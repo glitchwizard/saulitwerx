@@ -29,9 +29,10 @@ Saulitwerx is built in small, tested steps, in the order of a public plan (the _
   [Pictures], [Draw a solid or a STEP file to a PNG picture with `swx-qa render`, and a sketch with `swx-qa sketch`.], [#now],
   [Sketching], [Lines, circles, arcs and points, with thirteen kinds of constraint (from horizontal and coincident to tangent and symmetric), a solver that moves the shape to satisfy them, a check of how fully a sketch is defined, and the regions a sketch encloses, ready to become solids.], [#now],
   [History], [Keep features in order with named parameters, and work out which features a change affects.], [#now],
+  [Extrude], [Push a flat outline of lines, arcs and circles, with holes, into a solid, on any plane, one way or both.], [#now],
   [Desktop app], [Windows, menus, a 3D view and mouse control.], [#later],
   [Part files], [Saving your design with its full history in a Saulitwerx part file.], [#later],
-  [Features], [Extrude, revolve, fillet, chamfer, hole, shell and more, driven by sketches.], [#later],
+  [Features], [Extrude driven by sketches and recorded in the history; revolve, fillet, chamfer, hole, shell and more.], [#later],
   [Assemblies, drawings], [Putting parts together, and making 2D shop drawings.], [#later],
 )
 

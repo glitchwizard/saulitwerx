@@ -66,6 +66,16 @@ Every message starts with `swx-qa: `. No picture is written when there is an err
   [`invalid input: <name> must have finite coordinates, got …`], [A position contains an infinite value or not-a-number.],
   [`invalid input: no such file: f`], [The STEP file to read doesn't exist.],
   [`kernel failure: <operation> failed`], [OpenCascade couldn't complete the operation. For a cut, check that the tool solid overlaps the part (@ch-solids).],
+  [`invalid input: outer loop: consecutive segments don't meet within 0.0000001` (or `hole N loop: …`)], [Two pieces of the loop, or its last and first, don't meet. Reuse the same corner values for both ends (@ch-extrude).],
+  [`invalid input: outer loop is empty`, `… loop encloses no area`], [The loop has no pieces, or they enclose nothing: a line there and back, or a figure eight whose halves are the same size.],
+  [`invalid input: … loop of one segment must be a circle`, `… a circle must be the only segment of its loop`], [A loop of one piece must be a full circle, and a circle can't share a loop. Use arcs to round corners.],
+  [`invalid input: line from … to … has no length`, `arc from … to … rad has no sweep; use a circle`], [A piece starts and ends at the same point.],
+  [`invalid input: radius must be > 0, got <v>`], [An arc or circle has a zero or negative radius.],
+  [`invalid input: line must be finite, got …` (also `arc`, `circle`, `workplane origin`)], [A number is infinite or not a number.],
+  [`invalid input: workplane x_dir must be non-zero` (or `normal`), `workplane x_dir and normal must be perpendicular (dot …)`], [The workplane's directions are missing or not at right angles (@sec-ref-extrude).],
+  [`kernel failure: make_face failed: the face is invalid (e.g. a self-intersecting loop or a hole outside the outer loop)`], [The loops pass the checks above, but the outline crosses itself, or a hole is outside the outline or touches its edge.],
+  [`invalid input: extrude distance must be finite and non-zero, got <v>` (or `symmetric extrude length`)], [The extent is zero or not a number.],
+  [`kernel failure: extrude failed`], [The shape given to `extrude` isn't a face from `make_face`.],
 )
 
 === From sketches
@@ -153,7 +163,9 @@ For an unknown entity, `infer` and `add_inferred` give the sketch messages above
 == Known limitations
 
 - No desktop app, 3D view, mouse or keyboard controls yet.
-- No features that turn sketches into solids yet: no extrude, revolve, fillet or hole. Solids are made from boxes, cylinders and spheres.
+- A sketch's regions can't be extruded directly yet: type the outline's pieces into a program (@ch-extrude). There is no revolve, fillet or hole yet.
+- An extrude always makes a new solid. Join it to a part or cut it from one with `union` or `cut` (@ch-solids). It goes a set distance only: not "up to a face" or "through all".
+- Extrudes aren't recorded in a part's history, so they don't rebuild when a parameter changes.
 - No native part files; work can't be saved with its history.
 - `swx-qa sketch` draws only its two built-in sketches. Your own sketches need a short program (@sec-picture-sketch). Sketch pictures show no dimension arrows and no marks for constraints such as horizontal.
 - A parameter's unit is free text. Only the seven units of @sec-ref-expr are understood by formulas; any other unit counts as none.

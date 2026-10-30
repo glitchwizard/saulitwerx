@@ -274,7 +274,7 @@ Before a sketch can become a solid, Saulitwerx has to know which areas it enclos
   [Look at stage 1: `regions: 0` and `open edges: [0, 1, 2, 3]`. The numbers are the pieces in the order they were added to the sketch: 0 and 1 are the arcs, 2 and 3 the lines. When a sketch has no region, the open edges show where to look for the gap.],
 )
 
-#result[You can tell whether a sketch is ready to become a solid, and how much area it encloses.]
+#result[You can tell whether a sketch is ready to become a solid, and how much area it encloses. @ch-extrude shows how an outline like this becomes a solid.]
 
 === How it works
 
