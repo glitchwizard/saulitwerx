@@ -1,15 +1,15 @@
 # Factory state
 
 status: running
-issues_per_night: 2
+issues_per_night: 4
 
 <!-- Set status to "paused" to stop all factory runs immediately. Any other value also stops them. -->
 <!-- issues_per_night caps how many issues the Builder takes per night, across its runs (FACTORY §3). -->
 
 ## Notes for the factory
 
-- Owner priority: steady progress on a tight budget. Up to `issues_per_night` issues per night, at most two per Builder run (FACTORY §3).
-- Current focus: M2 Sketcher in roadmap order. QA-01 (#32) has priority and is independent of the M2 chain (M2-02 → M2-03 → M2-04).
+- Owner priority: every run does real work. Two issues per Builder run, one after the other, so up to `issues_per_night` (4) a night across the 12:17am and 2:17am runs (FACTORY §3). Each Reviewer run merges what the Builder run before it opened.
+- Current focus: M3 Part features, in roadmap order.
 
 ## Log
 
