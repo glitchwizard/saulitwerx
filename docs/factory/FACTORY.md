@@ -52,9 +52,9 @@ Issue title format: `M2-03: Solver constraints: coincident, horizontal, …`. Th
    4. The lowest-numbered roadmap item among open `factory:ready` issues.
    5. If nothing qualifies, post an `idle` run-log comment and stop.
 
-   Take the first item. Take a second one, the next in the same order, only if this run may take two and the two are **independent**: neither depends on the other, directly or through another open issue, and they don't change the same crate. If they're dependent, take only the first. A later Builder slot takes the second after the Reviewer has merged the first.
+   Take the first item. Take a second one, the next in the same order, when this run may take two and the two are **independent**: neither depends on the other, directly or through another open issue. Prefer a second item in a different crate when one qualifies. Two in the same crate are fine: if merging the first leaves the second in conflict, the Reviewer sends it back and the Builder merges `main` into it (step 3.3). If they're dependent, take only the first; the next Builder slot takes the second after the Reviewer has merged the first.
 4. Claim each issue: add `factory:wip`, remove `factory:ready` or `factory:changes`.
-5. **Two items run in parallel**, one subagent per issue. Each gets its own git worktree (`git worktree add ../wt-<issue#> -b <branch> origin/main`), its own branch, and its own `CARGO_TARGET_DIR` (`<worktree>/target`). Each subagent runs steps 6–12 for its issue and drafts its QA report without section (b), then returns its PR number, CI result, draft report and outcome. The parent records the gates (§6c) for each issue in turn, completes section (b), and posts both QA reports and the outcome comments. With one item, do everything yourself.
+5. **One item at a time.** Run steps 6–13 for the first item, through its QA report and outcome comment, then for the second, each on its own branch from `origin/main`. No subagents and no parallel worktrees: if a run stops early, at most one item is left half done.
 6. Branch: `feat/<issue#>-<short-slug>` (or `fix/…`). **Never commit to `main`.**
 7. Implement the smallest change that meets the acceptance criteria. Add tests that would fail without the change. Locally, run all of:
    `cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace`
@@ -86,10 +86,10 @@ For each open PR whose issue is labeled `factory:review`, oldest first:
 
 ### Plan
 
-After reviewing, if fewer than **3** issues are labeled `factory:ready`:
+After reviewing, if fewer than **4** issues are labeled `factory:ready`:
 
 1. Take the next unchecked items from `docs/ROADMAP.md`, in order, that have no open issue yet. Search the issue titles for the item ID.
-2. Create issues until there are 3 ready, using the format in §2: a `Depends on:` line when an issue needs another open issue merged first, and the QA item last in the acceptance criteria. Make the acceptance criteria concrete and testable, with numbers and tolerances where geometry is involved.
+2. Create issues until there are 4 ready, using the format in §2: a `Depends on:` line when an issue needs another open issue merged first, and the QA item last in the acceptance criteria. Make the acceptance criteria concrete and testable, with numbers and tolerances where geometry is involved.
 3. Prefer keeping at least **2** ready issues that are independent of each other (§3), so a Builder run can take two. When the next roadmap items form a dependency chain, also create the next _(parallel ok)_ item whose prerequisites are met.
 4. If an item needs a design decision first (e.g. M3-04 topological naming), create a `docs/specs/<id>.md` spec issue first.
 
@@ -126,7 +126,6 @@ Time box: start no new chapter after 60 minutes, and wrap up by 90. Merge what m
 ## 5. Budget rules (hard)
 
 - Builder: at most `issues_per_night` issues per night (`STATE.md`), at most two per run, inside the §3 time box. Reviewer: two PRs and at most three new issues per run, plus one retro PR with at most three changes on Monday nights. Documenter: one run and at most one manual PR per night, and at most 2 new issues per run, inside its §4a time box. Reporter: read-only on GitHub, one status-doc section per week.
-- A subagent gets its issue and the files the issue touches, plus the docs listed in §3 step 1. Nothing else.
 - Don't explore the codebase broadly. Read only what the issue touches, plus the docs listed above.
 - Don't vendor or build large C++ dependencies from source inside a run unless the issue requires it and caching is in place.
 - If a run hits something that would take a lot of extra work (toolchain breakage, an ambiguous spec), write it down (`factory:blocked` or `needs-human` plus a comment) and stop. Don't push through.
@@ -222,11 +221,11 @@ Runs record their gates (`ship_*`) and their reasoning (`think_*`) through the t
 
 1. Warm the build in Bash: `cargo test --workspace --no-run`. The server kills a check after 900 s.
 2. `ship_set_objective` with the issue title as `description` and its acceptance criteria copied verbatim. Then `ship_plan` (add one task) and `ship_start`.
-3. `ship_check` for each gate, always passing `command` and never `passed`: `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo test --workspace`. Add the commands of CI's `swx-kernel (occt)` job when the change touches `swx-kernel` or builds anything with its `occt` feature. In a two-item run, prefix each command with `cd <worktree> && CARGO_TARGET_DIR=<worktree>/target `.
+3. `ship_check` for each gate, always passing `command` and never `passed`: `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo test --workspace`. Add the commands of CI's `swx-kernel (occt)` job when the change touches `swx-kernel` or builds anything with its `occt` feature.
 4. `ship_complete` the task, then `ship_finalize` with the PR as an artifact.
 5. `ship_export` with `format: json`, and commit its `trace` to `qa-artifacts` as `pr-<N>/ship-report.json`, together with the QA images (§6b). Export before the next item's `ship_set_objective`, which clears the previous tasks.
 
-Ship state is one per project, so a two-item run records its items one after the other, in the parent run.
+Ship state is one per project, so a two-item run records its items one after the other.
 
 **Reasoning (Builder and Reviewer).** Record a `think_record_step` at each decision, and only there:
 
