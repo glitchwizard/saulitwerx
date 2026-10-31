@@ -6,6 +6,7 @@
 //! in a separate kernel crate (OpenCascade bindings, see docs/ARCHITECTURE.md).
 
 pub mod expr;
+pub mod topo;
 
 use expr::{Dim, Expr, ExprError, ExprErrorKind, Quantity, Unit};
 use std::collections::BTreeSet;
