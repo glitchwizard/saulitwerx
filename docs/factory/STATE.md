@@ -13,6 +13,8 @@ issues_per_night: 2
 
 ## Log
 
+- 2026-10-31 reviewer: no PRs to review (none labeled factory:review; #102 and #103 merged at 1:18am); no new issues (ready: #97, #104, #105); no retro (not a Monday night)
+- 2026-10-31 builder: idle (nightly cap reached; 12:17am run took #91 → PR #102 and #98 → PR #103)
 - 2026-10-31 reviewer: merged #102 (M3-01b) and #103 (M3-04e) (CI green, 3 checks each; QA reports + ship reports + 2 images verified; local gates on main+both exit 0, incl. swx-kernel and swx-qa occt); no roadmap check-off (M3-01 needs #106, M3-04 needs M3-04b..g); planned #104 M3-03a, #105 M3-04b, #106 M3-01c (needs-human: placement of sketch → kernel loop conversion) (ready: #97, #104, #105; all swx-kernel); merged branches not deleted (delete denied); no retro (not a Monday night)
 - 2026-10-31 builder: #98 M3-04e → PR #103 (02dfbb8; CI green, 3 checks; think-and-ship gates verified; QA pass)
 - 2026-10-31 builder: #91 M3-01b → PR #102 (6c27aa8; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
@@ -41,5 +43,3 @@ issues_per_night: 2
 - 2026-10-25 documenter: M2-04 + M2-06 → PR #75 merged (CI green, 3 checks; 58 pages; no feedback; opened #76)
 - 2026-10-25 reviewer: merged #65 (M2-04) and #66 (M2-06) (CI green, 3 checks each; QA reports + ship reports + 4 images verified; local gates on merge results exit 0); checked off QA-02, M2-04, M2-05, M2-06 (superseding stale docs PR #64); planned #71 M2-07b, #72 M2-08a, #73 M2-09 (ready: #71, #72, #73); #69 and #70 wait for the next run
 - 2026-10-25 builder: idle (nightly cap reached; 12:17am run took #68 → PR #70 and #62 → PR #69)
-- 2026-10-25 builder: #62 M2-07a → PR #69 (CI green, 3 checks; think-and-ship gates verified; QA pass)
-- 2026-10-25 builder: #68 M2-05a → PR #70 (CI green, 3 checks; think-and-ship gates verified; QA pass)
