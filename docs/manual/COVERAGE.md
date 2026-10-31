@@ -1,4 +1,4 @@
-manual-synced-to: e04eaf4ad675a928472336b4e9dd85e3accfebdc
+manual-synced-to: b89c6b64a052831c2e1e741c8aa6558ebe02b85d
 
 # Manual coverage
 
@@ -19,7 +19,8 @@ Everything a user can do or set on `main`, found from the code, `docs/ROADMAP.md
 | Kernel: `tessellate` (deflection) | 8.1, 10.4 |
 | Kernel: `export_step`, `import_step` (mm) | 3.2, 6.1, 6.3, 10.4, 10.13 |
 | Kernel: `make_face`, `extrude`; `Workplane` (`XY`, `XZ`, `YZ`, custom), `Segment2` (Line, Arc, Circle), `ProfileLoop`, `Extent` (Distance, Symmetric), `LOOP_GAP_TOLERANCE`, `PERPENDICULAR_TOLERANCE` | 4.7, 4.9, 7, 10.5 |
-| Kernel errors (`InvalidInput`, `Backend`), incl. every `make_face` and `extrude` message | 7.3, 11.2 |
+| Kernel: `extrude_feature`, `ExtrudeMode` (NewSolid, Join, Cut, Intersect), `EMPTY_VOLUME_TOLERANCE` | 7.3, 10.5 |
+| Kernel errors (`InvalidInput`, `Backend`, `EmptyResult`), incl. every `make_face`, `extrude` and `extrude_feature` message | 7.3, 7.4, 11.2 |
 | Sketch entities: point, line, circle, arc (solving changes arc angles; sweep kept in (0, 2π]) | 4.3, 10.6 |
 | `PointRef`: Point, Start, End, Center, ArcStart, ArcEnd (arc ends in every point constraint) | 5.1, 5.6, 10.6 |
 | Constraints: coincident, horizontal, horizontal points, vertical, vertical points, fixed, distance, radius, diameter | 4.4, 4.5, 5, 10.6 |
@@ -61,8 +62,13 @@ Everything a user can do or set on `main`, found from the code, `docs/ROADMAP.md
 | `swx-qa` `inference_plots` | 5.8 figure |
 | `swx-kernel` `extrude_plate` (occt) | 7.1 |
 | `swx-kernel` `extrude_slot` (occt) | 7.2 |
+| `swx-kernel` `extrude_modes` (occt) | 7.3 |
+
+## Not user-facing yet
+
+- `swx_core::topo` (M3-04e, #103): `EntityRef`, `Role`, `FaceName`, `EdgeName`, `TopoRef`, `ResolveError`. Plain data with no way to resolve a name to a face or an edge yet, so nothing a user can do changes. Document it, with its `describe()` wording, when references can be resolved (M3-04b..d); *Coming next* lists it as *Lasting references*.
 
 ## Backlog
 
-- Nothing built is undocumented. Next: when M3-01b (#91) lands, add a task for the join, cut and intersect modes to chapter 7, drop *Extrude modes* from Coming next, and update the known limitations.
+- Nothing built is undocumented. Next: when sketch regions reach the extrude (M3-01c, #106), rewrite chapter 7 so its tasks start from a sketch, and update the known limitations.
 - Possible addition: a rounded-corner task (arc ends joined to two lines, M2-04a), now that an extrude can use arcs: a plate with rounded corners.

@@ -26,7 +26,7 @@ Two more words come with it:
 - The #term[workplane] is the flat plane the outline is drawn on. It has its own left–right and up–down directions, and a third direction straight out of it, called its _normal_. The extrude goes along the normal.
 - The #term[extent] says how far the extrude goes: a distance one way, or a length split evenly on both sides of the workplane.
 
-*In Saulitwerx today:* the geometry engine can make a flat face from outlines of lines, arcs and circles on any workplane, and extrude it by a distance or symmetrically, as a new solid. You type the outline's pieces into a small program; a sketch's regions (@sec-profiles) can't be handed to the extrude yet, and the extrude isn't recorded in a part's history. Joining the result to a part or cutting it from one is done with the Boolean operations of @ch-solids.
+*In Saulitwerx today:* the geometry engine can make a flat face from outlines of lines, arcs and circles on any workplane, and extrude it by a distance or symmetrically. The result can be a new solid, or be joined to a part, cut from it or intersected with it in the same step (@sec-extrude-modes). You type the outline's pieces into a small program; a sketch's regions (@sec-profiles) can't be handed to the extrude yet, and the extrude isn't recorded in a part's history.
 
 == Extrude a profile <sec-extrude>
 
@@ -124,10 +124,91 @@ Three workplanes are built in. To draw on another plane, give your own `Workplan
 
 #caution(title: [XZ extrudes toward −Y])[Looking down on the XZ plane so that X runs right and Z runs up, you are looking from the −Y side, and that is where a positive distance goes. If a part comes out on the wrong side, use a negative distance.]
 
+== Join, cut or intersect with an extrude <sec-extrude-modes>
+
+#idx("extrude mode")#idx("target body")
+Most extrudes change a part that already exists. A boss stands up from a plate; a pocket sinks into it. You could extrude a new solid and then combine it with a Boolean operation (@ch-solids), but an extrude can do both in one step. Its #term[extrude mode] says what happens to the extruded shape:
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("Mode", "What you get"),
+  [New solid], [The extruded shape on its own. The part is left as it was.],
+  [Join], [The part with the extruded shape added to it.],
+  [Cut], [The part with the extruded shape taken out of it.],
+  [Intersect], [Only the part's material that lies inside the extruded shape.],
+)
+
+The part an extrude joins, cuts or intersects is its #term[target body]. A good habit: draw the outline on a face of the target, then extrude away from the part to add material, and into it to remove material. @fig-extrude-modes shows one block and the three combining modes.
+
+#image-row(
+  (
+    // cargo run -p swx-kernel --features occt --example extrude_modes -- modes
+    // swx-qa render --step modes/modes-<name>.step --size 900x700 -o docs/manual/img/modes-<name>.png
+    ("img/modes-target.png", "Target: 40 × 25 × 10 mm block", "A plain rectangular block"),
+    ("img/modes-join.png", "Join: circle, 5 mm up", "The block with a short round post standing on top"),
+    ("img/modes-cut.png", "Cut: rectangle, 4 mm down", "The block with a shallow rectangular pocket in its top"),
+    ("img/modes-intersect.png", "Intersect: circle, 10 mm down", "A round disc with two straight flat sides"),
+  ),
+  caption: [One target and three extrude modes, each outline drawn on the block's top face. The intersect keeps the part of the block inside a 30 mm circle: the block's long sides trim the circle flat. Each picture is scaled to fill its frame.],
+) <fig-extrude-modes>
+
+#task-intro(
+  goal: [Add a boss to a block, sink a pocket into it, and trim it to a circle, each with one extrude.],
+  needs: [Saulitwerx built with OpenCascade, and `swx-qa` built with it too (@ch-install).],
+  time: [10 minutes.],
+)
+
+#steps(
+  [Run the sample program, and tell it to save its parts in a folder called `modes`:
+  #term-block("cargo run -p swx-kernel --features occt --example extrude_modes -- modes")
+  It prints a line for the block and one for each mode, then two errors on purpose, then the files it wrote:
+  #term-block(label: "Output", "target     10000.00 mm³   6 faces  z from 0 to 10\njoin       10392.70 mm³   8 faces  z from 0 to 15\ncut         9200.00 mm³  11 faces  z from 0 to 10\nintersect   6505.89 mm³   7 faces  z from 0 to 10\njoin, no target -> error: invalid input: extrude mode \"join\" needs a target body\ncut, all of it -> error: empty result: extrude cut leaves no solid (volume 0e0)\n…  (the geometry engine's file reports)\nwrote modes/modes-target.step\nwrote modes/modes-join.step\nwrote modes/modes-cut.step\nwrote modes/modes-intersect.step")],
+  [Read the `join` line. The block grew by the boss: a 10 mm circle 5 mm tall adds 392.70 mm³, and the part now reaches 15 mm up.],
+  [Read the `cut` line. A 20 × 10 mm rectangle cut 4 mm deep removes 800 mm³. The height stays 10 mm, and the pocket's floor and four walls bring the faces to 11.],
+  [Read the `intersect` line. What is left is the block's material inside a 30 mm circle: less than either one on its own.],
+  [Draw the cut result:
+  #term-block("target/release/swx-qa render --step modes/modes-cut.step -o modes-cut.png")
+  Open `modes-cut.png`. You should see the block with a pocket in its top, as in @fig-extrude-modes. Draw the other files the same way.],
+)
+
+#result[A boss, a pocket and a trimmed block, each made by one extrude against the same target. The block itself is never changed: each mode returns a new solid.]
+
+=== How the sample is built
+
+The program is `crates/swx-kernel/examples/extrude_modes.rs`. The outlines sit on the block's top face, a workplane at z = 10:
+
+```rust
+const TOP: Workplane = Workplane {
+    origin: [0.0, 0.0, 10.0],
+    x_dir: [1.0, 0.0, 0.0],
+    normal: [0.0, 0.0, 1.0],
+};
+```
+
+Each mode is one call to `extrude_feature`. It takes the face, the extent, the mode and the target. The join goes up, +5 mm, away from the block; the cut goes down, −4 mm, into it:
+
+```rust
+let joined = extrude_feature(&k, &boss, Extent::Distance(5.0),
+    ExtrudeMode::Join, Some(&block))?;
+let cut = extrude_feature(&k, &pocket, Extent::Distance(-4.0),
+    ExtrudeMode::Cut, Some(&block))?;
+```
+
+For `ExtrudeMode::NewSolid` the target isn't used, so pass `None`. That gives the same solid as `extrude` (@sec-extrude).
+
+#tip(title: [Which way is "into" the part?])[The extrude goes along the workplane's normal for a positive distance. On a top face whose normal points up, a cut needs a negative distance. If a cut leaves the part unchanged, it probably went the wrong way, into empty space.]
+
+#caution(title: [A result must have something left])[A cut that removes the whole target, or an intersect whose shapes don't overlap, leaves nothing. That is an error, `empty result: …`, not an empty part. The sample's last line shows one: a rectangle larger than the block, cut all the way through.]
+
 == Common mistakes
+
+#set par(justify: false)
 
 - *The ends don't quite meet.* A loop whose last piece stops short of the first is refused with `outer loop: consecutive segments don't meet within 0.0000001`. Compute shared corners once and reuse them, as `extrude_plate` does with `corners`.
 - *A circle mixed with other pieces.* A full circle must be a loop of its own. To round a corner, use an arc.
 - *A hole outside the outline, or touching its edge.* The geometry engine refuses the face: `make_face failed: the face is invalid …`. Keep every hole wholly inside the outer loop.
 - *An outline that crosses itself,* like a figure eight. Same message; or, when the two halves are the same size, `outer loop encloses no area`, because their areas cancel out. Split it into separate outlines.
 - *A distance of zero.* An extrude has to go somewhere: `extrude distance must be finite and non-zero, got 0`.
+- *Join, cut or intersect with no target.* These modes need a part to work on: `invalid input: extrude mode "cut" needs a target body`. Pass the part as `Some(&part)`, or use `ExtrudeMode::NewSolid`.
+- *A cut that goes the wrong way.* It misses the part, and the part comes back unchanged. Check the sign of the distance (@sec-extrude-modes).
+- *A cut that removes everything,* or an intersect that doesn't overlap: `empty result: extrude cut leaves no solid …`. Make the outline smaller than the face it cuts, or move it over the part.

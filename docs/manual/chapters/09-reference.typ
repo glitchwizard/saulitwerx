@@ -132,6 +132,20 @@ All positions must be finite numbers; all sizes finite and greater than zero.
 
 All numbers must be finite. A face is refused if a loop is empty, has no area, doesn't close, or crosses itself, or if a hole isn't wholly inside the outer loop. Every refusal is an error (@sec-errors), never a crash.
 
+`extrude_feature(k, face, extent, mode, target)` extrudes `face` like `extrude`, then combines the result with `target` as `mode` says (@sec-extrude-modes). It returns a new solid; `target` is left unchanged.
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("Mode or value", "Result and rules"),
+  [`ExtrudeMode::NewSolid`], [The extrusion alone. `target` is ignored and may be `None`.],
+  [`ExtrudeMode::Join`], [Target ∪ extrusion. Needs a target.],
+  [`ExtrudeMode::Cut`], [Target − extrusion. Needs a target.],
+  [`ExtrudeMode::Intersect`], [Target ∩ extrusion. Needs a target.],
+  [`EMPTY_VOLUME_TOLERANCE`], [1e-9 mm³: a result with less volume than this counts as empty and is refused with `EmptyResult`.],
+)
+
+A missing target is checked first, before any geometry is made. Errors from `extrude` and from the Boolean operations come through unchanged.
+
 == Sketch entities and constraints <sec-ref-sketch>
 
 #ref-table(

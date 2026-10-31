@@ -42,4 +42,6 @@ Label chapters `<ch-…>`, sections `<sec-…>`, figures `<fig-…>`. `@label` p
 - Page: US Letter, mirrored margins. Body Libertinus Serif 10.5 pt; headings and labels Inter; code DejaVu Sans Mono.
 - Colour: steel blue `#3d5a80` (accent, matches rendered parts); green for tips and results; rust for cautions; purple for developer sections. Callouts never break across pages.
 - Pictures: tool-made only (`swx-qa render` for parts, `swx-qa sketch` or `swx_qa::sketch::plot` for sketches; app screenshots from M5). PNG in `img/`, under 1 MB, at least 200 dpi at printed size (a full-width figure is about 6.5 in, so at least 1300 px wide). The command that made each image sits in a comment next to its use. Annotations (operator signs, markers, labels) are drawn by the template, never painted into the image. Every figure has a caption and alt text. Sketch pictures are 600x420 px, shown at 40 % width alone or two across, so their built-in labels stay legible in print.
+- Picture rows: `#image-equation` for "this and that give this" (operator signs between images); `#image-row` for one start and several outcomes side by side, each with its own label and alt text.
+- Task intros (`#task-intro`) never break across pages.
 - Tables use `#ref-table`; status uses `#now` / `#later` pills.

@@ -97,6 +97,7 @@
   stroke: 0.6pt + rule-c,
   radius: 3pt,
   spacing: 1.2em,
+  breakable: false,
   {
     set par(first-line-indent: 0pt)
     set text(size: 9.5pt)
@@ -220,6 +221,21 @@
     }
     grid(columns: parts.map(_ => 1fr).intersperse(22pt), column-gutter: 4pt, ..cells)
   },
+  caption: caption,
+  kind: image,
+)
+
+// A row of labeled images with no signs between them, for "one start, several
+// outcomes" pictures. `parts` is an array of (path, label, alt) triples.
+#let image-row(parts, caption: none) = figure(
+  grid(
+    columns: parts.map(_ => 1fr),
+    column-gutter: 8pt,
+    ..parts.map(((p, lab, alt)) => stack(spacing: 5pt,
+      box(fill: render-bg, radius: 3pt, clip: true, stroke: 0.5pt + rule-c, image(p, width: 100%, alt: alt)),
+      align(center, text(font: sans, size: 8pt, fill: muted, lab)),
+    )),
+  ),
   caption: caption,
   kind: image,
 )
