@@ -1,0 +1,37 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {"description": "feat(core): topological reference names", "ref": "02dfbb8", "task_id": "gates-98", "type": "commit"}
+  ],
+  "checks": [
+    {"name": "cargo fmt", "passed": true, "required": true, "task_id": "gates-98", "type": "lint", "verified": true},
+    {"name": "cargo clippy", "passed": true, "required": true, "task_id": "gates-98", "type": "lint", "verified": true},
+    {"name": "cargo test", "passed": true, "required": true, "task_id": "gates-98", "type": "test", "verified": true}
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "New public module `swx_core::topo` with `EntityRef { sketch: FeatureId, entity: u32 }`, `Role { StartCap, EndCap, Side(EntityRef) }`, `FaceName { Generated { feature, role }, Fragment { of: Box<FaceName>, split_by: FeatureId, bounded_by: Vec<FaceName> } }`, `EdgeName { faces: [FaceName; 2], ends: Vec<FaceName> }`, `TopoRef { Face(FaceName), Edge(EdgeName) }` and `ResolveError { Missing { reference, reason }, Ambiguous { reference, matches } }`, as in the spec, each documented and deriving at least `Debug, Clone, PartialEq, Eq, Hash`.",
+      "Canonical form: `EdgeName::new(a, b, ends)` orders the two faces and sorts and de-duplicates `ends` (and a fragment's `bounded_by`), so that `EdgeName::new(a, b, x) == EdgeName::new(b, a, x)` and the order of `ends` doesn't matter. Tested, including with nested fragments.",
+      "`TopoRef::features(&self) -> BTreeSet<FeatureId>` returns every feature the reference names: generating features, the sketch of each `EntityRef`, `split_by`, and everything inside `bounded_by` and `ends`, recursively. A test checks the exact set for an edge between a fragment and a side face.",
+      "`TopoRef::describe(&self, doc: &Document) -> String` names the reference in words with feature names from `doc`. Tests check these exact strings, given features named Sketch1, Extrusion1, Extrusion2 and Cut1: `Face(Generated { Extrusion1, EndCap })` → `face Extrusion1 end cap`; an edge between that face and `Generated { Extrusion2, Side(Sketch1, 1) }` → `edge between Extrusion1 end cap and Extrusion2 side (e1)`; `Face(Fragment { of: Extrusion1 end cap, split_by: Cut1, bounded_by: [Cut1 side (e2)] })` → `face Extrusion1 end cap, piece split by Cut1 next to Cut1 side (e2)`; a feature ID not in `doc` is written `feature #42`, never a panic.",
+      "`ResolveError` implements `Display` and `std::error::Error`. `Missing` shows its reason; `Ambiguous` shows the match count and asks the user to pick one (for example `matches 2 faces; pick one`). Tested.",
+      "No new dependencies; `crates/swx-core/Cargo.toml` `[dependencies]` stays empty.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-10-31T07:27:03.905872274+00:00",
+    "constraints": [],
+    "created_at": "2026-10-31T07:26:46.793773477+00:00",
+    "description": "M3-04e: Topological reference names in swx-core (FaceName, EdgeName, TopoRef, ResolveError)",
+    "project_id": "saulitwerx",
+    "scope": "swx-core only; PR #103",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {"actions_count": 0, "artifacts_count": 1, "checks_count": 3, "estimate": "small", "id": "gates-98", "status": "completed", "title": "Run gates for #98 on 02dfbb8", "type": "test"}
+  ],
+  "tasks": {"active": 0, "blocked": 0, "completed": 1, "planned": 0, "skipped": 0, "total": 1},
+  "think_refs": []
+}
