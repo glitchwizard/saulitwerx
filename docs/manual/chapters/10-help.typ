@@ -76,6 +76,8 @@ Every message starts with `swx-qa: `. No picture is written when there is an err
   [`kernel failure: make_face failed: the face is invalid (e.g. a self-intersecting loop or a hole outside the outer loop)`], [The loops pass the checks above, but the outline crosses itself, or a hole is outside the outline or touches its edge.],
   [`invalid input: extrude distance must be finite and non-zero, got <v>` (or `symmetric extrude length`)], [The extent is zero or not a number.],
   [`kernel failure: extrude failed`], [The shape given to `extrude` isn't a face from `make_face`.],
+  [`invalid input: extrude mode "join" needs a target body` (or `"cut"`, `"intersect"`)], [The mode combines with a part, but none was given. Pass the part as the target, or use `NewSolid` (@sec-extrude-modes).],
+  [`empty result: extrude cut leaves no solid (volume …)` (or `intersect`, `join`)], [Nothing is left: the cut removed the whole part, or the intersect found no overlap. Make the outline smaller, or move it over the part.],
 )
 
 === From sketches
@@ -164,7 +166,8 @@ For an unknown entity, `infer` and `add_inferred` give the sketch messages above
 
 - No desktop app, 3D view, mouse or keyboard controls yet.
 - A sketch's regions can't be extruded directly yet: type the outline's pieces into a program (@ch-extrude). There is no revolve, fillet or hole yet.
-- An extrude always makes a new solid. Join it to a part or cut it from one with `union` or `cut` (@ch-solids). It goes a set distance only: not "up to a face" or "through all".
+- An extrude goes a set distance only: not "up to a face" or "through all". To cut through a part, give a distance at least as deep as the part.
+- An extrude's target is a solid you hold in your program. Faces and edges can't be picked or named yet, so the outline's workplane is given by its numbers (@sec-extrude-modes).
 - Extrudes aren't recorded in a part's history, so they don't rebuild when a parameter changes.
 - No native part files; work can't be saved with its history.
 - `swx-qa sketch` draws only its two built-in sketches. Your own sketches need a short program (@sec-picture-sketch). Sketch pictures show no dimension arrows and no marks for constraints such as horizontal.

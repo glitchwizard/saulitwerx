@@ -35,3 +35,7 @@ required-features = ["occt"]
 [[example]]
 name = "extrude_slot"
 required-features = ["occt"]
+
+[[example]]
+name = "extrude_modes"
+required-features = ["occt"]

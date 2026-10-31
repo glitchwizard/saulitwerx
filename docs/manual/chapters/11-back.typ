@@ -23,6 +23,7 @@
     ("Entity", [One piece of sketch geometry: a point, line, circle or arc.]),
     ("Extent", [How far an extrude goes: a distance one way, or a length split evenly on both sides of the workplane.]),
     ("Extrude", [Pushing a flat outline straight out into a solid with straight sides.]),
+    ("Extrude mode", [What an extrude does with its shape: keep it as a new solid, or join, cut or intersect it with a target body.]),
     ("Face", [One flat or curved patch of a solid's surface.]),
     ("Expression", [A small formula with units that works out a value, such as `d1 / 2 + 5 mm`.]),
     ("Feature", [One step in building a part, such as a sketch or a cut. Features are kept in the history.]),
@@ -56,6 +57,7 @@
     ("STEP", [An international standard file format (ISO 10303) for exchanging 3D parts.]),
     ("Surface area", [The total area of a solid's faces.]),
     ("Tangent", [Touching without cutting in: a line and a circle, or two circles, that meet at one point.]),
+    ("Target body", [The solid an extrude joins to, cuts from or intersects with.]),
     ("Under-constrained", [Said of a sketch with at least one degree of freedom left.]),
     ("Union", [A Boolean operation that joins two solids into one.]),
     ("Unit", [What a number measures in, such as millimeters.]),
@@ -70,6 +72,12 @@
 }
 
 = What's new
+
+== 2026-10-31: extrude modes
+
+- *New:* an extrude can join its shape to a part, cut it out, or keep only the overlap, in one step (@sec-extrude-modes, @sec-ref-extrude).
+- *Pictures:* one block with a boss, a pocket and a trimmed shape made from it.
+- Help: two new error messages, three new common mistakes, and known limitations updated. The limitation that an extrude always makes a new solid is gone.
 
 == 2026-10-30: extrude
 
@@ -134,9 +142,9 @@ These are the next items on the public roadmap. None of them works yet. When one
 #ref-table(
   columns: (auto, 1fr),
   header: ("Soon", "What you'll be able to do"),
-  [Extrude modes], [Join an extrude to the part, cut it out, or keep only the overlap, in one step.],
   [Extrude from a sketch], [Hand a sketch's region straight to the extrude, and extrude up to a face or through everything.],
   [More part features], [Revolve, fillet, chamfer, shell and hole, driven by sketches.],
+  [Lasting references], [A feature built on a face or an edge keeps finding it when earlier features change.],
   [Part files], [Save a part with its full history, and open it again.],
   [Desktop app], [A window with a 3D view, a model browser, sketch mode and property panels.],
 )
@@ -190,6 +198,7 @@ Later milestones add assemblies, 2D drawings and exploded views. The full plan i
         [`make_sphere`], [sphere],
         [`union` · `cut` · `intersect`], [Boolean result],
         [`make_face` · `extrude`], [outline → face → solid],
+        [`extrude_feature`], [extrude and combine],
         [`export_step` · `import_step`], [STEP file out / in],
       )
       #text(font: sans, weight: "bold", fill: accent, "UNITS")
