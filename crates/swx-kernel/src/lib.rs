@@ -13,6 +13,7 @@ use std::ffi::CString;
 use std::fmt;
 use std::path::Path;
 
+mod feature;
 mod mesh;
 mod profile;
 
@@ -21,6 +22,7 @@ mod ffi;
 #[cfg(feature = "occt")]
 mod occt;
 
+pub use feature::{extrude_feature, ExtrudeMode, EMPTY_VOLUME_TOLERANCE};
 pub use mesh::Mesh;
 #[cfg(feature = "occt")]
 pub use occt::{OcctKernel, OcctShape};
@@ -38,6 +40,9 @@ pub enum KernelError {
     InvalidInput(String),
     /// The kernel itself failed (e.g. an OCCT exception).
     Backend(String),
+    /// The operation succeeded but left no solid (e.g. a cut that removes
+    /// the whole body, or an intersect with no overlap).
+    EmptyResult(String),
 }
 
 impl fmt::Display for KernelError {
@@ -45,6 +50,7 @@ impl fmt::Display for KernelError {
         match self {
             KernelError::InvalidInput(msg) => write!(f, "invalid input: {msg}"),
             KernelError::Backend(msg) => write!(f, "kernel failure: {msg}"),
+            KernelError::EmptyResult(msg) => write!(f, "empty result: {msg}"),
         }
     }
 }
