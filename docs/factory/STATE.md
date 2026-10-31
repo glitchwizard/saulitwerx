@@ -13,6 +13,10 @@ issues_per_night: 2
 
 ## Log
 
+- 2026-10-31 reviewer: merged #102 (M3-01b) and #103 (M3-04e) (CI green, 3 checks each; QA reports + ship reports + 2 images verified; local gates on main+both exit 0, incl. swx-kernel and swx-qa occt); no roadmap check-off (M3-01 needs #106, M3-04 needs M3-04b..g); planned #104 M3-03a, #105 M3-04b, #106 M3-01c (needs-human: placement of sketch → kernel loop conversion) (ready: #97, #104, #105; all swx-kernel); merged branches not deleted (delete denied); no retro (not a Monday night)
+- 2026-10-31 builder: #98 M3-04e → PR #103 (02dfbb8; CI green, 3 checks; think-and-ship gates verified; QA pass)
+- 2026-10-31 builder: #91 M3-01b → PR #102 (6c27aa8; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
+- 2026-10-30 documenter: M3-01a → PR #101 merged (CI green, 3 checks; 76 pages; no feedback; no issues opened)
 - 2026-10-30 reviewer: no PRs to review (none labeled factory:review; #95 and #96 merged at 1:20am); no new issues (ready: #91, #97, #98; #97 depends on #91); no retro (not a Monday night)
 - 2026-10-30 builder: idle (nightly cap reached; 12:17am run took #90 → PR #95 and #92 → PR #96)
 - 2026-10-30 reviewer: merged #95 (M3-01a) and #96 (M3-04a spec) (CI green, 3 checks each; QA reports + ship reports + 2 images verified; local gates on main+both exit 0, incl. swx-kernel occt); no roadmap check-off (M3-01 needs #91, M3-04 needs M3-04b..g); planned #97 M3-02a, #98 M3-04e (ready: #91, #97, #98; #97 depends on #91); merged branches not deleted (delete denied); no retro (not a Monday night)
@@ -39,7 +43,3 @@ issues_per_night: 2
 - 2026-10-25 builder: idle (nightly cap reached; 12:17am run took #68 → PR #70 and #62 → PR #69)
 - 2026-10-25 builder: #62 M2-07a → PR #69 (CI green, 3 checks; think-and-ship gates verified; QA pass)
 - 2026-10-25 builder: #68 M2-05a → PR #70 (CI green, 3 checks; think-and-ship gates verified; QA pass)
-- 2026-10-24 documenter: M2-05 + QA-02 → PR #67 merged (CI green, 3 checks; 50 pages; no feedback; opened #68)
-- 2026-10-24 builder: #55 M2-06 → PR #66 (CI green, 3 checks; QA report posted; think-and-ship gates verified)
-- 2026-10-24 builder: #28 M2-04 → PR #65 (CI green, 3 checks; QA report posted; think-and-ship gates verified)
-- 2026-10-23 reviewer: merged #52 (M2-05) and #61 (QA-02) (CI green, 3 checks each; QA reports + ship reports + 2 images verified; local gates on main+both exit 0); docs PR #64 left open, no run-log comment
