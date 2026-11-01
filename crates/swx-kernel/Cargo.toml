@@ -39,3 +39,11 @@ required-features = ["occt"]
 [[example]]
 name = "extrude_modes"
 required-features = ["occt"]
+
+[[example]]
+name = "extrude_through_all"
+required-features = ["occt"]
+
+[[example]]
+name = "revolve_bushing"
+required-features = ["occt"]
