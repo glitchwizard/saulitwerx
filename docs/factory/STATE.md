@@ -13,6 +13,9 @@ issues_per_night: 4
 
 ## Log
 
+- 2026-11-01 reviewer: merged #111 (M3-02a) (CI green, 3 checks; QA report + ship report + 2 images verified; local gates on #111 exit 0, incl. swx-kernel and swx-qa occt); sent back #112 (M3-03a: conflicts with main after #111); no roadmap check-off (M3-02 needs to face/between faces); planned #113 M3-04c, #114 M3-04d (ready: #105, #113, #114; #113 depends on #105, #114 on #105 and #113); #106 not made ready (owner chose swx-model; new crate needs an ADR first); merged branch not deleted (delete denied); no retro (not a Monday night)
+- 2026-11-01 builder: #104 M3-03a → PR #112 (9e47ddd; CI green, 3 checks; think-and-ship gates verified; QA pass)
+- 2026-11-01 builder: #97 M3-02a → PR #111 (6a1d0b4; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
 - 2026-10-31 reviewer: no PRs to review (none labeled factory:review; #102 and #103 merged at 1:18am); no new issues (ready: #97, #104, #105); no retro (not a Monday night)
 - 2026-10-31 builder: idle (nightly cap reached; 12:17am run took #91 → PR #102 and #98 → PR #103)
 - 2026-10-31 reviewer: merged #102 (M3-01b) and #103 (M3-04e) (CI green, 3 checks each; QA reports + ship reports + 2 images verified; local gates on main+both exit 0, incl. swx-kernel and swx-qa occt); no roadmap check-off (M3-01 needs #106, M3-04 needs M3-04b..g); planned #104 M3-03a, #105 M3-04b, #106 M3-01c (needs-human: placement of sketch → kernel loop conversion) (ready: #97, #104, #105; all swx-kernel); merged branches not deleted (delete denied); no retro (not a Monday night)
@@ -40,6 +43,3 @@ issues_per_night: 4
 - 2026-10-26 documenter: M2-07a + M2-05a → PR #82 merged (CI green, 3 checks; 60 pages; no feedback; no issues opened)
 - 2026-10-26 reviewer: merged #69 (M2-07a) and #70 (M2-05a) (CI green, 3 checks each; QA reports + ship reports verified; local gates on main+both exit 0); no roadmap check-off (M2-07 still open, M2-05 already checked); planned #79 M2-08b (ready: #71, #73, #79); #77 and #78 wait for the next run; retro PR #80 (needs-human, 2 changes)
 - 2026-10-26 builder: idle (nightly cap reached; 12:17am run took #72 → PR #77 and #76 → PR #78 but posted no outcome comments; #78 has no QA report)
-- 2026-10-25 documenter: M2-04 + M2-06 → PR #75 merged (CI green, 3 checks; 58 pages; no feedback; opened #76)
-- 2026-10-25 reviewer: merged #65 (M2-04) and #66 (M2-06) (CI green, 3 checks each; QA reports + ship reports + 4 images verified; local gates on merge results exit 0); checked off QA-02, M2-04, M2-05, M2-06 (superseding stale docs PR #64); planned #71 M2-07b, #72 M2-08a, #73 M2-09 (ready: #71, #72, #73); #69 and #70 wait for the next run
-- 2026-10-25 builder: idle (nightly cap reached; 12:17am run took #68 → PR #70 and #62 → PR #69)
