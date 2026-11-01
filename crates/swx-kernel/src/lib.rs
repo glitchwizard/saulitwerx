@@ -27,7 +27,8 @@ pub use mesh::Mesh;
 #[cfg(feature = "occt")]
 pub use occt::{OcctKernel, OcctShape};
 pub use profile::{
-    Axis, Extent, ProfileLoop, Segment2, Workplane, LOOP_GAP_TOLERANCE, PERPENDICULAR_TOLERANCE,
+    Axis, Extent, ProfileLoop, Segment2, ThroughDirection, Workplane, LOOP_GAP_TOLERANCE,
+    PERPENDICULAR_TOLERANCE,
 };
 
 /// A point or vector in model space, `[x, y, z]`.
