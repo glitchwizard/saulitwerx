@@ -1,0 +1,118 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(kernel): through-all extent for extrude cuts",
+      "ref": "6a1d0b4",
+      "task_id": "m3-02a",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "m3-02a",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "passed": true,
+      "required": true,
+      "task_id": "m3-02a",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "required": true,
+      "task_id": "m3-02a",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "clippy swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m3-02a",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "test swx-kernel occt",
+      "passed": false,
+      "required": true,
+      "task_id": "m3-02a",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "test swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m3-02a",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "clippy swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m3-02a",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "test swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m3-02a",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`pub enum ThroughDirection { Normal, Reversed, Both }` and a new variant `Extent::ThroughAll(ThroughDirection)`, documented. `Normal` goes along the workplane normal, `Reversed` against it, `Both` both ways.",
+      "`extrude_feature` accepts `Extent::ThroughAll` only with `ExtrudeMode::Cut`. It replaces the extent with a finite one that reaches past the target in the chosen direction (for example `Distance(±L)` or `Symmetric(2L)`, with `L` = distance between the face and target bounding-box centers + half of each box diagonal + 1). The doc comment explains the bound.",
+      "Errors, each with a test and never a panic: `Kernel::extrude` with `Extent::ThroughAll` (no target to measure); `ThroughAll` with `NewSolid`, `Join` or `Intersect`; a through-all cut that removes nothing: the result volume equals the target volume within a relative 1e-9 (for example, `Normal` from the top face pointing away from the body). The message says the cut misses the target.",
+      "Tests on a target `make_box((0, 0, 0), (40, 25, 100))` with a circle of radius 5 centered at (20, 12.5) on an XY workplane, volumes within a relative 1e-6: origin (0, 0, 100), `Reversed`: volume 100000 − 2500π ≈ 92146.0184, face count 7; origin (0, 0, 110) (above the body), `Reversed`: same volume and face count; origin (0, 0, 50), `Both`: same volume and face count; origin (0, 0, 50), `Normal`: blind hole from z = 50 to 100, volume 100000 − 1250π ≈ 96073.0092, face count 8; `Workplane::YZ` with a circle of radius 5 at (u, v) = (12.5, 50), `Normal`: a hole along x through all 40, volume 100000 − 1000π ≈ 96858.4073, face count 7.",
+      "No new dependencies. `swx-kernel` still has no workspace dependencies.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and so do the CI `swx-kernel (occt)` job commands.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-01T07:23:45.742297611+00:00",
+    "constraints": [],
+    "created_at": "2026-11-01T07:23:10.828670973+00:00",
+    "description": "M3-02a: Extrude extent \"through all\" for cuts (one side, reversed, both sides)",
+    "project_id": "saulitwerx",
+    "scope": "swx-kernel only; PR #111",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 8,
+      "estimate": "small",
+      "id": "m3-02a",
+      "status": "completed",
+      "title": "Through-all extent for extrude cuts (#97, PR #111)",
+      "type": "implement"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
