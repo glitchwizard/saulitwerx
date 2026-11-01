@@ -73,6 +73,16 @@ extern "C" {
     fn swx_occt_bounding_box(s: *const RawShape, out: *mut c_double) -> c_int;
     fn swx_occt_shape_free(s: *mut RawShape);
     fn swx_occt_face_count(s: *const RawShape, out: *mut usize) -> c_int;
+    fn swx_occt_sub_shape_count(s: *const RawShape, kind: c_int, out: *mut usize) -> c_int;
+    fn swx_occt_adjacent(
+        s: *const RawShape,
+        of_kind: c_int,
+        of_index: usize,
+        kind: c_int,
+        out: *mut usize,
+        cap: usize,
+        len: *mut usize,
+    ) -> c_int;
     fn swx_occt_export_step(s: *const RawShape, path: *const c_char) -> c_int;
     fn swx_occt_import_step(path: *const c_char, out: *mut *mut RawShape) -> c_int;
     fn swx_occt_tessellate(
@@ -221,6 +231,57 @@ pub(crate) fn face_count(s: &ShapeHandle) -> Option<usize> {
     // writable `usize` on our stack (`size_t` and `usize` share a layout).
     let status = unsafe { swx_occt_face_count(s.0.as_ptr(), &mut out) };
     (status == 0).then_some(out)
+}
+
+/// Number of distinct sub-shapes of shim kind code `kind` (0 face, 1 edge, 2 vertex).
+pub(crate) fn sub_shape_count(s: &ShapeHandle, kind: i32) -> Option<usize> {
+    let mut out = 0usize;
+    // SAFETY: `s` is a live handle read-only for the call; `out` is a valid
+    // writable `usize` on our stack (`size_t` and `usize` share a layout).
+    let status = unsafe { swx_occt_sub_shape_count(s.0.as_ptr(), kind, &mut out) };
+    (status == 0).then_some(out)
+}
+
+/// 0-based indices of the sub-shapes of kind code `kind` adjacent to
+/// sub-shape `of_index` of kind code `of_kind`, possibly with duplicates.
+/// `cap` is the first buffer size; if the shim finds more, it reports how
+/// many and the call is repeated once with a buffer that large.
+pub(crate) fn adjacent(
+    s: &ShapeHandle,
+    of_kind: i32,
+    of_index: usize,
+    kind: i32,
+    cap: usize,
+) -> Option<Vec<usize>> {
+    let mut cap = cap;
+    for _ in 0..2 {
+        let mut out = vec![0usize; cap];
+        let mut len = 0usize;
+        // SAFETY: `s` is a live handle read-only for the call; `out` is a
+        // valid writable buffer of exactly `cap` `usize`s (`size_t` layout),
+        // and the shim writes at most `cap` of them; `len` is a valid
+        // writable `usize`. Neither pointer is retained.
+        let status = unsafe {
+            swx_occt_adjacent(
+                s.0.as_ptr(),
+                of_kind,
+                of_index,
+                kind,
+                out.as_mut_ptr(),
+                cap,
+                &mut len,
+            )
+        };
+        if status == 0 && len <= cap {
+            out.truncate(len);
+            return Some(out);
+        }
+        if len <= cap {
+            return None;
+        }
+        cap = len;
+    }
+    None
 }
 
 /// Writes `s` as STEP to `path`. Returns `false` on any failure.
