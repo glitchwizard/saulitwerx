@@ -1,0 +1,111 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(kernel): sub-shape counts and adjacency",
+      "ref": "39cc854",
+      "task_id": "gates-105",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt --all --check",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-105",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy --workspace --all-targets -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-105",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test --workspace",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-105",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "clippy swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-105",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "test swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-105",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "clippy swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-105",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "test swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-105",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`pub enum TopoKind { Face, Edge, Vertex }` and `pub struct SubShape { pub kind: TopoKind, pub index: usize }`, documented, deriving at least `Debug, Clone, Copy, PartialEq, Eq, Hash`.",
+      "`Kernel::sub_shape_count(&self, s, kind) -> Result<usize, KernelError>` and `Kernel::adjacent(&self, s, of: SubShape, kind: TopoKind) -> Result<Vec<SubShape>, KernelError>`, documented and implemented for `OcctKernel`. `adjacent` works for every pair of different kinds (up: faces of an edge, edges of a vertex, faces of a vertex; down: edges of a face, vertices of an edge, vertices of a face). Its result is sorted by index and has no duplicates.",
+      "Box test: `make_box((0, 0, 0), (10, 20, 30))` has 6 faces, 12 edges and 8 vertices. Every face has 4 edges and 4 vertices, every edge has 2 faces and 2 vertices, every vertex has 3 edges and 3 faces. Going up and down agree: edge `e` is in `adjacent(face f, Edge)` exactly when face `f` is in `adjacent(edge e, Face)`, for all pairs.",
+      "Plate test: the #90 plate with a hole, a 40 × 25 rectangle from (0, 0) with a circle of radius 5 at (20, 12.5) as a hole on `Workplane::XY`, extruded by `Distance(10)`. It has 7 faces, 15 edges and 10 vertices (the hole has one seam edge; this satisfies the Euler–Poincaré formula V − E + F − R = 2(S − G) with R = 2 inner loops, S = 1, G = 1). Exactly 2 faces have 5 edges (the caps), 4 faces have 4 (the flat sides), and 1 face has 3 (the hole: two circles and the seam). If OCCT reports other counts, explain them in the PR and the QA report rather than changing the test to match silently.",
+      "Errors, each with a test and never a panic: an index out of range for its kind, and `of.kind == kind`, both `InvalidInput`.",
+      "No new dependencies. `swx-kernel` still has no workspace dependencies. Every new shim function is `noexcept` and catches C++ exceptions; every new `unsafe` block is in `ffi` and documented.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and so do the CI `swx-kernel (occt)` job commands.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-01T10:29:45.630446065+00:00",
+    "constraints": [],
+    "created_at": "2026-11-01T10:29:16.682988054+00:00",
+    "description": "M3-04b: Kernel sub-shapes: TopoKind, SubShape, sub_shape_count and adjacent",
+    "project_id": "saulitwerx",
+    "scope": "swx-kernel; PR #116 branch feat/105-sub-shapes",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 7,
+      "estimate": "small",
+      "id": "gates-105",
+      "status": "completed",
+      "title": "Gates for PR #116 (39cc854)",
+      "type": "test"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
