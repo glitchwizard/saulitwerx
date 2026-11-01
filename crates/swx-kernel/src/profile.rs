@@ -97,27 +97,58 @@ pub enum Extent {
     Distance(f64),
     /// Total length, split equally on both sides of the workplane.
     Symmetric(f64),
+    /// Through the whole target body, in the given direction. Only
+    /// [`extrude_feature`](crate::extrude_feature) with
+    /// [`ExtrudeMode::Cut`](crate::ExtrudeMode::Cut) accepts it, because the
+    /// length is measured from the target; [`Kernel::extrude`](crate::Kernel::extrude)
+    /// rejects it.
+    ThroughAll(ThroughDirection),
+}
+
+/// Which way a [`Extent::ThroughAll`] extrude goes from the workplane.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ThroughDirection {
+    /// Along the workplane normal.
+    Normal,
+    /// Against the workplane normal.
+    Reversed,
+    /// Both ways.
+    Both,
 }
 
 impl Extent {
     /// Returns `(offset, length)`: the prism starts `offset` along the normal
     /// and runs `length > 0` along it.
+    ///
+    /// [`Extent::ThroughAll`] is [`KernelError::InvalidInput`]: it has no
+    /// length until [`extrude_feature`](crate::extrude_feature) resolves it
+    /// against a target.
     #[cfg_attr(not(feature = "occt"), allow(dead_code))]
     pub(crate) fn offset_and_length(self) -> Result<(f64, f64), KernelError> {
-        let (name, v) = match self {
-            Extent::Distance(d) => ("extrude distance", d),
-            Extent::Symmetric(l) => ("symmetric extrude length", l),
+        let check = |name: &str, v: f64| {
+            if v.is_finite() && v != 0.0 {
+                Ok(v)
+            } else {
+                Err(KernelError::InvalidInput(format!(
+                    "{name} must be finite and non-zero, got {v}"
+                )))
+            }
         };
-        if !v.is_finite() || v == 0.0 {
-            return Err(KernelError::InvalidInput(format!(
-                "{name} must be finite and non-zero, got {v}"
-            )));
+        match self {
+            Extent::Distance(d) => {
+                let d = check("extrude distance", d)?;
+                Ok(if d < 0.0 { (d, -d) } else { (0.0, d) })
+            }
+            Extent::Symmetric(l) => {
+                let l = check("symmetric extrude length", l)?.abs();
+                Ok((-l / 2.0, l))
+            }
+            Extent::ThroughAll(_) => Err(KernelError::InvalidInput(
+                "a through-all extent needs a target body to measure; \
+                 use extrude_feature with the cut mode"
+                    .into(),
+            )),
         }
-        Ok(match self {
-            Extent::Distance(d) if d < 0.0 => (d, -d),
-            Extent::Distance(d) => (0.0, d),
-            Extent::Symmetric(l) => (-l.abs() / 2.0, l.abs()),
-        })
     }
 }
 
@@ -683,6 +714,21 @@ mod tests {
         for bad in [0.0, -0.0, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
             assert!(Extent::Distance(bad).offset_and_length().is_err());
             assert!(Extent::Symmetric(bad).offset_and_length().is_err());
+        }
+    }
+
+    #[test]
+    fn through_all_has_no_length_of_its_own() {
+        for dir in [
+            ThroughDirection::Normal,
+            ThroughDirection::Reversed,
+            ThroughDirection::Both,
+        ] {
+            let err = Extent::ThroughAll(dir).offset_and_length().unwrap_err();
+            assert!(
+                matches!(&err, KernelError::InvalidInput(m) if m.contains("through-all")),
+                "{dir:?}: {err}"
+            );
         }
     }
 
