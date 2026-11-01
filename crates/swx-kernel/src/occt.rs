@@ -4,9 +4,10 @@ use std::path::Path;
 
 use crate::ffi::{self, BooleanOp, ShapeHandle};
 use crate::profile::prepare_face;
+use crate::topo::validate_adjacent;
 use crate::{
     input_file_cstring, path_to_cstring, validate_point, validate_size, BoundingBox, Extent,
-    Kernel, KernelError, Mesh, Point3, ProfileLoop, Workplane,
+    Kernel, KernelError, Mesh, Point3, ProfileLoop, SubShape, TopoKind, Workplane,
 };
 
 /// [`Kernel`] backed by the system OpenCascade libraries.
@@ -123,6 +124,28 @@ impl Kernel for OcctKernel {
 
     fn face_count(&self, s: &OcctShape) -> Result<usize, KernelError> {
         ffi::face_count(&s.0).ok_or_else(|| backend("face_count"))
+    }
+
+    fn sub_shape_count(&self, s: &OcctShape, kind: TopoKind) -> Result<usize, KernelError> {
+        ffi::sub_shape_count(&s.0, kind.code()).ok_or_else(|| backend("sub_shape_count"))
+    }
+
+    fn adjacent(
+        &self,
+        s: &OcctShape,
+        of: SubShape,
+        kind: TopoKind,
+    ) -> Result<Vec<SubShape>, KernelError> {
+        validate_adjacent(of, kind, self.sub_shape_count(s, of.kind)?)?;
+        let cap = self.sub_shape_count(s, kind)?;
+        let mut indices = ffi::adjacent(&s.0, of.kind.code(), of.index, kind.code(), cap)
+            .ok_or_else(|| backend("adjacent"))?;
+        indices.sort_unstable();
+        indices.dedup();
+        Ok(indices
+            .into_iter()
+            .map(|index| SubShape { kind, index })
+            .collect())
     }
 
     fn export_step(&self, s: &OcctShape, path: &Path) -> Result<(), KernelError> {
@@ -553,5 +576,97 @@ mod tests {
             .export_step(&b, &dir.join("no/such/dir/out.step"))
             .is_err());
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    const KINDS: [TopoKind; 3] = [TopoKind::Face, TopoKind::Edge, TopoKind::Vertex];
+
+    fn sub(kind: TopoKind, index: usize) -> SubShape {
+        SubShape { kind, index }
+    }
+
+    /// For each sub-shape of `of`, how many of `kind` are adjacent to it.
+    fn adjacency_counts(s: &OcctShape, of: TopoKind, kind: TopoKind) -> Vec<usize> {
+        (0..K.sub_shape_count(s, of).unwrap())
+            .map(|i| {
+                let adj = K.adjacent(s, sub(of, i), kind).unwrap();
+                assert!(adj.windows(2).all(|w| w[0].index < w[1].index));
+                assert!(adj.iter().all(|a| a.kind == kind));
+                adj.len()
+            })
+            .collect()
+    }
+
+    /// Up and down agree: `b ∈ adjacent(a, kb)` exactly when `a ∈ adjacent(b, ka)`.
+    fn assert_symmetric(s: &OcctShape) {
+        for ka in KINDS {
+            for kb in KINDS.into_iter().filter(|&k| k != ka) {
+                for i in 0..K.sub_shape_count(s, ka).unwrap() {
+                    for b in K.adjacent(s, sub(ka, i), kb).unwrap() {
+                        assert!(
+                            K.adjacent(s, b, ka).unwrap().contains(&sub(ka, i)),
+                            "{ka:?} {i} lists {b:?}, but not the other way round"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn box_sub_shapes_and_adjacency() {
+        let b = K.make_box([0.0; 3], [10.0, 20.0, 30.0]).unwrap();
+        let counts = KINDS.map(|k| K.sub_shape_count(&b, k).unwrap());
+        assert_eq!(counts, [6, 12, 8]);
+        use TopoKind::{Edge, Face, Vertex};
+        assert_eq!(adjacency_counts(&b, Face, Edge), vec![4; 6]);
+        assert_eq!(adjacency_counts(&b, Face, Vertex), vec![4; 6]);
+        assert_eq!(adjacency_counts(&b, Edge, Face), vec![2; 12]);
+        assert_eq!(adjacency_counts(&b, Edge, Vertex), vec![2; 12]);
+        assert_eq!(adjacency_counts(&b, Vertex, Edge), vec![3; 8]);
+        assert_eq!(adjacency_counts(&b, Vertex, Face), vec![3; 8]);
+        assert_symmetric(&b);
+    }
+
+    #[test]
+    fn plate_with_hole_sub_shapes_and_adjacency() {
+        let plate = K
+            .extrude(&plate_face(&Workplane::XY), Extent::Distance(10.0))
+            .unwrap();
+        let counts = KINDS.map(|k| K.sub_shape_count(&plate, k).unwrap());
+        assert_eq!(counts, [7, 15, 10]);
+        let mut edges_per_face = adjacency_counts(&plate, TopoKind::Face, TopoKind::Edge);
+        edges_per_face.sort_unstable();
+        assert_eq!(edges_per_face, vec![3, 4, 4, 4, 4, 5, 5]);
+        assert_symmetric(&plate);
+    }
+
+    #[test]
+    fn adjacent_rejects_same_kind_and_out_of_range() {
+        let b = K.make_box([0.0; 3], [10.0, 20.0, 30.0]).unwrap();
+        for kind in KINDS {
+            let err = K.adjacent(&b, sub(kind, 0), kind).unwrap_err();
+            assert!(
+                matches!(err, KernelError::InvalidInput(_)),
+                "{kind:?}: {err}"
+            );
+        }
+        for (kind, n) in KINDS.into_iter().zip([6, 12, 8]) {
+            let other = if kind == TopoKind::Face {
+                TopoKind::Edge
+            } else {
+                TopoKind::Face
+            };
+            assert!(K.adjacent(&b, sub(kind, n - 1), other).is_ok());
+            let err = K.adjacent(&b, sub(kind, n), other).unwrap_err();
+            assert!(
+                matches!(err, KernelError::InvalidInput(_)),
+                "{kind:?}: {err}"
+            );
+            let err = K.adjacent(&b, sub(kind, 99), other).unwrap_err();
+            assert!(
+                matches!(err, KernelError::InvalidInput(_)),
+                "{kind:?}: {err}"
+            );
+        }
     }
 }

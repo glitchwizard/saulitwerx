@@ -16,6 +16,7 @@ use std::path::Path;
 mod feature;
 mod mesh;
 mod profile;
+mod topo;
 
 #[cfg(feature = "occt")]
 mod ffi;
@@ -30,6 +31,7 @@ pub use profile::{
     Extent, ProfileLoop, Segment2, ThroughDirection, Workplane, LOOP_GAP_TOLERANCE,
     PERPENDICULAR_TOLERANCE,
 };
+pub use topo::{SubShape, TopoKind};
 
 /// A point or vector in model space, `[x, y, z]`.
 pub type Point3 = [f64; 3];
@@ -128,6 +130,26 @@ pub trait Kernel {
 
     /// Number of distinct faces in `s`.
     fn face_count(&self, s: &Self::Shape) -> Result<usize, KernelError>;
+
+    /// Number of distinct sub-shapes of `kind` in `s` (shared ones counted once).
+    ///
+    /// Valid [`SubShape`] indices for `kind` are `0..count`.
+    fn sub_shape_count(&self, s: &Self::Shape, kind: TopoKind) -> Result<usize, KernelError>;
+    /// The sub-shapes of `kind` adjacent to `of` in `s`, sorted by index,
+    /// without duplicates.
+    ///
+    /// Going up, it returns the sub-shapes that contain `of` (faces of an
+    /// edge, edges or faces of a vertex); going down, the ones `of` contains
+    /// (edges or vertices of a face, vertices of an edge). `of.kind == kind`
+    /// and an `of.index` out of range for its kind are
+    /// [`KernelError::InvalidInput`], checked before anything reaches the
+    /// backend.
+    fn adjacent(
+        &self,
+        s: &Self::Shape,
+        of: SubShape,
+        kind: TopoKind,
+    ) -> Result<Vec<SubShape>, KernelError>;
 
     /// Writes `s` to a STEP (ISO 10303-21) file at `path`, replacing any
     /// existing file. Lengths are written in millimetres.

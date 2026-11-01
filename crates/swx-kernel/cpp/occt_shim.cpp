@@ -42,7 +42,9 @@
 #include <TopoDS_Shape.hxx>
 #include <TopoDS_Vertex.hxx>
 #include <TopoDS_Wire.hxx>
+#include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
 #include <TopTools_IndexedMapOfShape.hxx>
+#include <TopTools_ListIteratorOfListOfShape.hxx>
 #include <gp_Ax2.hxx>
 #include <gp_Ax3.hxx>
 #include <gp_Circ.hxx>
@@ -451,6 +453,92 @@ int swx_occt_face_count(const SwxShape* s, size_t* out) noexcept {
         TopExp::MapShapes(s->shape, TopAbs_FACE, faces);
         *out = static_cast<size_t>(faces.Extent());
         return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+// Maps a sub-shape kind code (0 face, 1 edge, 2 vertex) to its OCCT type.
+static bool topo_kind(int kind, TopAbs_ShapeEnum* out) {
+    switch (kind) {
+        case 0: *out = TopAbs_FACE; return true;
+        case 1: *out = TopAbs_EDGE; return true;
+        case 2: *out = TopAbs_VERTEX; return true;
+        default: return false;
+    }
+}
+
+// Number of distinct sub-shapes of `kind` (shared ones counted once).
+int swx_occt_sub_shape_count(const SwxShape* s, int kind, size_t* out) noexcept {
+    TopAbs_ShapeEnum type;
+    if (s == nullptr || out == nullptr || !topo_kind(kind, &type)) {
+        return -1;
+    }
+    try {
+        TopTools_IndexedMapOfShape map;
+        TopExp::MapShapes(s->shape, type, map);
+        *out = static_cast<size_t>(map.Extent());
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+// Indices (0-based, in the TopExp::MapShapes order of `kind`) of the
+// sub-shapes of `kind` adjacent to sub-shape `of_index` of `of_kind`.
+// Going up (e.g. faces of an edge) uses TopExp::MapShapesAndAncestors; going
+// down (e.g. edges of a face) uses TopExp::MapShapes on the sub-shape. Writes
+// at most `cap` indices to `out` and the number found to `len`; returns -1 if
+// that number exceeds `cap`. May contain duplicates (e.g. a seam edge lists its
+// face twice); the caller sorts and deduplicates.
+int swx_occt_adjacent(const SwxShape* s, int of_kind, size_t of_index, int kind,
+                      size_t* out, size_t cap, size_t* len) noexcept {
+    TopAbs_ShapeEnum of_type;
+    TopAbs_ShapeEnum type;
+    if (s == nullptr || len == nullptr || (out == nullptr && cap > 0) ||
+        !topo_kind(of_kind, &of_type) || !topo_kind(kind, &type) || of_kind == kind) {
+        return -1;
+    }
+    try {
+        TopTools_IndexedMapOfShape of_map;
+        TopExp::MapShapes(s->shape, of_type, of_map);
+        if (of_index >= static_cast<size_t>(of_map.Extent())) {
+            return -1;
+        }
+        const TopoDS_Shape& of = of_map.FindKey(static_cast<int>(of_index) + 1);
+        TopTools_IndexedMapOfShape kind_map;
+        TopExp::MapShapes(s->shape, type, kind_map);
+
+        size_t n = 0;
+        auto push = [&](const TopoDS_Shape& sub) {
+            const int i = kind_map.FindIndex(sub);
+            if (i > 0) {
+                if (n < cap) {
+                    out[n] = static_cast<size_t>(i - 1);
+                }
+                ++n;
+            }
+        };
+        if (kind < of_kind) {
+            // Up: `kind` is the higher-dimensional one (face < edge < vertex).
+            TopTools_IndexedDataMapOfShapeListOfShape ancestors;
+            TopExp::MapShapesAndAncestors(s->shape, of_type, type, ancestors);
+            const int key = ancestors.FindIndex(of);
+            if (key > 0) {
+                for (TopTools_ListIteratorOfListOfShape it(ancestors.FindFromIndex(key));
+                     it.More(); it.Next()) {
+                    push(it.Value());
+                }
+            }
+        } else {
+            TopTools_IndexedMapOfShape subs;
+            TopExp::MapShapes(of, type, subs);
+            for (int i = 1; i <= subs.Extent(); ++i) {
+                push(subs.FindKey(i));
+            }
+        }
+        *len = n;
+        return n <= cap ? 0 : -1;
     } catch (...) {
         return -1;
     }
