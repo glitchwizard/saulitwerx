@@ -134,7 +134,7 @@ A region can have holes. In the plate sketch the rectangle is one loop and the c
 
 Pieces that don't close a loop, like a line with a free end, are #term[open edges]. They are left out of every region and listed separately, so you can find the gap. Pieces that cross each other are an error: Saulitwerx won't guess which of the shapes they form you meant.
 
-*In Saulitwerx today:* profiles are worked out from any sketch of lines, circles and arcs, with holes, nested islands and open edges (@sec-profiles). The geometry engine can extrude an outline with holes into a solid (@ch-extrude), but the outline is typed in by hand: a sketch's regions can't be passed to it yet.
+*In Saulitwerx today:* profiles are worked out from any sketch of lines, circles and arcs, with holes, nested islands and open edges (@sec-profiles). The geometry engine can extrude an outline with holes into a solid (@ch-extrude), or revolve one around an axis (@ch-revolve), but the outline is typed in by hand: a sketch's regions can't be passed to either yet.
 
 == Parameters <sec-parameter>
 
