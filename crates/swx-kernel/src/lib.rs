@@ -22,12 +22,12 @@ mod ffi;
 #[cfg(feature = "occt")]
 mod occt;
 
-pub use feature::{extrude_feature, ExtrudeMode, EMPTY_VOLUME_TOLERANCE};
+pub use feature::{extrude_feature, revolve_feature, ExtrudeMode, EMPTY_VOLUME_TOLERANCE};
 pub use mesh::Mesh;
 #[cfg(feature = "occt")]
 pub use occt::{OcctKernel, OcctShape};
 pub use profile::{
-    Extent, ProfileLoop, Segment2, Workplane, LOOP_GAP_TOLERANCE, PERPENDICULAR_TOLERANCE,
+    Axis, Extent, ProfileLoop, Segment2, Workplane, LOOP_GAP_TOLERANCE, PERPENDICULAR_TOLERANCE,
 };
 
 /// A point or vector in model space, `[x, y, z]`.
@@ -104,6 +104,19 @@ pub trait Kernel {
     ///
     /// A zero or non-finite length is an error.
     fn extrude(&self, face: &Self::Shape, extent: Extent) -> Result<Self::Shape, KernelError>;
+    /// Solid swept by turning a planar `face` `angle` radians about `axis`.
+    ///
+    /// `axis.dir` is normalized first; a positive angle turns counterclockwise
+    /// looking down it (right-hand rule). It is [`KernelError::InvalidInput`],
+    /// checked before the backend, when the angle is not finite, is ≤ 0 or is
+    /// above 2π (2π itself, within 1e-12, is a full turn), or when the axis
+    /// origin is not finite or its direction is zero or not finite.
+    fn revolve(
+        &self,
+        face: &Self::Shape,
+        axis: Axis,
+        angle: f64,
+    ) -> Result<Self::Shape, KernelError>;
 
     /// Boolean union `a ∪ b`.
     fn union(&self, a: &Self::Shape, b: &Self::Shape) -> Result<Self::Shape, KernelError>;

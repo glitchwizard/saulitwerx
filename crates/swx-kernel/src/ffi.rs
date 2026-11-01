@@ -68,6 +68,18 @@ extern "C" {
         length: c_double,
         out: *mut *mut RawShape,
     ) -> c_int;
+    #[allow(clippy::too_many_arguments)]
+    fn swx_occt_revolve(
+        s: *const RawShape,
+        ox: c_double,
+        oy: c_double,
+        oz: c_double,
+        dx: c_double,
+        dy: c_double,
+        dz: c_double,
+        angle: c_double,
+        out: *mut *mut RawShape,
+    ) -> c_int;
     fn swx_occt_volume(s: *const RawShape, out: *mut c_double) -> c_int;
     fn swx_occt_surface_area(s: *const RawShape, out: *mut c_double) -> c_int;
     fn swx_occt_bounding_box(s: *const RawShape, out: *mut c_double) -> c_int;
@@ -188,6 +200,34 @@ pub(crate) fn extrude(face: &ShapeHandle, offset: f64, length: f64) -> Option<Sh
     // SAFETY: as in `boolean`: `face` is a live handle read-only for the call
     // and not retained; `raw` receives a new, independently owned handle.
     let status = unsafe { swx_occt_extrude(face.0.as_ptr(), offset, length, &mut raw) };
+    take(status, raw)
+}
+
+/// Revolves `face` by `angle` radians about the axis through `origin` along
+/// `dir` (already validated: finite, `dir` normalized, `0 < angle ≤ 2π`).
+pub(crate) fn revolve(
+    face: &ShapeHandle,
+    origin: [f64; 3],
+    dir: [f64; 3],
+    angle: f64,
+) -> Option<ShapeHandle> {
+    let mut raw = ptr::null_mut();
+    // SAFETY: as in `boolean`: `face` is a live handle read-only for the call
+    // and not retained; the other arguments are plain doubles by value; `raw`
+    // receives a new, independently owned handle.
+    let status = unsafe {
+        swx_occt_revolve(
+            face.0.as_ptr(),
+            origin[0],
+            origin[1],
+            origin[2],
+            dir[0],
+            dir[1],
+            dir[2],
+            angle,
+            &mut raw,
+        )
+    };
     take(status, raw)
 }
 

@@ -121,6 +121,37 @@ impl Extent {
     }
 }
 
+/// A revolve axis: the line through `origin` along `dir`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Axis {
+    /// A point on the axis.
+    pub origin: Point3,
+    /// Axis direction. Normalized before use; a positive revolve angle turns
+    /// counterclockwise looking down it (right-hand rule).
+    pub dir: [f64; 3],
+}
+
+/// Largest amount a revolve angle may exceed 2π and still count as a full turn.
+const FULL_TURN_TOLERANCE: f64 = 1e-12;
+
+/// Validates revolve inputs and returns the axis origin, the normalized axis
+/// direction and the angle (clamped to 2π when within
+/// [`FULL_TURN_TOLERANCE`] above it).
+#[cfg_attr(not(feature = "occt"), allow(dead_code))]
+pub(crate) fn prepare_revolve(
+    axis: Axis,
+    angle: f64,
+) -> Result<(Point3, [f64; 3], f64), KernelError> {
+    finite("revolve axis origin", &axis.origin)?;
+    let dir = normalized("revolve axis direction", axis.dir)?;
+    if !angle.is_finite() || angle <= 0.0 || angle > TAU + FULL_TURN_TOLERANCE {
+        return Err(invalid(format!(
+            "revolve angle must be in (0, 2π] radians, got {angle}"
+        )));
+    }
+    Ok((axis.origin, dir, angle.min(TAU)))
+}
+
 /// Segment kinds in the encoding the OCCT shim reads.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum EdgeKind {
@@ -667,6 +698,52 @@ mod tests {
         assert_eq!(v(Workplane::XY), [0.0, 1.0, 0.0]);
         assert_eq!(v(Workplane::XZ), [0.0, 0.0, 1.0]);
         assert_eq!(v(Workplane::YZ), [0.0, 0.0, 1.0]);
+    }
+
+    #[test]
+    fn revolve_inputs_are_validated() {
+        let z = Axis {
+            origin: [0.0; 3],
+            dir: [0.0, 0.0, 2.0],
+        };
+        assert_eq!(
+            prepare_revolve(z, 1.0),
+            Ok(([0.0; 3], [0.0, 0.0, 1.0], 1.0))
+        );
+        // 2π itself, and 2π plus a hair, are a full turn.
+        assert_eq!(prepare_revolve(z, TAU).unwrap().2, TAU);
+        assert_eq!(prepare_revolve(z, TAU + 1e-13).unwrap().2, TAU);
+        let bad_angles = [
+            0.0,
+            -0.0,
+            -1.0,
+            TAU + 1e-9,
+            7.0,
+            f64::NAN,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+        ];
+        for angle in bad_angles {
+            let err = prepare_revolve(z, angle).unwrap_err();
+            assert!(
+                matches!(&err, KernelError::InvalidInput(m) if m.contains("revolve angle")),
+                "{angle}: {err}"
+            );
+        }
+        for dir in [[0.0; 3], [f64::NAN, 0.0, 1.0], [0.0, f64::INFINITY, 0.0]] {
+            let err = prepare_revolve(Axis { dir, ..z }, 1.0).unwrap_err();
+            assert!(
+                matches!(&err, KernelError::InvalidInput(m) if m.contains("axis direction")),
+                "{dir:?}: {err}"
+            );
+        }
+        for origin in [[f64::NAN, 0.0, 0.0], [0.0, 0.0, f64::NEG_INFINITY]] {
+            let err = prepare_revolve(Axis { origin, ..z }, 1.0).unwrap_err();
+            assert!(
+                matches!(&err, KernelError::InvalidInput(m) if m.contains("axis origin")),
+                "{origin:?}: {err}"
+            );
+        }
     }
 
     #[test]
