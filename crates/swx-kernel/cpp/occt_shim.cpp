@@ -23,6 +23,7 @@
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <BRepPrimAPI_MakeCylinder.hxx>
 #include <BRepPrimAPI_MakePrism.hxx>
+#include <BRepPrimAPI_MakeRevol.hxx>
 #include <BRepPrimAPI_MakeSphere.hxx>
 #include <BRepTools.hxx>
 #include <BRep_Tool.hxx>
@@ -286,6 +287,30 @@ int swx_occt_extrude(const SwxShape* s, double offset, double length, SwxShape**
             return -1;
         }
         return emit(prism.Shape(), out);
+    } catch (...) {
+        return -1;
+    }
+}
+
+// Solid swept by turning a planar face `angle` radians about the axis through
+// (ox, oy, oz) with direction (dx, dy, dz) (OCCT reference documentation:
+// BRepPrimAPI_MakeRevol). A positive angle turns counterclockwise looking
+// down the axis direction (right-hand rule). The caller validates the inputs.
+int swx_occt_revolve(const SwxShape* s, double ox, double oy, double oz, double dx, double dy,
+                     double dz, double angle, SwxShape** out) noexcept {
+    if (s == nullptr || out == nullptr || !(angle > 0.0)) {
+        return -1;
+    }
+    try {
+        if (s->shape.IsNull() || s->shape.ShapeType() != TopAbs_FACE) {
+            return -1;
+        }
+        gp_Ax1 axis(gp_Pnt(ox, oy, oz), gp_Dir(dx, dy, dz));
+        BRepPrimAPI_MakeRevol revol(s->shape, axis, angle);
+        if (!revol.IsDone()) {
+            return -1;
+        }
+        return emit(revol.Shape(), out);
     } catch (...) {
         return -1;
     }

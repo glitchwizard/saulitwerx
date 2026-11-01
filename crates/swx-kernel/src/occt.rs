@@ -3,9 +3,9 @@
 use std::path::Path;
 
 use crate::ffi::{self, BooleanOp, ShapeHandle};
-use crate::profile::prepare_face;
+use crate::profile::{prepare_face, prepare_revolve};
 use crate::{
-    input_file_cstring, path_to_cstring, validate_point, validate_size, BoundingBox, Extent,
+    input_file_cstring, path_to_cstring, validate_point, validate_size, Axis, BoundingBox, Extent,
     Kernel, KernelError, Mesh, Point3, ProfileLoop, Workplane,
 };
 
@@ -80,6 +80,13 @@ impl Kernel for OcctKernel {
         ffi::extrude(&face.0, offset, length)
             .map(OcctShape)
             .ok_or_else(|| backend("extrude"))
+    }
+
+    fn revolve(&self, face: &OcctShape, axis: Axis, angle: f64) -> Result<OcctShape, KernelError> {
+        let (origin, dir, angle) = prepare_revolve(axis, angle)?;
+        ffi::revolve(&face.0, origin, dir, angle)
+            .map(OcctShape)
+            .ok_or_else(|| backend("revolve"))
     }
 
     fn union(&self, a: &OcctShape, b: &OcctShape) -> Result<OcctShape, KernelError> {
