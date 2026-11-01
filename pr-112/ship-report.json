@@ -1,0 +1,110 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(kernel): revolve a face about an axis, with result modes",
+      "ref": "9e47ddd",
+      "task_id": "m3-03a",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "m3-03a",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "passed": true,
+      "required": true,
+      "task_id": "m3-03a",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "required": true,
+      "task_id": "m3-03a",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "clippy swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m3-03a",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "test swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m3-03a",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "clippy swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m3-03a",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "test swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m3-03a",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`pub struct Axis { pub origin: Point3, pub dir: [f64; 3] }` and `Kernel::revolve(&self, face: &Self::Shape, axis: Axis, angle: f64) -> Result<Self::Shape, KernelError>`, documented, implemented for `OcctKernel`. The direction is normalized before use; a positive angle turns counterclockwise looking down `dir` (right-hand rule).",
+      "`pub fn revolve_feature<K: Kernel>(k: &K, face: &K::Shape, axis: Axis, angle: f64, mode: ExtrudeMode, target: Option<&K::Shape>) -> Result<K::Shape, KernelError>`, documented. It follows `extrude_feature`'s rules: `NewSolid` ignores `target`; the other modes need one (`InvalidInput`); a result volume below `EMPTY_VOLUME_TOLERANCE` is `EmptyResult`. Shared logic is factored, not copied.",
+      "Tests (behind `occt`) use a profile made with `make_face` on the workplane `origin (0, 0, 0)`, `x_dir (1, 0, 0)`, `normal (0, −1, 0)`, so that u is x and v is z. The axis is the z axis through the origin. Volumes within a relative 1e-6, boxes within 1e-6: Full turn: the rectangle x 10..20, z 0..5, angle 2π. Volume 1500π ≈ 4712.3890; bounding box (−20, −20, 0)–(20, 20, 5); 4 faces. Quarter turn: the same rectangle, angle π/2. Volume 375π ≈ 1178.0972; bounding box (0, 0, 0)–(20, 20, 5) when turning from +x towards +y; 6 faces. Revolve cut: target `make_box((−25, −25, 0), (50, 50, 10))`, the rectangle x 10..20, z 5..10, angle 2π, `Cut`. Volume 25000 − 1500π ≈ 20287.6110. Revolve join: target `make_cylinder` of radius 10 and height 5 on the z axis from z = 0, the rectangle x 10..20, z 0..5, angle 2π, `Join`. Volume 2000π ≈ 6283.1853 (a solid disc of radius 20).",
+      "Errors, each with a test and never a panic: angle ≤ 0, angle > 2π (allow 2π within 1e-12), a non-finite angle, a zero-length or non-finite axis direction, a non-finite axis origin: all `InvalidInput`, checked before anything reaches OCCT.",
+      "No new dependencies. `swx-kernel` still has no workspace dependencies. Every new shim function is `noexcept` and catches C++ exceptions; every new `unsafe` block is in `ffi` and documented.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and so do the CI `swx-kernel (occt)` job commands.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-01T07:29:41.637824473+00:00",
+    "constraints": [],
+    "created_at": "2026-11-01T07:29:21.194885058+00:00",
+    "description": "M3-03a: Revolve a face about an axis, and revolve result modes (new solid, join, cut, intersect)",
+    "project_id": "saulitwerx",
+    "scope": "swx-kernel only; PR #112",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 7,
+      "estimate": "medium",
+      "id": "m3-03a",
+      "status": "completed",
+      "title": "Revolve and revolve result modes (#104, PR #112)",
+      "type": "implement"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
