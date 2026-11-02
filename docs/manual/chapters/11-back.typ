@@ -6,6 +6,7 @@
 #{
   let g = (
     ("Binding", [The link between a sketch dimension and the parameter that drives it.]),
+    ("Axis of revolution", [The line a revolve turns its outline around.]),
     ("Bounding box", [The smallest box, with sides parallel to the axes, that holds a solid.]),
     ("Boolean operation", [Combining two solids by union, cut or intersect.]),
     ("CAD", [Computer-aided design: using a computer to design physical objects.]),
@@ -50,6 +51,8 @@
     ("Profile", [The regions of a sketch: the areas a feature can turn into a solid.]),
     ("Redundant", [Said of a rule that repeats what other rules already say.]),
     ("Region", [A flat area enclosed by an outer loop, minus any holes inside it.]),
+    ("Revolve", [Turning a flat outline around an axis into a round solid.]),
+    ("Revolve angle", [How far a revolve turns: a full turn (2π radians, 360°) or part of one.]),
     ("Sketch", [A 2D drawing on a plane, made of points, lines, circles and arcs.]),
     ("Solid", [A closed 3D shape with an inside and an outside.]),
     ("Solver", [The calculation that moves sketch geometry until every constraint holds.]),
@@ -57,7 +60,8 @@
     ("STEP", [An international standard file format (ISO 10303) for exchanging 3D parts.]),
     ("Surface area", [The total area of a solid's faces.]),
     ("Tangent", [Touching without cutting in: a line and a circle, or two circles, that meet at one point.]),
-    ("Target body", [The solid an extrude joins to, cuts from or intersects with.]),
+    ("Target body", [The solid an extrude or a revolve joins to, cuts from or intersects with.]),
+    ("Through all", [An extrude cut with no depth of its own, which goes right through the target body.]),
     ("Under-constrained", [Said of a sketch with at least one degree of freedom left.]),
     ("Union", [A Boolean operation that joins two solids into one.]),
     ("Unit", [What a number measures in, such as millimeters.]),
@@ -72,6 +76,13 @@
 }
 
 = What's new
+
+== 2026-11-01: revolve, and cuts through all
+
+- *New:* revolve a flat outline around an axis into a round solid, by a full turn or part of one, as a new solid or joined to, cut from or intersected with a part (@ch-revolve, @sec-ref-extrude).
+- *New:* an extrude cut can go right through a part, one way or both, however thick the part is (@sec-through-all).
+- *Pictures:* a flanged bushing at three quarters of a turn and at a full turn, the bushing with a groove, and a block with two through holes.
+- Help: nine new error messages, eight new common mistakes, and known limitations updated. The limitations that there is no revolve and no "through all" are gone.
 
 == 2026-10-31: extrude modes
 
@@ -142,8 +153,9 @@ These are the next items on the public roadmap. None of them works yet. When one
 #ref-table(
   columns: (auto, 1fr),
   header: ("Soon", "What you'll be able to do"),
-  [Extrude from a sketch], [Hand a sketch's region straight to the extrude, and extrude up to a face or through everything.],
-  [More part features], [Revolve, fillet, chamfer, shell and hole, driven by sketches.],
+  [Extrude from a sketch], [Hand a sketch's region straight to the extrude and the revolve, and extrude up to a face or between two faces.],
+  [Safer revolves], [A clear error when a revolve's axis runs through the outline or lies outside its plane.],
+  [More part features], [Fillet, chamfer, shell and hole, driven by sketches.],
   [Lasting references], [A feature built on a face or an edge keeps finding it when earlier features change.],
   [Part files], [Save a part with its full history, and open it again.],
   [Desktop app], [A window with a 3D view, a model browser, sketch mode and property panels.],
@@ -167,7 +179,7 @@ Later milestones add assemblies, 2D drawings and exploded views. The full plan i
       #text(font: sans, weight: "bold", fill: accent, "DRAW A SKETCH")
       #term-block("swx-qa sketch --fixture rectangle -o r.png\n  (or triangle-345)")
       #text(font: sans, weight: "bold", fill: accent, "SAMPLES")
-      #term-block("cargo run -p swx-sketch \\\n  --example plate_sketch\ncargo run -p swx-sketch \\\n  --example sketch_dof\ncargo run -p swx-sketch \\\n  --example centered_plate -- 60 25\ncargo run -p swx-sketch \\\n  --example slot_sketch\ncargo run -p swx-kernel --features occt \\\n  --example plate_with_hole -- plate.step\ncargo run -p swx-kernel --features occt \\\n  --example extrude_plate\ncargo run -p swx-core \\\n  --example feature_history\ncargo run -p swx-core \\\n  --example parameter_table\ncargo run -p swx-sketch \\\n  --example driven_plate\ncargo run -p swx-core \\\n  --example expressions\ncargo run -p swx-core \\\n  --example parameter_formulas\ncargo run -p swx-sketch \\\n  --example inferred_sketch")
+      #term-block("cargo run -p swx-sketch \\\n  --example plate_sketch\ncargo run -p swx-sketch \\\n  --example sketch_dof\ncargo run -p swx-sketch \\\n  --example centered_plate -- 60 25\ncargo run -p swx-sketch \\\n  --example slot_sketch\ncargo run -p swx-kernel --features occt \\\n  --example plate_with_hole -- plate.step\ncargo run -p swx-kernel --features occt \\\n  --example extrude_plate\ncargo run -p swx-kernel --features occt \\\n  --example revolve_bushing -- revolve\ncargo run -p swx-core \\\n  --example feature_history\ncargo run -p swx-core \\\n  --example parameter_table\ncargo run -p swx-sketch \\\n  --example driven_plate\ncargo run -p swx-core \\\n  --example expressions\ncargo run -p swx-core \\\n  --example parameter_formulas\ncargo run -p swx-sketch \\\n  --example inferred_sketch")
     ],
     [
       #text(font: sans, weight: "bold", fill: accent, "SKETCH CONSTRAINTS")
@@ -199,10 +211,11 @@ Later milestones add assemblies, 2D drawings and exploded views. The full plan i
         [`union` · `cut` · `intersect`], [Boolean result],
         [`make_face` · `extrude`], [outline → face → solid],
         [`extrude_feature`], [extrude and combine],
+        [`revolve_feature`], [revolve and combine],
         [`export_step` · `import_step`], [STEP file out / in],
       )
       #text(font: sans, weight: "bold", fill: accent, "UNITS")
-      \ Millimeters. Angles: degrees in feature parameters, radians in sketch arcs.
+      \ Millimeters. Angles: degrees in feature parameters; radians in sketch arcs and kernel revolves.
     ],
   )
 ]

@@ -26,7 +26,7 @@ Two more words come with it:
 - The #term[workplane] is the flat plane the outline is drawn on. It has its own left–right and up–down directions, and a third direction straight out of it, called its _normal_. The extrude goes along the normal.
 - The #term[extent] says how far the extrude goes: a distance one way, or a length split evenly on both sides of the workplane.
 
-*In Saulitwerx today:* the geometry engine can make a flat face from outlines of lines, arcs and circles on any workplane, and extrude it by a distance or symmetrically. The result can be a new solid, or be joined to a part, cut from it or intersected with it in the same step (@sec-extrude-modes). You type the outline's pieces into a small program; a sketch's regions (@sec-profiles) can't be handed to the extrude yet, and the extrude isn't recorded in a part's history.
+*In Saulitwerx today:* the geometry engine can make a flat face from outlines of lines, arcs and circles on any workplane, and extrude it by a distance or symmetrically. The result can be a new solid, or be joined to a part, cut from it or intersected with it in the same step (@sec-extrude-modes). A cut can also go through the whole part, however thick it is (@sec-through-all). You type the outline's pieces into a small program; a sketch's regions (@sec-profiles) can't be handed to the extrude yet, and the extrude isn't recorded in a part's history.
 
 == Extrude a profile <sec-extrude>
 
@@ -200,6 +200,76 @@ For `ExtrudeMode::NewSolid` the target isn't used, so pass `None`. That gives th
 
 #caution(title: [A result must have something left])[A cut that removes the whole target, or an intersect whose shapes don't overlap, leaves nothing. That is an error, `empty result: …`, not an empty part. The sample's last line shows one: a rectangle larger than the block, cut all the way through.]
 
+== Cut through the whole part <sec-through-all>
+
+#idx("through all")
+Holes for bolts and pins usually go all the way through a part. You could measure the part and cut exactly that deep, but if the part later gets thicker, the hole would stop short. A #term[through-all] cut has no depth of its own: it goes right through the target body, whatever its size.
+
+A through-all cut still needs a direction. It can go along the workplane's normal, against it, or both ways at once. Both ways is the one to use when the outline sits on a plane in the middle of the part (@fig-through-all).
+
+#image-row(
+  (
+    // cargo run -p swx-kernel --features occt --example extrude_through_all -- through
+    // swx-qa render --step through/through-<name>.step --size 900x700 -o docs/manual/img/through-<name>.png
+    ("img/through-down.png", "Down from the top face (reversed)", "A rectangular block with one round hole straight down through it"),
+    ("img/through-both.png", "Then both ways from the middle", "The same block with a second, smaller hole running sideways through it"),
+  ),
+  caption: [Two through-all cuts in a 40 × 25 × 10 mm block. The first hole is drawn on the top face and cut against its normal, down. The second is drawn on a plane through the middle of the block and cut both ways, out of the front and the back.],
+) <fig-through-all>
+
+#task-intro(
+  goal: [Cut two holes right through a block, one from its top face and one from a plane in its middle.],
+  needs: [Saulitwerx built with OpenCascade, and `swx-qa` built with it too (@ch-install).],
+  time: [5 minutes.],
+)
+
+#steps(
+  [Run the sample program, and tell it to save its parts in a folder called `through`:
+  #term-block("cargo run -p swx-kernel --features occt --example extrude_through_all -- through")
+  It prints a line for the block and one for each cut, then two errors on purpose, then the files it wrote:
+  #term-block(label: "Output", "block            10000.00 mm³   6 faces\ndown (reversed)   9497.35 mm³   7 faces\nboth ways         8790.49 mm³   8 faces\nup (normal) -> error: invalid input: the through-all cut misses the target: it removes nothing\njoin -> error: invalid input: a through-all extent works only with the cut mode, not \"join\"\n…  (the geometry engine's file reports)\nwrote through/through-down.step\nwrote through/through-both.step")],
+  [Read the `down` line. An 8 mm hole through 10 mm of block removes 502.65 mm³, and adds one face: the hole's wall.],
+  [Read the `both ways` line. A 6 mm hole through the block's 25 mm width removes another 706.86 mm³. The cut started in the middle of the block and went out through both sides.],
+  [Read the first error. From the top face, the normal points up, away from the block. A through-all cut that way finds nothing to remove, and says so.],
+  [Draw the result with both holes:
+  #term-block("target/release/swx-qa render --step through/through-both.step -o through-both.png")
+  Open `through-both.png`. You should see the block of @fig-through-all, with a hole down through its top and a smaller one through its side.],
+)
+
+#result[Two holes that go right through the block. If the block were 50 mm thick instead of 10, the same two cuts would still go through it.]
+
+=== How the sample is built
+
+The program is `crates/swx-kernel/examples/extrude_through_all.rs`. The extent is `Extent::ThroughAll`, with a direction:
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("Direction", "The cut goes"),
+  [`ThroughDirection::Normal`], [Along the workplane's normal.],
+  [`ThroughDirection::Reversed`], [Against the normal.],
+  [`ThroughDirection::Both`], [Both ways from the workplane.],
+)
+
+The first hole is drawn on the top face, so it goes against the normal, down into the block:
+
+```rust
+let drilled = extrude_feature(&k, &top_hole,
+    Extent::ThroughAll(ThroughDirection::Reversed),
+    ExtrudeMode::Cut, Some(&block))?;
+```
+
+The second is drawn on a workplane through the middle of the block, at y = 12.5, and cut from the result of the first:
+
+```rust
+let cross = extrude_feature(&k, &cross_hole,
+    Extent::ThroughAll(ThroughDirection::Both),
+    ExtrudeMode::Cut, Some(&drilled))?;
+```
+
+#note(title: [How far is "all"?])[Saulitwerx measures the outline and the target, and makes the cut a little longer than the distance needed to clear the whole target. That is why a through-all extent works only with `extrude_feature` and the cut mode: it needs a target to measure. `extrude` on its own refuses it.]
+
+#tip(title: [A missed cut is an error])[If a through-all cut removes nothing, Saulitwerx refuses it instead of handing back the part unchanged, so a cut that went the wrong way never passes unnoticed. Change the direction, or move the outline over the part.]
+
 == Common mistakes
 
 #set par(justify: false)
@@ -212,3 +282,5 @@ For `ExtrudeMode::NewSolid` the target isn't used, so pass `None`. That gives th
 - *Join, cut or intersect with no target.* These modes need a part to work on: `invalid input: extrude mode "cut" needs a target body`. Pass the part as `Some(&part)`, or use `ExtrudeMode::NewSolid`.
 - *A cut that goes the wrong way.* It misses the part, and the part comes back unchanged. Check the sign of the distance (@sec-extrude-modes).
 - *A cut that removes everything,* or an intersect that doesn't overlap: `empty result: extrude cut leaves no solid …`. Make the outline smaller than the face it cuts, or move it over the part.
+- *A through-all extent with another mode.* Only a cut can go through all: `a through-all extent works only with the cut mode, not "join"`. Give a distance for a join or an intersect.
+- *A through-all cut the wrong way.* It misses the part: `the through-all cut misses the target: it removes nothing`. On a top face, use `ThroughDirection::Reversed`, or `Both` (@sec-through-all).

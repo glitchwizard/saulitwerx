@@ -77,6 +77,14 @@ Every message starts with `swx-qa: `. No picture is written when there is an err
   [`invalid input: extrude distance must be finite and non-zero, got <v>` (or `symmetric extrude length`)], [The extent is zero or not a number.],
   [`kernel failure: extrude failed`], [The shape given to `extrude` isn't a face from `make_face`.],
   [`invalid input: extrude mode "join" needs a target body` (or `"cut"`, `"intersect"`)], [The mode combines with a part, but none was given. Pass the part as the target, or use `NewSolid` (@sec-extrude-modes).],
+  [`invalid input: a through-all extent works only with the cut mode, not "join"` (or another mode)], [Only a cut can go through all. Give a distance instead (@sec-through-all).],
+  [`invalid input: a through-all extent needs a target body to measure; use extrude_feature with the cut mode`], [A through-all extent was given to `extrude`, which has no target to measure. Use `extrude_feature` with `ExtrudeMode::Cut`.],
+  [`invalid input: the through-all cut misses the target: it removes nothing`], [The cut went the wrong way, or the outline isn't over the part. Change the direction or move the outline (@sec-through-all).],
+  [`invalid input: revolve angle must be in (0, 2π] radians, got <v>`], [The angle is zero, negative, more than a full turn, not a number, or given in degrees. Give radians: a full turn is 2π (@sec-revolve).],
+  [`invalid input: revolve axis direction must be non-zero` (or `must be finite, got …`), `revolve axis origin must be finite, got …`], [The axis is missing its direction, or has a number that isn't finite.],
+  [`kernel failure: revolve failed`], [The geometry engine couldn't make the revolve. Most often the axis runs through the outline; keep the outline on one side of it (@sec-revolve-mistakes). Also given when the shape isn't a face from `make_face`.],
+  [`invalid input: revolve mode "join" needs a target body` (or `"cut"`, `"intersect"`)], [As for an extrude: pass the part as the target, or use `NewSolid` (@sec-revolve-modes).],
+  [`empty result: revolve new solid leaves no solid (volume …)` (or `join`, `cut`, `intersect`)], [Nothing is left. For a new solid, the axis probably stands straight out of the outline's plane, so the outline only spins in place. For a cut or an intersect, as for an extrude.],
   [`empty result: extrude cut leaves no solid (volume …)` (or `intersect`, `join`)], [Nothing is left: the cut removed the whole part, or the intersect found no overlap. Make the outline smaller, or move it over the part.],
 )
 
@@ -165,10 +173,11 @@ For an unknown entity, `infer` and `add_inferred` give the sketch messages above
 == Known limitations
 
 - No desktop app, 3D view, mouse or keyboard controls yet.
-- A sketch's regions can't be extruded directly yet: type the outline's pieces into a program (@ch-extrude). There is no revolve, fillet or hole yet.
-- An extrude goes a set distance only: not "up to a face" or "through all". To cut through a part, give a distance at least as deep as the part.
-- An extrude's target is a solid you hold in your program. Faces and edges can't be picked or named yet, so the outline's workplane is given by its numbers (@sec-extrude-modes).
-- Extrudes aren't recorded in a part's history, so they don't rebuild when a parameter changes.
+- A sketch's regions can't be extruded or revolved directly yet: type the outline's pieces into a program (@ch-extrude, @ch-revolve). There is no fillet or hole yet.
+- An extrude goes a set distance, or through all for a cut (@sec-through-all); not "up to a face" or "between two faces".
+- A revolve turns one way from the outline's plane by an angle; it can't yet turn both ways or symmetrically. The axis isn't checked against the outline yet: one that runs through the outline, or isn't in its plane, gives an error or a broken solid instead of a clear message (@sec-revolve-mistakes).
+- An extrude's or a revolve's target is a solid you hold in your program. Faces and edges can't be picked or named yet, so the outline's workplane is given by its numbers (@sec-extrude-modes).
+- Extrudes and revolves aren't recorded in a part's history, so they don't rebuild when a parameter changes.
 - No native part files; work can't be saved with its history.
 - `swx-qa sketch` draws only its two built-in sketches. Your own sketches need a short program (@sec-picture-sketch). Sketch pictures show no dimension arrows and no marks for constraints such as horizontal.
 - A parameter's unit is free text. Only the seven units of @sec-ref-expr are understood by formulas; any other unit counts as none.

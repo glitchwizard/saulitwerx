@@ -80,6 +80,11 @@ Success and errors work as for `render`. `--step` and `--crease` belong to `rend
   [`cargo run -p swx-qa --example constraint_plots -- <dir> [<W>x<H>]`], [Draws the centered-plate and slot sketches as PNGs in `<dir>`.],
   [`cargo run -p swx-kernel --features occt --example plate_with_hole -- <file.step>`], [Builds the plate and saves it (@ch-solids). The file defaults to `plate.step`.],
   [`cargo run -p swx-kernel --features occt --example plate_stages -- <dir>`], [Saves the block, the cylinder and the plate as three STEP files in `<dir>`.],
+  [`cargo run -p swx-kernel --features occt --example extrude_plate -- <file.step>`], [Extrudes the plate from its outline (@sec-extrude).],
+  [`cargo run -p swx-kernel --features occt --example extrude_slot -- <file.step>`], [Extrudes a slot three ways (@sec-extrude-direction).],
+  [`cargo run -p swx-kernel --features occt --example extrude_modes -- <dir>`], [Joins, cuts and intersects extrudes with a block (@sec-extrude-modes). STEP files in `<dir>`.],
+  [`cargo run -p swx-kernel --features occt --example extrude_through_all -- <dir>`], [Cuts two holes through a block (@sec-through-all). STEP files in `<dir>`.],
+  [`cargo run -p swx-kernel --features occt --example revolve_bushing -- <dir>`], [Revolves a bushing and cuts a groove in it (@ch-revolve). STEP files in `<dir>`.],
   [`cargo run -p swx-core --example feature_history`], [Runs the history sample (@ch-history).],
   [`cargo run -p swx-core --example parameter_table`], [Runs the parameter-table sample (@sec-param-table).],
   [`cargo run -p swx-sketch --example driven_plate`], [Runs the bound-dimension sample (@sec-drive-sketch).],
@@ -111,7 +116,7 @@ The `occt` feature switches on OpenCascade. It is off by default, so a plain bui
 
 All positions must be finite numbers; all sizes finite and greater than zero.
 
-== Profiles and extrude <sec-ref-extrude>
+== Profiles, extrude and revolve <sec-ref-extrude>
 
 `make_face(plane, outer, holes)` makes a flat face on `plane`, bounded by the `outer` loop, with each loop in `holes` cut out. `extrude(face, extent)` sweeps that face along the plane's normal into a new solid (@ch-extrude).
 
@@ -126,6 +131,8 @@ All positions must be finite numbers; all sizes finite and greater than zero.
   [`ProfileLoop { segments }`], [Pieces in chain order, each meeting the next and the last meeting the first. Any piece may run backwards, and the loop may go either way round.],
   [`Extent::Distance(d)`], [`d` mm along the normal; negative goes the other way. Not zero.],
   [`Extent::Symmetric(l)`], [`l` mm in total, half on each side of the plane. Not zero.],
+  [`Extent::ThroughAll(dir)`], [Through the whole target body (@sec-through-all). Only `extrude_feature` with `ExtrudeMode::Cut` accepts it; `extrude` refuses it.],
+  [`ThroughDirection::Normal`, `::Reversed`, `::Both`], [Which way a through-all cut goes: along the normal, against it, or both ways.],
   [`LOOP_GAP_TOLERANCE`], [1e-7 mm: the largest gap between two ends that still counts as joined. Ends that close are moved to meet exactly.],
   [`PERPENDICULAR_TOLERANCE`], [1e-9: how far from a right angle `x_dir` and `normal` may be.],
 )
@@ -144,7 +151,18 @@ All numbers must be finite. A face is refused if a loop is empty, has no area, d
   [`EMPTY_VOLUME_TOLERANCE`], [1e-9 mm³: a result with less volume than this counts as empty and is refused with `EmptyResult`.],
 )
 
-A missing target is checked first, before any geometry is made. Errors from `extrude` and from the Boolean operations come through unchanged.
+A through-all extent with any mode but cut, and a missing target, are checked first, before any geometry is made. A through-all cut is made a little longer than the distance from the outline to the far side of the target, measured from their bounding boxes. If it leaves the target's volume unchanged (within a relative 1e-9), it is refused as a miss. Errors from `extrude` and from the Boolean operations come through unchanged.
+
+`revolve(face, axis, angle)` turns a face from `make_face` about `axis` by `angle` radians into a new solid (@ch-revolve). `revolve_feature(k, face, axis, angle, mode, target)` revolves it and combines the result with `target`, with the same modes and rules as `extrude_feature` (@sec-revolve-modes).
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("Type or value", "Fields and rules"),
+  [`Axis { origin, dir }`], [The line through the point `origin` along `dir`. `origin` finite; `dir` finite and non-zero, any length (it is scaled to length 1).],
+  [`angle`], [Radians, greater than 0 and at most 2π (a full turn; up to 1e-12 over 2π also counts as a full turn). A positive angle turns counterclockwise looking against `dir`, from its tip (right-hand rule).],
+)
+
+The axis and the angle are checked before any geometry is made. Saulitwerx doesn't yet check that the axis lies in the face's plane or stays clear of the face (@sec-revolve-mistakes).
 
 == Sketch entities and constraints <sec-ref-sketch>
 
@@ -425,7 +443,7 @@ A unit that is not one of the seven in @sec-ref-expr, including an empty one, co
   header: ("Quantity", "Unit"),
   [Length], [millimeter (mm)],
   [Area, volume], [mm², mm³],
-  [Angle], [degrees for feature parameters such as a revolve's sweep; radians for arc angles in sketches],
+  [Angle], [degrees for feature parameters such as a revolve's sweep; radians for arc angles in sketches and for the geometry engine's `revolve` and `revolve_feature`],
 )
 
 == Keyboard and mouse

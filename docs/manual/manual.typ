@@ -45,6 +45,7 @@
 #include "chapters/05-sketching.typ"
 #include "chapters/06-solids.typ"
 #include "chapters/06a-extrude.typ"
+#include "chapters/06b-revolve.typ"
 #include "chapters/07-pictures.typ"
 #include "chapters/08-history.typ"
 
