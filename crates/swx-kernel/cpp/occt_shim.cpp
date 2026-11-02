@@ -7,6 +7,7 @@
 // Shapes cross the boundary as opaque `SwxShape*` handles that own a heap
 // `TopoDS_Shape`. Rust frees each handle exactly once with `swx_occt_shape_free`.
 
+#include <BRepAdaptor_Curve.hxx>
 #include <BRepAdaptor_Surface.hxx>
 #include <BRepAlgoAPI_Common.hxx>
 #include <BRepAlgoAPI_Cut.hxx>
@@ -54,6 +55,7 @@
 #include <gp_Vec.hxx>
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -311,6 +313,89 @@ int swx_occt_revolve(const SwxShape* s, double ox, double oy, double oz, double 
             return -1;
         }
         return emit(revol.Shape(), out);
+    } catch (...) {
+        return -1;
+    }
+}
+
+// Data for the revolve input checks, which Rust makes (profile.rs,
+// `check_revolve_profile`). For a planar face `s` and an axis through
+// (ox, oy, oz) with unit direction (dx, dy, dz), writes 8 doubles to `out`:
+// a point on the face's plane (3), the plane's unit normal n (3), and the
+// minimum and maximum over the face of the signed distance (P - O) . w, with
+// w = d x n. When the axis lies in the plane, w is the in-plane unit vector
+// perpendicular to the axis, so that distance tells which side of the axis P
+// is on.
+//
+// The distance is linear in P, so its extremes over the face lie on the
+// boundary edges. On a line they are at the end points. On a circle
+// P(t) = C + r (cos t X + sin t Y) it is (C - O) . w + r (a cos t + b sin t)
+// with a = X . w, b = Y . w, and a cos t + b sin t = R cos(t - atan2(b, a)),
+// R = sqrt(a^2 + b^2) (harmonic addition), so the extremes are at
+// t = atan2(b, a) and that plus pi, where they fall inside the edge's
+// parameter range, and at the end points. Any other curve type is sampled at
+// 256 points. Returns -1 when `s` is not a planar face.
+int swx_occt_revolve_profile(const SwxShape* s, double ox, double oy, double oz, double dx,
+                             double dy, double dz, double* out) noexcept {
+    if (s == nullptr || out == nullptr) {
+        return -1;
+    }
+    try {
+        if (s->shape.IsNull() || s->shape.ShapeType() != TopAbs_FACE) {
+            return -1;
+        }
+        BRepAdaptor_Surface surface(TopoDS::Face(s->shape));
+        if (surface.GetType() != GeomAbs_Plane) {
+            return -1;
+        }
+        const gp_Pln plane = surface.Plane();
+        const gp_Pnt p0 = plane.Location();
+        const gp_Dir n = plane.Axis().Direction();
+        const gp_Pnt origin(ox, oy, oz);
+        const gp_Vec w = gp_Vec(dx, dy, dz).Crossed(gp_Vec(n));
+        double lo = std::numeric_limits<double>::infinity();
+        double hi = -lo;
+        auto add = [&](const gp_Pnt& p) {
+            const double v = gp_Vec(origin, p).Dot(w);
+            lo = std::min(lo, v);
+            hi = std::max(hi, v);
+        };
+        constexpr double kPi = 3.14159265358979323846;
+        constexpr double kTwoPi = 2.0 * kPi;
+        for (TopExp_Explorer ex(s->shape, TopAbs_EDGE); ex.More(); ex.Next()) {
+            BRepAdaptor_Curve curve(TopoDS::Edge(ex.Current()));
+            const double first = curve.FirstParameter();
+            const double last = curve.LastParameter();
+            add(curve.Value(first));
+            add(curve.Value(last));
+            if (curve.GetType() == GeomAbs_Line) {
+                continue;
+            }
+            if (curve.GetType() == GeomAbs_Circle) {
+                const gp_Ax2 pos = curve.Circle().Position();
+                const double a = gp_Vec(pos.XDirection()).Dot(w);
+                const double b = gp_Vec(pos.YDirection()).Dot(w);
+                const double t0 = std::atan2(b, a);
+                for (double t : {t0, t0 + kPi}) {
+                    // Shift t into [first, first + 2 pi) before the range test.
+                    t = first + std::fmod(std::fmod(t - first, kTwoPi) + kTwoPi, kTwoPi);
+                    if (t <= last) {
+                        add(curve.Value(t));
+                    }
+                }
+                continue;
+            }
+            constexpr int kSamples = 256;
+            for (int i = 1; i < kSamples; ++i) {
+                add(curve.Value(first + (last - first) * i / kSamples));
+            }
+        }
+        if (!(lo <= hi)) {
+            return -1;
+        }
+        const double values[8] = {p0.X(), p0.Y(), p0.Z(), n.X(), n.Y(), n.Z(), lo, hi};
+        std::copy(values, values + 8, out);
+        return 0;
     } catch (...) {
         return -1;
     }
