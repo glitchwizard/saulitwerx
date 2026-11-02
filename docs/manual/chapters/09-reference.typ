@@ -79,6 +79,7 @@ Success and errors work as for `render`. `--step` and `--crease` belong to `rend
   [`cargo run -p swx-qa --example plate_sketch_plot -- <dir> [<W>x<H>]`], [Draws the sample sketch in three stages, as PNGs in `<dir>` (@sec-picture-sketch).],
   [`cargo run -p swx-qa --example constraint_plots -- <dir> [<W>x<H>]`], [Draws the centered-plate and slot sketches as PNGs in `<dir>`.],
   [`cargo run -p swx-kernel --features occt --example plate_with_hole -- <file.step>`], [Builds the plate and saves it (@ch-solids). The file defaults to `plate.step`.],
+  [`cargo run -p swx-kernel --features occt --example part_topology`], [Counts the plate's faces, edges and vertices and lists their neighbours (@sec-topology).],
   [`cargo run -p swx-kernel --features occt --example plate_stages -- <dir>`], [Saves the block, the cylinder and the plate as three STEP files in `<dir>`.],
   [`cargo run -p swx-kernel --features occt --example extrude_plate -- <file.step>`], [Extrudes the plate from its outline (@sec-extrude).],
   [`cargo run -p swx-kernel --features occt --example extrude_slot -- <file.step>`], [Extrudes a slot three ways (@sec-extrude-direction).],
@@ -97,7 +98,7 @@ Success and errors work as for `render`. `--step` and `--crease` belong to `rend
 #idx("occt feature")
 The `occt` feature switches on OpenCascade. It is off by default, so a plain build needs only Rust.
 
-== Geometry kernel operations
+== Geometry kernel operations <sec-ref-kernel>
 
 #ref-table(
   columns: (auto, 1fr),
@@ -109,12 +110,21 @@ The `occt` feature switches on OpenCascade. It is off by default, so a plain bui
   [`volume(s)`, `surface_area(s)`], [In mm³ and mm².],
   [`bounding_box(s)`], [The smallest box, aligned with the axes, that holds the solid: its `min` and `max` corners.],
   [`face_count(s)`], [The number of faces.],
+  [`sub_shape_count(s, kind)`], [The number of faces, edges or vertices (`kind`), each shared one counted once. Their indices run from 0 to the count minus 1 (@sec-topology).],
+  [`adjacent(s, of, kind)`], [The sub-shapes of `kind` that touch `of`, sorted by index, without repeats: going down, the edges or vertices of a face, or the vertices of an edge; going up, the faces or edges that contain `of`. `kind` must differ from `of.kind`, and `of.index` must be in range.],
   [`tessellate(s, deflection)`], [Breaks the surface into triangles, no farther than `deflection` (mm, > 0) from the true surface.],
   [`export_step(s, path)`], [Writes a STEP file in millimeters, replacing any existing file.],
   [`import_step(path)`], [Reads everything in a STEP file as one shape.],
 )
 
 All positions must be finite numbers; all sizes finite and greater than zero.
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("Type", "Fields and rules"),
+  [`TopoKind`], [`Face`, `Edge` or `Vertex`.],
+  [`SubShape { kind, index }`], [One face, edge or vertex: the `index`-th of its `kind`, counted from 0. Valid only for the shape it came from; ask again after each operation.],
+)
 
 == Profiles, extrude and revolve <sec-ref-extrude>
 

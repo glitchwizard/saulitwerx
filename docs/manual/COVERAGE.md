@@ -1,4 +1,4 @@
-manual-synced-to: eb68508ea378708e4c1ad035f2f653e38fcaec4f
+manual-synced-to: 71608b5ea78684e8e96fb7d346da9b9a3ba82c14
 
 # Manual coverage
 
@@ -16,8 +16,9 @@ Everything a user can do or set on `main`, found from the code, `docs/ROADMAP.md
 | Kernel: `make_box`, `make_cylinder`, `make_sphere` | 6.1, 11.4 |
 | Kernel: `union`, `cut`, `intersect` | 4.9, 6.2, 11.4 |
 | Kernel: `volume`, `surface_area`, `bounding_box`, `face_count` | 3.2, 6.1, 11.4 |
+| Kernel: `sub_shape_count`, `adjacent`, `TopoKind` (Face, Edge, Vertex), `SubShape` (kind, index); index rules and both `adjacent` errors; seam edge | 4.1, 6.3, 11.4, 12.2, 12.4 |
 | Kernel: `tessellate` (deflection) | 9.1, 11.4 |
-| Kernel: `export_step`, `import_step` (mm) | 3.2, 6.1, 6.3, 11.4, 11.13 |
+| Kernel: `export_step`, `import_step` (mm) | 3.2, 6.1, 6.4, 11.4, 11.13 |
 | Kernel: `make_face`, `extrude`; `Workplane` (`XY`, `XZ`, `YZ`, custom), `Segment2` (Line, Arc, Circle), `ProfileLoop`, `Extent` (Distance, Symmetric), `LOOP_GAP_TOLERANCE`, `PERPENDICULAR_TOLERANCE` | 4.7, 4.9, 7, 11.5 |
 | Kernel: `extrude_feature`, `ExtrudeMode` (NewSolid, Join, Cut, Intersect), `EMPTY_VOLUME_TOLERANCE` | 7.3, 11.5 |
 | Kernel: `Extent::ThroughAll`, `ThroughDirection` (Normal, Reversed, Both); through-all only with `extrude_feature` and `Cut`; miss check | 7.4, 7.5, 11.5, 12.2 |
@@ -67,10 +68,11 @@ Everything a user can do or set on `main`, found from the code, `docs/ROADMAP.md
 | `swx-kernel` `extrude_modes` (occt) | 7.3 |
 | `swx-kernel` `extrude_through_all` (occt) | 7.4 |
 | `swx-kernel` `revolve_bushing` (occt) | 8 |
+| `swx-kernel` `part_topology` (occt) | 6.3 |
 
 ## Not user-facing yet
 
-- `swx_core::topo` (M3-04e, #103): `EntityRef`, `Role`, `FaceName`, `EdgeName`, `TopoRef`, `ResolveError`. Plain data with no way to resolve a name to a face or an edge yet, so nothing a user can do changes. Document it, with its `describe()` wording, when references can be resolved (M3-04b..d); *Coming next* lists it as *Lasting references*.
+- `swx_core::topo` (M3-04e, #103): `EntityRef`, `Role`, `FaceName`, `EdgeName`, `TopoRef`, `ResolveError`. Plain data with no way to resolve a name to a face or an edge yet, so nothing a user can do changes. M3-04b (#116) added the sub-shape queries it will resolve to (documented in 6.3), but not the resolving itself. Document it, with its `describe()` wording, when references can be resolved (M3-04c..d); *Coming next* lists it as *Lasting references*.
 
 ## Backlog
 

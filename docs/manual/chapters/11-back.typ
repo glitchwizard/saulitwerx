@@ -5,6 +5,7 @@
 
 #{
   let g = (
+    ("Adjacent", [Said of two sub-shapes when one bounds the other, such as a face and one of its edges.]),
     ("Binding", [The link between a sketch dimension and the parameter that drives it.]),
     ("Axis of revolution", [The line a revolve turns its outline around.]),
     ("Bounding box", [The smallest box, with sides parallel to the axes, that holds a solid.]),
@@ -19,7 +20,7 @@
     ("Diameter", [The width of a circle through its center; twice the radius.]),
     ("Dimension", [A constraint with a number: a distance, radius or diameter.]),
     ("Dirty", [Said of a feature that must be rebuilt after a change.]),
-    ("Edge", [A curve where two faces of a solid meet.]),
+    ("Edge", [A curve where two faces of a solid meet, or where one round face meets itself (a seam).]),
     ("Equal", [A constraint that makes two lines the same length, or two circles or arcs the same size.]),
     ("Entity", [One piece of sketch geometry: a point, line, circle or arc.]),
     ("Extent", [How far an extrude goes: a distance one way, or a length split evenly on both sides of the workplane.]),
@@ -53,9 +54,11 @@
     ("Region", [A flat area enclosed by an outer loop, minus any holes inside it.]),
     ("Revolve", [Turning a flat outline around an axis into a round solid.]),
     ("Revolve angle", [How far a revolve turns: a full turn (2π radians, 360°) or part of one.]),
+    ("Seam", [An edge where a closed round face, such as the wall of a hole, meets itself.]),
     ("Sketch", [A 2D drawing on a plane, made of points, lines, circles and arcs.]),
     ("Solid", [A closed 3D shape with an inside and an outside.]),
     ("Solver", [The calculation that moves sketch geometry until every constraint holds.]),
+    ("Sub-shape", [One face, edge or vertex of a solid.]),
     ("Symmetric", [A constraint that makes two points mirror images across a line.]),
     ("STEP", [An international standard file format (ISO 10303) for exchanging 3D parts.]),
     ("Surface area", [The total area of a solid's faces.]),
@@ -66,6 +69,7 @@
     ("Union", [A Boolean operation that joins two solids into one.]),
     ("Unit", [What a number measures in, such as millimeters.]),
     ("User parameter", [A parameter you create yourself, with a name you choose.]),
+    ("Vertex", [A corner point of a solid, where its edges meet. Plural: vertices.]),
     ("Volume", [How much space a solid fills.]),
     ("Workplane", [The flat plane an outline is drawn on, with its own directions and a normal pointing straight out of it.]),
   )
@@ -76,6 +80,12 @@
 }
 
 = What's new
+
+== 2026-11-02: faces, edges and vertices
+
+- *New:* count a solid's faces, edges and vertices, and list which ones touch: the edges around a face, the faces along an edge (@sec-topology, @sec-ref-kernel).
+- Concepts: vertices join faces and edges in @sec-solid, with the plate's figure now marking one of each.
+- Help: two new error messages; the known limitation about faces and edges updated.
 
 == 2026-11-01: revolve, and cuts through all
 

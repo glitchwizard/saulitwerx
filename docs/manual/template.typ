@@ -183,8 +183,9 @@
         place(top + left, dx: x - 10pt, dy: y - 10pt,
           circle(radius: 10pt, stroke: 1.6pt + caution-c))
         if lab != none {
-          place(top + left, dx: x + 13pt, dy: y + 6pt,
-            text(font: sans, size: 7.5pt, weight: "bold", fill: caution-c, lab))
+          place(top + left, dx: x + 12pt, dy: y + 4pt,
+            box(fill: paper.transparentize(15%), inset: (x: 2pt, y: 1.5pt), radius: 2pt,
+              text(font: sans, size: 7.5pt, weight: "bold", fill: caution-c, lab)))
         }
       }
     },
