@@ -65,6 +65,8 @@ Every message starts with `swx-qa: `. No picture is written when there is an err
   [`invalid input: <name> must be finite and > 0, got <v>`], [A size, radius or height is zero, negative or not a number.],
   [`invalid input: <name> must have finite coordinates, got …`], [A position contains an infinite value or not-a-number.],
   [`invalid input: no such file: f`], [The STEP file to read doesn't exist.],
+  [`invalid input: adjacent needs two different kinds, got edge and edge`], [`adjacent` was asked for the same kind it starts from. Ask for another kind: the faces or vertices of an edge (@sec-topology).],
+  [`invalid input: face index 7 is out of range: the shape has 7 faces`], [The index is past the last sub-shape of its kind. Indices start at 0, so the last is the count minus 1. An index from another shape, or from before a change, can also be out of range (@sec-topology).],
   [`kernel failure: <operation> failed`], [OpenCascade couldn't complete the operation. For a cut, check that the tool solid overlaps the part (@ch-solids).],
   [`invalid input: outer loop: consecutive segments don't meet within 0.0000001` (or `hole N loop: …`)], [Two pieces of the loop, or its last and first, don't meet. Reuse the same corner values for both ends (@ch-extrude).],
   [`invalid input: outer loop is empty`, `… loop encloses no area`], [The loop has no pieces, or they enclose nothing: a line there and back, or a figure eight whose halves are the same size.],
@@ -176,7 +178,7 @@ For an unknown entity, `infer` and `add_inferred` give the sketch messages above
 - A sketch's regions can't be extruded or revolved directly yet: type the outline's pieces into a program (@ch-extrude, @ch-revolve). There is no fillet or hole yet.
 - An extrude goes a set distance, or through all for a cut (@sec-through-all); not "up to a face" or "between two faces".
 - A revolve turns one way from the outline's plane by an angle; it can't yet turn both ways or symmetrically. The axis isn't checked against the outline yet: one that runs through the outline, or isn't in its plane, gives an error or a broken solid instead of a clear message (@sec-revolve-mistakes).
-- An extrude's or a revolve's target is a solid you hold in your program. Faces and edges can't be picked or named yet, so the outline's workplane is given by its numbers (@sec-extrude-modes).
+- An extrude's or a revolve's target is a solid you hold in your program. Faces and edges can be counted and numbered (@sec-topology), but not picked, and their numbers don't last through a change; so the outline's workplane is given by its numbers (@sec-extrude-modes).
 - Extrudes and revolves aren't recorded in a part's history, so they don't rebuild when a parameter changes.
 - No native part files; work can't be saved with its history.
 - `swx-qa sketch` draws only its two built-in sketches. Your own sketches need a short program (@sec-picture-sketch). Sketch pictures show no dimension arrows and no marks for constraints such as horizontal.
