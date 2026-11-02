@@ -1,0 +1,120 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(kernel): revolve input checks",
+      "ref": "4b58b12",
+      "task_id": "gates-117",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-117",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-117",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-117",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "clippy swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-117",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "test swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-117",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "test swx-kernel occt (plain)",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-117",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "clippy swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-117",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "test swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-117",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`Kernel::revolve` returns `KernelError::InvalidInput` (never a panic, never a backend error, and no revolve is attempted) when the axis is not in the profile's plane: its direction is not perpendicular to the plane normal, or its origin is farther than the tolerance from the plane. Tests: the rectangle x 10..20, z 0..5 with (1) the z axis moved to origin (0, 1, 0), (2) direction (0, 1, 1), (3) direction (0, 1, 0). The error message names the axis and the plane.",
+      "`Kernel::revolve` returns `InvalidInput` when the profile has points strictly on both sides of the axis, beyond the tolerance. Test: the rectangle x −5..5, z 0..5 about the z axis. The error message says that the profile crosses the axis.",
+      "A profile that touches the axis is still valid. Test: the rectangle x 0..10, z 0..5, full turn about the z axis, gives volume 500π ≈ 1570.7963 (relative 1e-6), bounding box (−10, −10, 0)–(10, 10, 5) (within 1e-6), and 3 faces.",
+      "Inputs within the tolerance are accepted. Test: the z axis with origin (0, 1e-9, 0) revolves the rectangle x 10..20, z 0..5 a full turn to volume 1500π (relative 1e-6).",
+      "`revolve_feature` passes these errors through. Test: `Cut` against `make_box((−25, −25, 0), (50, 50, 10))`, with the axis direction (0, 1, 1), returns `InvalidInput`.",
+      "`Kernel::revolve`'s doc comment lists the new error cases. All existing revolve tests pass unchanged.",
+      "No new dependencies. `swx-kernel` still has no workspace dependencies. Every new or changed shim function is `noexcept` and catches C++ exceptions. Every new `unsafe` block is in `ffi` and documented.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and so do the CI `swx-kernel (occt)` job commands.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-02T08:44:22.615498396+00:00",
+    "constraints": [],
+    "created_at": "2026-11-02T08:43:47.068051044+00:00",
+    "description": "M3-03b: Revolve input checks: axis in the profile's plane, profile not crossing the axis (#117, PR #120, head 4b58b12)",
+    "project_id": "saulitwerx",
+    "scope": "swx-kernel only",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 8,
+      "estimate": "small",
+      "id": "gates-117",
+      "status": "completed",
+      "title": "Run local gates on PR #120 head 4b58b12",
+      "type": "test"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
