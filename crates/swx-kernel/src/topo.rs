@@ -74,6 +74,39 @@ pub(crate) fn validate_adjacent(
     Ok(())
 }
 
+/// Checks an edge list for a fillet or chamfer before it reaches the
+/// backend: it must not be empty, every entry must be an edge with an index
+/// below `count` (the shape's edge count). Returns the indices sorted, with
+/// duplicates removed.
+#[cfg_attr(not(feature = "occt"), allow(dead_code))]
+pub(crate) fn validate_edges(edges: &[SubShape], count: usize) -> Result<Vec<usize>, KernelError> {
+    if edges.is_empty() {
+        return Err(KernelError::InvalidInput(
+            "the edge list is empty".to_string(),
+        ));
+    }
+    let mut indices = Vec::with_capacity(edges.len());
+    for e in edges {
+        if e.kind != TopoKind::Edge {
+            return Err(KernelError::InvalidInput(format!(
+                "expected an edge, got {} {}",
+                e.kind.name(),
+                e.index
+            )));
+        }
+        if e.index >= count {
+            return Err(KernelError::InvalidInput(format!(
+                "edge index {} is out of range: the shape has {count} edges",
+                e.index
+            )));
+        }
+        indices.push(e.index);
+    }
+    indices.sort_unstable();
+    indices.dedup();
+    Ok(indices)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -95,6 +128,24 @@ mod tests {
             matches!(&err, KernelError::InvalidInput(m) if m.contains("edge index 3 is out of range")),
             "{err}"
         );
+    }
+
+    #[test]
+    fn edge_lists_are_checked_and_deduplicated() {
+        let e = |index| SubShape {
+            kind: TopoKind::Edge,
+            index,
+        };
+        assert_eq!(validate_edges(&[e(3), e(1), e(3)], 12).unwrap(), vec![1, 3]);
+        let invalid =
+            |r: Result<Vec<usize>, KernelError>| matches!(r, Err(KernelError::InvalidInput(_)));
+        assert!(invalid(validate_edges(&[], 12)));
+        assert!(invalid(validate_edges(&[e(12)], 12)));
+        let face = SubShape {
+            kind: TopoKind::Face,
+            index: 0,
+        };
+        assert!(invalid(validate_edges(&[e(0), face], 12)));
     }
 
     #[test]

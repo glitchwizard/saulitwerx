@@ -92,6 +92,14 @@ extern "C" {
         dz: c_double,
         out: *mut c_double,
     ) -> c_int;
+    fn swx_occt_fillet_chamfer(
+        op: c_int,
+        s: *const RawShape,
+        edges: *const usize,
+        n: usize,
+        value: c_double,
+        out: *mut *mut RawShape,
+    ) -> c_int;
     fn swx_occt_volume(s: *const RawShape, out: *mut c_double) -> c_int;
     fn swx_occt_surface_area(s: *const RawShape, out: *mut c_double) -> c_int;
     fn swx_occt_bounding_box(s: *const RawShape, out: *mut c_double) -> c_int;
@@ -247,6 +255,40 @@ pub(crate) fn revolve(
             dir[1],
             dir[2],
             angle,
+            &mut raw,
+        )
+    };
+    take(status, raw)
+}
+
+/// Edge treatment codes understood by `swx_occt_fillet_chamfer`.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum EdgeOp {
+    Fillet = 0,
+    Chamfer = 1,
+}
+
+/// Fillets or chamfers the edges of `s` at the 0-based `edges` indices by
+/// `value` (radius or distance). `None` on any failure, including an empty
+/// list or an index out of range.
+pub(crate) fn fillet_chamfer(
+    op: EdgeOp,
+    s: &ShapeHandle,
+    edges: &[usize],
+    value: f64,
+) -> Option<ShapeHandle> {
+    let mut raw = ptr::null_mut();
+    // SAFETY: `s` is a live handle read-only for the call and not retained;
+    // `edges` points to `edges.len()` readable `usize`s (`size_t` layout) that
+    // the shim only reads during the call; `raw` is a valid out-pointer that
+    // receives a new, independently owned handle.
+    let status = unsafe {
+        swx_occt_fillet_chamfer(
+            op as c_int,
+            s.0.as_ptr(),
+            edges.as_ptr(),
+            edges.len(),
+            value,
             &mut raw,
         )
     };
