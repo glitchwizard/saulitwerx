@@ -40,7 +40,7 @@ Tools the Builder uses for the visuals in its QA reports (FACTORY §6b).
 
 - [ ] M3-01 Sketch → kernel face; extrude (distance, symmetric) with join / cut / intersect / new solid.
 - [ ] M3-02 Extrude extents: through all, to face, between faces.
-- [ ] M3-03 Revolve and revolve cut.
+- [x] M3-03 Revolve and revolve cut.
 - [ ] M3-04 Topological naming v1: persistent face/edge references across rebuilds. Write a design doc first in `docs/specs/`.
 - [ ] M3-05 Fillet and chamfer on referenced edges.
 - [ ] M3-06 Shell, draft, and hole (simple, counterbore).
