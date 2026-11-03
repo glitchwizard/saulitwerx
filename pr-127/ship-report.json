@@ -1,0 +1,112 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(kernel): tracked face and extrude",
+      "ref": "de18914",
+      "task_id": "gates-113",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-113",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-113",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-113",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "clippy swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-113",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "test swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-113",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "clippy swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-113",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "test swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-113",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`pub struct ExtrudeHistory { pub start_cap: SubShape, pub end_cap: SubShape, pub sides: Vec<(SubShape, SubShape)> }`, documented (`sides`: edge of the input face → the side face it swept).",
+      "`Kernel::make_face_tracked(&self, plane, outer, holes) -> Result<(Self::Shape, Vec<Vec<SubShape>>), KernelError>`: the same face as `make_face`, plus for each loop (outer first, then holes in order) and each segment the face's edge built from it. Documented and implemented for `OcctKernel`.",
+      "`Kernel::extrude_tracked(&self, face, extent) -> Result<(Self::Shape, ExtrudeHistory), KernelError>`: the same solid as `extrude`, plus its history. `sides` has one entry per edge of the input face. Documented and implemented for `OcctKernel`.",
+      "`Kernel::sub_shape_bounding_box(&self, s, of: SubShape) -> Result<BoundingBox, KernelError>`, documented and implemented for `OcctKernel`.",
+      "Plate tests (behind `occt`): the #90 plate, a 40 × 25 rectangle from (0, 0) with segments in the order (0,0)→(40,0)→(40,25)→(0,25)→(0,0), and a circle of radius 5 at (20, 12.5) as a hole, on `Workplane::XY`. Boxes within 1e-6, volumes within a relative 1e-6: make_face_tracked loops [4, 1] ...; extrude_tracked Distance(10) volume 10000 − 250π ≈ 9214.6018, caps and sides boxes ...; side adjacency ...; Symmetric(10) caps at z = −5 and 5; tracked and untracked calls agree.",
+      "Errors, each with a test and never a panic: the input checks of `make_face` and `extrude` apply unchanged (one test each, e.g. an open loop and `Distance(0)`), `extrude_tracked` with `Extent::ThroughAll` is `InvalidInput`, and `sub_shape_bounding_box` with an index out of range is `InvalidInput`.",
+      "No new dependencies. `swx-kernel` still has no workspace dependencies. Every new shim function is `noexcept` and catches C++ exceptions; every new `unsafe` block is in `ffi` and documented.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and so do the CI `swx-kernel (occt)` job commands.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-03T10:26:16.726239874+00:00",
+    "constraints": [],
+    "created_at": "2026-11-03T10:25:33.491255921+00:00",
+    "description": "M3-04c: Tracked face and extrude: make_face_tracked, extrude_tracked and ExtrudeHistory",
+    "project_id": "saulitwerx",
+    "scope": "swx-kernel only",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 7,
+      "estimate": "small",
+      "id": "gates-113",
+      "status": "completed",
+      "title": "Run local gates and occt job commands for PR #127",
+      "type": "test"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
