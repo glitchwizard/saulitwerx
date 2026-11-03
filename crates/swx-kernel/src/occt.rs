@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use crate::ffi::{self, BooleanOp, ShapeHandle};
-use crate::profile::{prepare_face, prepare_revolve};
+use crate::profile::{check_revolve_profile, prepare_face, prepare_revolve};
 use crate::topo::validate_adjacent;
 use crate::{
     input_file_cstring, path_to_cstring, validate_point, validate_size, Axis, BoundingBox, Extent,
@@ -85,6 +85,10 @@ impl Kernel for OcctKernel {
 
     fn revolve(&self, face: &OcctShape, axis: Axis, angle: f64) -> Result<OcctShape, KernelError> {
         let (origin, dir, angle) = prepare_revolve(axis, angle)?;
+        let profile = ffi::revolve_profile(&face.0, origin, dir).ok_or_else(|| {
+            KernelError::InvalidInput("revolve needs a single planar face".to_string())
+        })?;
+        check_revolve_profile(origin, dir, &profile)?;
         ffi::revolve(&face.0, origin, dir, angle)
             .map(OcctShape)
             .ok_or_else(|| backend("revolve"))

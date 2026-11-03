@@ -29,7 +29,7 @@ pub use mesh::Mesh;
 pub use occt::{OcctKernel, OcctShape};
 pub use profile::{
     Axis, Extent, ProfileLoop, Segment2, ThroughDirection, Workplane, LOOP_GAP_TOLERANCE,
-    PERPENDICULAR_TOLERANCE,
+    PERPENDICULAR_TOLERANCE, REVOLVE_AXIS_TOLERANCE,
 };
 pub use topo::{SubShape, TopoKind};
 
@@ -113,7 +113,13 @@ pub trait Kernel {
     /// looking down it (right-hand rule). It is [`KernelError::InvalidInput`],
     /// checked before the backend, when the angle is not finite, is ≤ 0 or is
     /// above 2π (2π itself, within 1e-12, is a full turn), or when the axis
-    /// origin is not finite or its direction is zero or not finite.
+    /// origin is not finite or its direction is zero or not finite. It is
+    /// also `InvalidInput`, checked before the revolve itself, when `face` is
+    /// not a single planar face, when the axis is not in the face's plane
+    /// (its direction is not perpendicular to the plane normal, or its origin
+    /// is off the plane), or when the face crosses the axis (has points
+    /// strictly on both sides of it). Each check allows
+    /// [`REVOLVE_AXIS_TOLERANCE`]; a face that touches the axis is valid.
     fn revolve(
         &self,
         face: &Self::Shape,

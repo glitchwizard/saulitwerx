@@ -183,6 +183,68 @@ pub(crate) fn prepare_revolve(
     Ok((axis.origin, dir, angle.min(TAU)))
 }
 
+/// Absolute tolerance, in model units, of the revolve axis and profile checks
+/// (the same value as OCCT's `Precision::Confusion`).
+pub const REVOLVE_AXIS_TOLERANCE: f64 = 1e-7;
+
+/// What the backend reports about a planar profile face for the revolve
+/// checks (see [`check_revolve_profile`]).
+#[cfg_attr(not(feature = "occt"), allow(dead_code))]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct RevolveProfile {
+    /// A point on the face's plane.
+    pub plane_point: Point3,
+    /// The plane's unit normal `n`.
+    pub normal: [f64; 3],
+    /// Smallest `(P − origin) · (dir × n)` over the face's points `P`.
+    pub side_min: f64,
+    /// Largest `(P − origin) · (dir × n)` over the face's points `P`.
+    pub side_max: f64,
+}
+
+/// Rejects a revolve whose axis is not in the profile's plane, or whose
+/// profile has points strictly on both sides of the axis.
+///
+/// `origin` and the unit `dir` come from [`prepare_revolve`]. The axis is in
+/// the plane when `dir` is perpendicular to the plane's unit normal `n`
+/// (`|dir · n| ≤ tol`) and `origin` is on the plane
+/// (`|(origin − plane_point) · n| ≤ tol`). Then `w = dir × n` is the unit
+/// vector in the plane perpendicular to the axis, and the sign of
+/// `(P − origin) · w` says which side of the axis a profile point `P` is on.
+/// The profile crosses the axis when that value is below `−tol` somewhere and
+/// above `tol` somewhere else. A profile that only touches the axis is valid.
+/// `tol` is [`REVOLVE_AXIS_TOLERANCE`].
+#[cfg_attr(not(feature = "occt"), allow(dead_code))]
+pub(crate) fn check_revolve_profile(
+    origin: Point3,
+    dir: [f64; 3],
+    profile: &RevolveProfile,
+) -> Result<(), KernelError> {
+    let tol = REVOLVE_AXIS_TOLERANCE;
+    let n = profile.normal;
+    let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    let offset = [
+        origin[0] - profile.plane_point[0],
+        origin[1] - profile.plane_point[1],
+        origin[2] - profile.plane_point[2],
+    ];
+    if dot(dir, n).abs() > tol || dot(offset, n).abs() > tol {
+        return Err(invalid(format!(
+            "revolve axis (origin {origin:?}, direction {dir:?}) is not in the profile's plane \
+             (through {:?}, normal {n:?})",
+            profile.plane_point
+        )));
+    }
+    if profile.side_min < -tol && profile.side_max > tol {
+        return Err(invalid(format!(
+            "the profile crosses the revolve axis (origin {origin:?}, direction {dir:?}): \
+             it reaches {} on one side and {} on the other",
+            -profile.side_min, profile.side_max
+        )));
+    }
+    Ok(())
+}
+
 /// Segment kinds in the encoding the OCCT shim reads.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum EdgeKind {
@@ -775,6 +837,28 @@ mod tests {
                 "{origin:?}: {err}"
             );
         }
+    }
+
+    #[test]
+    fn revolve_profile_checks_use_the_tolerance() {
+        // The y = 0 plane; the z axis lies in it.
+        let profile = |side_min, side_max| RevolveProfile {
+            plane_point: [0.0; 3],
+            normal: [0.0, -1.0, 0.0],
+            side_min,
+            side_max,
+        };
+        let z = [0.0, 0.0, 1.0];
+        let tol = REVOLVE_AXIS_TOLERANCE;
+        let ok = |origin, dir, p: RevolveProfile| check_revolve_profile(origin, dir, &p).is_ok();
+        assert!(ok([0.0; 3], z, profile(0.0, 10.0)));
+        assert!(ok([0.0; 3], z, profile(-10.0, 0.0)));
+        assert!(ok([0.0; 3], z, profile(-0.5 * tol, 10.0)));
+        assert!(ok([0.0, 0.5 * tol, 0.0], z, profile(10.0, 20.0)));
+        assert!(!ok([0.0; 3], z, profile(-2.0 * tol, 10.0)));
+        assert!(!ok([0.0, 2.0 * tol, 0.0], z, profile(10.0, 20.0)));
+        let tilted = [0.0, (2.0 * tol).sin(), (2.0 * tol).cos()];
+        assert!(!ok([0.0; 3], tilted, profile(10.0, 20.0)));
     }
 
     #[test]

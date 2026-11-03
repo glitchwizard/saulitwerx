@@ -513,6 +513,113 @@ mod tests {
         assert_close(K.volume(&r).unwrap(), 1500.0 * PI);
     }
 
+    fn assert_not_in_plane(err: &KernelError) {
+        assert!(
+            matches!(err, KernelError::InvalidInput(m)
+                if m.contains("revolve axis") && m.contains("not in the profile's plane")
+                    && m.contains("normal")),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn revolve_rejects_an_axis_outside_the_profile_plane() {
+        let face = rect_xz(10.0, 20.0, 0.0, 5.0);
+        let axes = [
+            Axis {
+                origin: [0.0, 1.0, 0.0],
+                ..Z_AXIS
+            },
+            Axis {
+                dir: [0.0, 1.0, 1.0],
+                ..Z_AXIS
+            },
+            Axis {
+                dir: [0.0, 1.0, 0.0],
+                ..Z_AXIS
+            },
+        ];
+        for axis in axes {
+            assert_not_in_plane(&K.revolve(&face, axis, 2.0 * PI).unwrap_err());
+        }
+    }
+
+    #[test]
+    fn revolve_rejects_a_profile_crossing_the_axis() {
+        let err = K
+            .revolve(&rect_xz(-5.0, 5.0, 0.0, 5.0), Z_AXIS, 2.0 * PI)
+            .unwrap_err();
+        assert!(
+            matches!(&err, KernelError::InvalidInput(m) if m.contains("profile crosses the revolve axis")),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn revolve_rejects_a_circle_crossing_the_axis() {
+        // Circle centre x = 5, radius 6 in the y = 0 plane: it reaches x = −1,
+        // but none of its vertices is on that side, so only the arc extremes
+        // show the crossing.
+        let plane = Workplane {
+            origin: [0.0; 3],
+            x_dir: [1.0, 0.0, 0.0],
+            normal: [0.0, -1.0, 0.0],
+        };
+        let outer = ProfileLoop {
+            segments: vec![Segment2::Circle {
+                center: [5.0, 0.0],
+                radius: 6.0,
+            }],
+        };
+        let face = K.make_face(&plane, &outer, &[]).unwrap();
+        let err = K.revolve(&face, Z_AXIS, PI).unwrap_err();
+        assert!(
+            matches!(&err, KernelError::InvalidInput(m) if m.contains("profile crosses the revolve axis")),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn revolve_profile_touching_the_axis_is_valid() {
+        let r = K
+            .revolve(&rect_xz(0.0, 10.0, 0.0, 5.0), Z_AXIS, 2.0 * PI)
+            .unwrap();
+        assert_close(K.volume(&r).unwrap(), 500.0 * PI);
+        assert_bbox(&r, [-10.0, -10.0, 0.0], [10.0, 10.0, 5.0]);
+        assert_eq!(K.face_count(&r).unwrap(), 3);
+    }
+
+    #[test]
+    fn revolve_accepts_an_axis_within_the_tolerance() {
+        let axis = Axis {
+            origin: [0.0, 1e-9, 0.0],
+            ..Z_AXIS
+        };
+        let r = K
+            .revolve(&rect_xz(10.0, 20.0, 0.0, 5.0), axis, 2.0 * PI)
+            .unwrap();
+        assert_close(K.volume(&r).unwrap(), 1500.0 * PI);
+    }
+
+    #[test]
+    fn revolve_feature_passes_the_axis_error_through() {
+        let t = K.make_box([-25.0, -25.0, 0.0], [50.0, 50.0, 10.0]).unwrap();
+        let axis = Axis {
+            dir: [0.0, 1.0, 1.0],
+            ..Z_AXIS
+        };
+        let err = revolve_feature(
+            &K,
+            &rect_xz(10.0, 20.0, 5.0, 10.0),
+            axis,
+            2.0 * PI,
+            ExtrudeMode::Cut,
+            Some(&t),
+        )
+        .unwrap_err();
+        assert_not_in_plane(&err);
+    }
+
     /// The 40 × 25 × 100 block of the through-all tests.
     fn tall_block() -> OcctShape {
         K.make_box([0.0, 0.0, 0.0], [40.0, 25.0, 100.0]).unwrap()

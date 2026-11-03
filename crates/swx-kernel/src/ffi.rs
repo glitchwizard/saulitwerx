@@ -10,6 +10,7 @@ use std::ffi::CStr;
 use std::os::raw::{c_char, c_double, c_float, c_int};
 use std::ptr::{self, NonNull};
 
+use crate::profile::RevolveProfile;
 use crate::Mesh;
 
 /// Opaque C++ shape record (`struct SwxShape` in the shim).
@@ -79,6 +80,17 @@ extern "C" {
         dz: c_double,
         angle: c_double,
         out: *mut *mut RawShape,
+    ) -> c_int;
+    #[allow(clippy::too_many_arguments)]
+    fn swx_occt_revolve_profile(
+        s: *const RawShape,
+        ox: c_double,
+        oy: c_double,
+        oz: c_double,
+        dx: c_double,
+        dy: c_double,
+        dz: c_double,
+        out: *mut c_double,
     ) -> c_int;
     fn swx_occt_volume(s: *const RawShape, out: *mut c_double) -> c_int;
     fn swx_occt_surface_area(s: *const RawShape, out: *mut c_double) -> c_int;
@@ -257,6 +269,39 @@ pub(crate) fn surface_area(s: &ShapeHandle) -> Option<f64> {
 }
 
 /// Returns `[xmin, ymin, zmin, xmax, ymax, zmax]`.
+/// Data for the revolve input checks: a point on the planar `face`'s plane,
+/// the plane's unit normal `n`, and the minimum and maximum over the face of
+/// `(P - origin) · (dir × n)`. `None` when the face is not planar or on any
+/// failure. `dir` must already be normalized.
+pub(crate) fn revolve_profile(
+    face: &ShapeHandle,
+    origin: [f64; 3],
+    dir: [f64; 3],
+) -> Option<RevolveProfile> {
+    let mut out = [0.0 as c_double; 8];
+    // SAFETY: `face` is a live handle read-only for the call and not
+    // retained; the other arguments are plain doubles by value; `out` is a
+    // valid writable array of exactly the 8 doubles the shim writes.
+    let status = unsafe {
+        swx_occt_revolve_profile(
+            face.0.as_ptr(),
+            origin[0],
+            origin[1],
+            origin[2],
+            dir[0],
+            dir[1],
+            dir[2],
+            out.as_mut_ptr(),
+        )
+    };
+    (status == 0).then_some(RevolveProfile {
+        plane_point: [out[0], out[1], out[2]],
+        normal: [out[3], out[4], out[5]],
+        side_min: out[6],
+        side_max: out[7],
+    })
+}
+
 pub(crate) fn bounding_box(s: &ShapeHandle) -> Option<[f64; 6]> {
     let mut out = [0.0 as c_double; 6];
     // SAFETY: `s` is a live handle read-only for the call; `out` is a valid
