@@ -1,4 +1,4 @@
-manual-synced-to: 71608b5ea78684e8e96fb7d346da9b9a3ba82c14
+manual-synced-to: a52c3b062d3344d9c17576d775183ff271ab5ba1
 
 # Manual coverage
 
@@ -22,7 +22,7 @@ Everything a user can do or set on `main`, found from the code, `docs/ROADMAP.md
 | Kernel: `make_face`, `extrude`; `Workplane` (`XY`, `XZ`, `YZ`, custom), `Segment2` (Line, Arc, Circle), `ProfileLoop`, `Extent` (Distance, Symmetric), `LOOP_GAP_TOLERANCE`, `PERPENDICULAR_TOLERANCE` | 4.7, 4.9, 7, 11.5 |
 | Kernel: `extrude_feature`, `ExtrudeMode` (NewSolid, Join, Cut, Intersect), `EMPTY_VOLUME_TOLERANCE` | 7.3, 11.5 |
 | Kernel: `Extent::ThroughAll`, `ThroughDirection` (Normal, Reversed, Both); through-all only with `extrude_feature` and `Cut`; miss check | 7.4, 7.5, 11.5, 12.2 |
-| Kernel: `revolve`, `revolve_feature`, `Axis` (origin, dir); angle in radians, (0, 2π]; right-hand rule; modes as extrude | 8, 11.5, 11.13, 12.2, 12.4 |
+| Kernel: `revolve`, `revolve_feature`, `Axis` (origin, dir); angle in radians, (0, 2π]; right-hand rule; modes as extrude; axis-in-plane and profile-crossing checks, `REVOLVE_AXIS_TOLERANCE` | 8, 11.5, 11.13, 12.2, 12.4 |
 | Kernel errors (`InvalidInput`, `Backend`, `EmptyResult`), incl. every `make_face`, `extrude`, `extrude_feature`, through-all, `revolve` and `revolve_feature` message | 7.3, 7.5, 8.3, 12.2 |
 | Sketch entities: point, line, circle, arc (solving changes arc angles; sweep kept in (0, 2π]) | 4.3, 11.6 |
 | `PointRef`: Point, Start, End, Center, ArcStart, ArcEnd (arc ends in every point constraint) | 5.1, 5.6, 11.6 |
@@ -77,5 +77,4 @@ Everything a user can do or set on `main`, found from the code, `docs/ROADMAP.md
 ## Backlog
 
 - Nothing built is undocumented. Next: when sketch regions reach the extrude and the revolve (M3-01c, #106), rewrite chapters 7 and 8 so their tasks start from a sketch, and update the known limitations.
-- When the revolve axis checks land (M3-03b, #117), replace the two axis entries in 8.3 *Common mistakes*, the `kernel failure: revolve failed` row in 12.2, and the revolve limitation in 12.4 with the new messages.
 - Possible addition: a rounded-corner task (arc ends joined to two lines, M2-04a), now that an extrude can use arcs: a plate with rounded corners.

@@ -145,6 +145,7 @@ All positions must be finite numbers; all sizes finite and greater than zero.
   [`ThroughDirection::Normal`, `::Reversed`, `::Both`], [Which way a through-all cut goes: along the normal, against it, or both ways.],
   [`LOOP_GAP_TOLERANCE`], [1e-7 mm: the largest gap between two ends that still counts as joined. Ends that close are moved to meet exactly.],
   [`PERPENDICULAR_TOLERANCE`], [1e-9: how far from a right angle `x_dir` and `normal` may be.],
+  [`REVOLVE_AXIS_TOLERANCE`], [1e-7 mm: how far a revolve's axis may be off the face's plane, and how far the face may reach past the axis, and still pass (@sec-revolve-mistakes).],
 )
 
 All numbers must be finite. A face is refused if a loop is empty, has no area, doesn't close, or crosses itself, or if a hole isn't wholly inside the outer loop. Every refusal is an error (@sec-errors), never a crash.
@@ -172,7 +173,7 @@ A through-all extent with any mode but cut, and a missing target, are checked fi
   [`angle`], [Radians, greater than 0 and at most 2π (a full turn; up to 1e-12 over 2π also counts as a full turn). A positive angle turns counterclockwise looking against `dir`, from its tip (right-hand rule).],
 )
 
-The axis and the angle are checked before any geometry is made. Saulitwerx doesn't yet check that the axis lies in the face's plane or stays clear of the face (@sec-revolve-mistakes).
+The axis and the angle are checked before any geometry is made. Then `revolve` checks the face against the axis: the face must be one flat face, the axis must lie in its plane, and the face must not have points on both sides of the axis. Each check allows `REVOLVE_AXIS_TOLERANCE`, 1e-7 mm; a face that touches the axis passes (@sec-revolve-mistakes).
 
 == Sketch entities and constraints <sec-ref-sketch>
 

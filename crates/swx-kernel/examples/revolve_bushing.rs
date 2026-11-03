@@ -95,6 +95,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("zero axis -> error: {}", flat.unwrap_err());
     let no_target = revolve_feature(&k, &groove, z_axis, TAU, ExtrudeMode::Cut, None);
     println!("cut, no target -> error: {}", no_target.unwrap_err());
+    // An axis through the outline: the Z direction, but 12 mm out along X,
+    // where the flange sits on both sides of it.
+    let through = Axis {
+        origin: [12.0, 0.0, 0.0],
+        ..z_axis
+    };
+    let crossing = revolve_feature(&k, &section, through, TAU, ExtrudeMode::NewSolid, None);
+    println!(
+        "axis through the outline -> error: {}",
+        crossing.unwrap_err()
+    );
+    // An axis standing straight out of the outline's plane (the Y axis).
+    let out_of_plane = Axis {
+        dir: [0.0, 1.0, 0.0],
+        ..z_axis
+    };
+    let spun = revolve_feature(&k, &section, out_of_plane, TAU, ExtrudeMode::NewSolid, None);
+    println!("axis out of the plane -> error: {}", spun.unwrap_err());
 
     for (name, s) in [
         ("bushing", &bushing),

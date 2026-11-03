@@ -81,6 +81,12 @@
 
 = What's new
 
+== 2026-11-03: safer revolves
+
+- *New:* a revolve now checks its axis first. An axis that runs through the outline, or doesn't lie in the outline's plane, gets a clear message saying which, instead of a broken solid or a vague failure (@sec-revolve-mistakes).
+- The revolve sample shows both new errors (@sec-revolve).
+- Help: three new error messages; the revolve rows and the known limitation about unchecked axes updated.
+
 == 2026-11-02: faces, edges and vertices
 
 - *New:* count a solid's faces, edges and vertices, and list which ones touch: the edges around a face, the faces along an edge (@sec-topology, @sec-ref-kernel).
@@ -164,7 +170,6 @@ These are the next items on the public roadmap. None of them works yet. When one
   columns: (auto, 1fr),
   header: ("Soon", "What you'll be able to do"),
   [Extrude from a sketch], [Hand a sketch's region straight to the extrude and the revolve, and extrude up to a face or between two faces.],
-  [Safer revolves], [A clear error when a revolve's axis runs through the outline or lies outside its plane.],
   [More part features], [Fillet, chamfer, shell and hole, driven by sketches.],
   [Lasting references], [A feature built on a face or an edge keeps finding it when earlier features change.],
   [Part files], [Save a part with its full history, and open it again.],
