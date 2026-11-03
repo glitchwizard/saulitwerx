@@ -326,6 +326,9 @@ pub(crate) struct PreparedFace {
     pub normal: [f64; 3],
     /// The outer loop first, then the holes.
     pub loops: Vec<Vec<Edge2>>,
+    /// Per loop: `true` when its edges are in the reverse of the caller's
+    /// segment order (edge `k` came from segment `n - 1 - k`).
+    pub reversed: Vec<bool>,
 }
 
 fn invalid(msg: String) -> KernelError {
@@ -443,8 +446,13 @@ fn chain(edges: &[Edge2], first_reversed: bool) -> Option<Vec<Edge2>> {
 
 /// Validates a loop and returns its edges in traversal order, with each
 /// shared endpoint snapped to the midpoint of the two it joins, oriented
-/// counterclockwise if `ccw`, else clockwise.
-fn prepare_loop(name: &str, lp: &ProfileLoop, ccw: bool) -> Result<Vec<Edge2>, KernelError> {
+/// counterclockwise if `ccw`, else clockwise. The flag is `true` when the
+/// edges are in the reverse of the segment order.
+fn prepare_loop(
+    name: &str,
+    lp: &ProfileLoop,
+    ccw: bool,
+) -> Result<(Vec<Edge2>, bool), KernelError> {
     let edges = lp
         .segments
         .iter()
@@ -486,10 +494,11 @@ fn prepare_loop(name: &str, lp: &ProfileLoop, ccw: bool) -> Result<Vec<Edge2>, K
     if area.abs() <= LOOP_GAP_TOLERANCE * LOOP_GAP_TOLERANCE {
         return Err(invalid(format!("{name} loop encloses no area")));
     }
-    if (area > 0.0) != ccw {
+    let reverse = (area > 0.0) != ccw;
+    if reverse {
         edges = edges.into_iter().rev().map(Edge2::reversed).collect();
     }
-    Ok(edges)
+    Ok((edges, reverse))
 }
 
 /// Validates [`Kernel::make_face`](crate::Kernel::make_face) inputs.
@@ -511,15 +520,26 @@ pub(crate) fn prepare_face(
             "workplane x_dir and normal must be perpendicular (dot {dot})"
         )));
     }
-    let mut loops = vec![prepare_loop("outer", outer, true)?];
-    for (i, h) in holes.iter().enumerate() {
-        loops.push(prepare_loop(&format!("hole {i}"), h, false)?);
+    let (mut loops, mut reversed) = (Vec::new(), Vec::new());
+    for (i, (name, lp)) in std::iter::once(("outer".to_string(), outer))
+        .chain(
+            holes
+                .iter()
+                .enumerate()
+                .map(|(i, h)| (format!("hole {i}"), h)),
+        )
+        .enumerate()
+    {
+        let (edges, rev) = prepare_loop(&name, lp, i == 0)?;
+        loops.push(edges);
+        reversed.push(rev);
     }
     Ok(PreparedFace {
         origin: plane.origin,
         x_dir,
         normal,
         loops,
+        reversed,
     })
 }
 
