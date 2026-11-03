@@ -24,7 +24,7 @@ The line the shape turns around is the #term[axis of revolution]. The #term[revo
   alt: "Left: a round flanged tube with a quarter cut away, showing its L-shaped cross-section. Right: the same tube, complete.",
 ) <fig-revolve>
 
-*In Saulitwerx today:* the geometry engine can revolve a flat face from `make_face` about any axis, by any angle up to a full turn. Like an extrude, the result can be a new solid, or be joined to a part, cut from it or intersected with it in the same step. You type the outline's pieces into a small program; a sketch's regions can't be handed to the revolve yet, and the revolve isn't recorded in a part's history. Saulitwerx doesn't yet check that the axis lies in the outline's plane or stays clear of the outline (@sec-revolve-mistakes).
+*In Saulitwerx today:* the geometry engine can revolve a flat face from `make_face` about any axis, by any angle up to a full turn. Like an extrude, the result can be a new solid, or be joined to a part, cut from it or intersected with it in the same step. Before it turns anything, it checks that the axis lies in the outline's plane and stays clear of the outline, and says plainly when it doesn't (@sec-revolve-mistakes). You type the outline's pieces into a small program; a sketch's regions can't be handed to the revolve yet, and the revolve isn't recorded in a part's history.
 
 == Revolve a profile <sec-revolve>
 
@@ -37,8 +37,8 @@ The line the shape turns around is the #term[axis of revolution]. The #term[revo
 #steps(
   [Run the sample program, and tell it to save its parts in a folder called `revolve`:
   #term-block("cargo run -p swx-kernel --features occt --example revolve_bushing -- revolve")
-  It prints a line for each part, then three errors on purpose, then the files it wrote:
-  #term-block(label: "Output", "full turn   8482.30 mm³   6 faces  x from -20 to 20\n270°        6361.73 mm³   8 faces  x from -20 to 20\ngrooved     8362.92 mm³  10 faces  x from -20 to 20\n360 -> error: invalid input: revolve angle must be in (0, 2π] radians, got 360\nzero axis -> error: invalid input: revolve axis direction must be non-zero\ncut, no target -> error: invalid input: revolve mode \"cut\" needs a target body\n…  (the geometry engine's file reports)\nwrote revolve/bushing.step\nwrote revolve/bushing-270.step\nwrote revolve/bushing-grooved.step")],
+  It prints a line for each part, then five errors on purpose, then the files it wrote. The two longest error lines are broken here to fit the page; on your screen each is one line:
+  #term-block(label: "Output", "full turn   8482.30 mm³   6 faces  x from -20 to 20\n270°        6361.73 mm³   8 faces  x from -20 to 20\ngrooved     8362.92 mm³  10 faces  x from -20 to 20\n360 -> error: invalid input: revolve angle must be in (0, 2π] radians, got 360\nzero axis -> error: invalid input: revolve axis direction must be non-zero\ncut, no target -> error: invalid input: revolve mode \"cut\" needs a target body\naxis through the outline -> error: invalid input: the profile crosses\n  the revolve axis (origin [12.0, 0.0, 0.0], direction [0.0, 0.0, 1.0]):\n  it reaches 7 on one side and 8 on the other\naxis out of the plane -> error: invalid input: revolve axis (origin\n  [0.0, 0.0, 0.0], direction [0.0, 1.0, 0.0]) is not in the profile's\n  plane (through [0.0, 0.0, 0.0], normal [0.0, -1.0, 0.0])\n…  (the geometry engine's file reports)\nwrote revolve/bushing.step\nwrote revolve/bushing-270.step\nwrote revolve/bushing-grooved.step")],
   [Read the `full turn` line. The outline reaches 20 mm from the axis, so the part runs from x = −20 to 20 mm: 40 mm across. The six faces are the bore, the tube's outside, the flange's rim, and the top, the flange's top and the bottom.],
   [Read the `270°` line. Three quarters of a turn gives three quarters of the volume, 6361.73 mm³. The two flat ends of the wedge add two faces.],
   [Draw the three-quarter part:
@@ -74,6 +74,8 @@ The program is `crates/swx-kernel/examples/revolve_bushing.rs`. It does three th
       ExtrudeMode::NewSolid, None)?;
   ```],
 )
+
+#note(title: [How close is close enough?])[The checks allow 0.0000001 mm (`REVOLVE_AXIS_TOLERANCE`), the same small gap the geometry engine treats as zero. An axis that misses the plane by less than that still counts as in it, and an outline that pokes past the axis by less than that still counts as touching it.]
 
 #tip(title: [Which way does it turn?])[Point your right thumb along the axis direction: your fingers curl the way a positive angle turns. Here the axis points up, so the outline swings from +X towards +Y, counterclockwise seen from above. A full turn looks the same either way.]
 
@@ -126,6 +128,7 @@ The rules are the extrude's: join, cut and intersect need a target, a result wit
 - *Degrees instead of radians.* `revolve angle must be in (0, 2π] radians, got 360`. Convert the angle (@sec-revolve).
 - *An angle of zero, or a negative one.* A revolve has to turn: the same message. To turn the other way, reverse the axis direction.
 - *An axis with no direction.* `revolve axis direction must be non-zero`. Give the axis a direction, such as `[0.0, 0.0, 1.0]`.
-- *The axis runs through the outline.* The outline would sweep through itself. Today the geometry engine refuses it with `kernel failure: revolve failed`. Keep the whole outline on one side of the axis; touching it is fine, and makes a solid center with no bore.
-- *The axis isn't in the outline's plane.* If the axis stands straight out of the plane, the outline only spins in place and encloses nothing: `empty result: revolve new solid leaves no solid (volume 0e0)`. Other tilted or offset axes aren't checked yet and can give a broken solid. Draw the outline on a plane that contains the axis, as the sample does with the XZ plane and the Z axis.
+- *The axis runs through the outline.* The outline would sweep through itself, so the revolve is refused: `the profile crosses the revolve axis (…): it reaches 7 on one side and 8 on the other`. The two numbers say how far, in millimeters, the outline reaches on each side; the sample's flange runs from 5 to 20 mm, and an axis at 12 mm splits it 7 and 8. Move the axis, or the outline, so the whole outline is on one side. Touching the axis is fine, and makes a solid center with no bore.
+- *The axis isn't in the outline's plane.* An axis that is tilted out of the plane, stands straight out of it, or runs beside it is refused: `revolve axis (…) is not in the profile's plane (through …, normal …)`. The message gives a point on the plane and its normal, the direction straight out of it; the axis direction must be at right angles to that normal, and the axis point must lie on the plane. Draw the outline on a plane that contains the axis, as the sample does with the XZ plane and the Z axis.
+- *A shape that isn't one flat face.* `revolve needs a single planar face`. Give the revolve a face from `make_face`, not a solid.
 - *Join, cut or intersect with no target.* `revolve mode "cut" needs a target body`. Pass the part as `Some(&part)`, or use `ExtrudeMode::NewSolid`.

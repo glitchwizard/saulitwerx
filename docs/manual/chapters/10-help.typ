@@ -84,9 +84,12 @@ Every message starts with `swx-qa: `. No picture is written when there is an err
   [`invalid input: the through-all cut misses the target: it removes nothing`], [The cut went the wrong way, or the outline isn't over the part. Change the direction or move the outline (@sec-through-all).],
   [`invalid input: revolve angle must be in (0, 2π] radians, got <v>`], [The angle is zero, negative, more than a full turn, not a number, or given in degrees. Give radians: a full turn is 2π (@sec-revolve).],
   [`invalid input: revolve axis direction must be non-zero` (or `must be finite, got …`), `revolve axis origin must be finite, got …`], [The axis is missing its direction, or has a number that isn't finite.],
-  [`kernel failure: revolve failed`], [The geometry engine couldn't make the revolve. Most often the axis runs through the outline; keep the outline on one side of it (@sec-revolve-mistakes). Also given when the shape isn't a face from `make_face`.],
+  [`invalid input: the profile crosses the revolve axis (origin …, direction …): it reaches <a> on one side and <b> on the other`], [The axis runs through the outline. Move the axis or the outline so the outline is all on one side; touching the axis is fine (@sec-revolve-mistakes).],
+  [`invalid input: revolve axis (origin …, direction …) is not in the profile's plane (through …, normal …)`], [The axis is tilted out of the outline's plane, stands straight out of it, or runs beside it. Use an axis that lies in the plane (@sec-revolve-mistakes).],
+  [`invalid input: revolve needs a single planar face`], [The shape given to the revolve isn't one flat face. Pass a face from `make_face`.],
+  [`kernel failure: revolve failed`], [The geometry engine couldn't make the revolve, although its input passed every check above.],
   [`invalid input: revolve mode "join" needs a target body` (or `"cut"`, `"intersect"`)], [As for an extrude: pass the part as the target, or use `NewSolid` (@sec-revolve-modes).],
-  [`empty result: revolve new solid leaves no solid (volume …)` (or `join`, `cut`, `intersect`)], [Nothing is left. For a new solid, the axis probably stands straight out of the outline's plane, so the outline only spins in place. For a cut or an intersect, as for an extrude.],
+  [`empty result: revolve new solid leaves no solid (volume …)` (or `join`, `cut`, `intersect`)], [Nothing is left: for a cut or an intersect, as for an extrude.],
   [`empty result: extrude cut leaves no solid (volume …)` (or `intersect`, `join`)], [Nothing is left: the cut removed the whole part, or the intersect found no overlap. Make the outline smaller, or move it over the part.],
 )
 
@@ -177,7 +180,7 @@ For an unknown entity, `infer` and `add_inferred` give the sketch messages above
 - No desktop app, 3D view, mouse or keyboard controls yet.
 - A sketch's regions can't be extruded or revolved directly yet: type the outline's pieces into a program (@ch-extrude, @ch-revolve). There is no fillet or hole yet.
 - An extrude goes a set distance, or through all for a cut (@sec-through-all); not "up to a face" or "between two faces".
-- A revolve turns one way from the outline's plane by an angle; it can't yet turn both ways or symmetrically. The axis isn't checked against the outline yet: one that runs through the outline, or isn't in its plane, gives an error or a broken solid instead of a clear message (@sec-revolve-mistakes).
+- A revolve turns one way from the outline's plane by an angle; it can't yet turn both ways or symmetrically.
 - An extrude's or a revolve's target is a solid you hold in your program. Faces and edges can be counted and numbered (@sec-topology), but not picked, and their numbers don't last through a change; so the outline's workplane is given by its numbers (@sec-extrude-modes).
 - Extrudes and revolves aren't recorded in a part's history, so they don't rebuild when a parameter changes.
 - No native part files; work can't be saved with its history.
