@@ -8,17 +8,21 @@ Every parametric modeler, Saulitwerx included, is built on a handful of ideas. O
 
 A #term[solid] is a closed 3D shape with an inside and an outside, like a real object. Because Saulitwerx knows what is inside, it can tell you how much material a part holds (its #term[volume]), how much surface it has to paint (its #term[surface area]), and how big a box it would fit in (its #term[bounding box]).
 
-The outside of a solid is made of #term[faces]: flat or curved patches of surface. Where two faces meet there is an #term[edge]. The plate from @ch-first has 7 faces: top, bottom, four sides, and the round inside of the hole.
+The outside of a solid is made of #term[faces]: flat or curved patches of surface. Where two faces meet there is an #term[edge], and where edges meet there is a corner point, a #term[vertex] (plural: vertices). The plate from @ch-first has 7 faces: top, bottom, four sides, and the round inside of the hole.
+
+Faces, edges and vertices are what you will later pick to say "round this edge" or "sketch on this face", so it helps to see how they hang together. Each face is bounded by edges, and each edge ends at vertices. A box has 6 faces, 12 edges and 8 vertices; every edge sits between exactly two faces.
 
 #shot(
   // swx-qa render --step plate.step --size 1600x1000 -o docs/manual/img/plate-with-hole.png
+  // Rings drawn by the template: a face, an edge and a vertex.
   "img/plate-with-hole.png",
   width: 62%,
-  caption: [A solid. Its faces are shaded; its edges are outlined. Volume 4607.30 mm³, 7 faces.],
-  alt: "The plate with a hole, used as an example of a solid",
+  marks: ((58%, 22%, [face]), (66%, 59%, [edge]), (40.3%, 82.8%, [vertex])),
+  caption: [A solid, with one face, one edge and one vertex ringed. Faces are shaded and edges outlined. Volume 4607.30 mm³, 7 faces.],
+  alt: "The plate with a hole, with one face, one edge and one corner vertex ringed",
 )
 
-*In Saulitwerx today:* the geometry engine makes boxes, cylinders and spheres, and measures volume, surface area, bounding box and face count. @ch-solids shows how.
+*In Saulitwerx today:* the geometry engine makes boxes, cylinders and spheres, and measures volume, surface area, bounding box and face count. It can also count a solid's faces, edges and vertices, and list which ones touch (@sec-topology). @ch-solids shows how.
 
 == Units
 

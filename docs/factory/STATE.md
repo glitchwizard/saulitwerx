@@ -13,6 +13,11 @@ issues_per_night: 4
 
 ## Log
 
+- 2026-11-02 reviewer: merged #116 (M3-04b) (CI green, 3 checks; QA report + ship report r2 verified, nothing visual); sent back #120 (M3-03b: conflicts with main after #116); no roadmap check-off (M3-03 needs #117, M3-04 needs M3-04c..g); planned #121 M3-02b, #122 M3-05a (ready: #113, #114, #121, #122; #114 depends on #113); retro PR #123 (needs-human; 1 change: Planner counts only unblocked ready issues; #80 still unmerged); 1:17am reviewer run left no trace; merged branch not deleted (delete denied)
+- 2026-11-02 builder: idle (no qualifying issue; #113 and #114 wait on #105, still in review)
+- 2026-11-02 builder: #117 M3-03b → PR #120 (4b58b12; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
+- 2026-11-02 builder: #105 M3-04b → PR #116 merged main (8723c52; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
+- 2026-11-01 documenter: M3-02a + M3-03a → PR #119 merged (CI green, 3 checks; 87 pages; no feedback; no issues opened)
 - 2026-11-01 reviewer: merged #112 (M3-03a) (CI green, 3 checks; QA report + ship report + 3 images verified; local gates on #112 exit 0, incl. swx-kernel occt); sent back #116 (M3-04b: conflicts with main after #112); no roadmap check-off (M3-03 needs #117); planned #117 M3-03b (ready: #113, #114, #117; #113 depends on #105, #114 on #105 and #113); merged branch not deleted (delete denied); no retro (not a Monday night)
 - 2026-11-01 builder: #105 M3-04b → PR #116 (39cc854; CI green, 3 checks; think-and-ship gates verified; QA pass)
 - 2026-11-01 builder: #104 M3-03a → PR #112 merged main (5e4aa69; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
@@ -38,8 +43,3 @@ issues_per_night: 4
 - 2026-10-28 documenter: M2-04a + M2-08a + M2-07b → PR #88 merged (CI green, 3 checks; 65 pages; no feedback; no issues opened)
 - 2026-10-28 reviewer: merged #83 (M2-07b) (CI green, 3 checks; QA report + ship report + 2 images verified; local gates on main+#83 exit 0); checked off M2-07; sent back #84 (M2-09: no QA report, conflicts with main after #83); no new issues (ready: #79; every open M2 item has an issue; ROADMAP bars M3); merged branch not deleted (delete denied); no retro (not a Monday night)
 - 2026-10-28 builder: idle (nightly cap reached; 12:17am run took #72 → PR #77 and #76 → PR #78)
-- 2026-10-28 reviewer: merged #77 (M2-08a) and #78 (M2-04a) (CI green, 3 checks each; QA reports + ship reports + 4 images verified; local gates on main+both exit 0); no roadmap check-off (M2-08 open via #79, M2-04 already checked); no new issues (ready: #79; every M2 item has an issue; ROADMAP bars M3); #83 and #84 wait for the next run; merged branches not deleted (delete denied); no retro (not a Monday night)
-- 2026-10-28 builder: #76 M2-04a → PR #78 merged main + QA report (d18d8d6; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
-- 2026-10-28 builder: #72 M2-08a → PR #77 merged main + QA report (938642e; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
-- 2026-10-27 reviewer: sent back #77 (M2-08a: conflicts with main) and #78 (M2-04a: no QA report); no new issues (all remaining M2 items have issues; ROADMAP bars M3 until M2 is checked off; ready: #79, which depends on #72); #83 and #84 wait for the next run; no retro (not a Monday night)
-- 2026-10-27 builder: #71 M2-07b → PR #83 (CI green, 3 checks; think-and-ship gates verified; QA pass)

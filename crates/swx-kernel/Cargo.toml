@@ -47,3 +47,7 @@ required-features = ["occt"]
 [[example]]
 name = "revolve_bushing"
 required-features = ["occt"]
+
+[[example]]
+name = "part_topology"
+required-features = ["occt"]
