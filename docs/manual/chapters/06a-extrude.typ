@@ -26,7 +26,7 @@ Two more words come with it:
 - The #term[workplane] is the flat plane the outline is drawn on. It has its own left–right and up–down directions, and a third direction straight out of it, called its _normal_. The extrude goes along the normal.
 - The #term[extent] says how far the extrude goes: a distance one way, or a length split evenly on both sides of the workplane.
 
-*In Saulitwerx today:* the geometry engine can make a flat face from outlines of lines, arcs and circles on any workplane, and extrude it by a distance or symmetrically. The result can be a new solid, or be joined to a part, cut from it or intersected with it in the same step (@sec-extrude-modes). A cut can also go through the whole part, however thick it is (@sec-through-all). You type the outline's pieces into a small program; a sketch's regions (@sec-profiles) can't be handed to the extrude yet, and the extrude isn't recorded in a part's history.
+*In Saulitwerx today:* the geometry engine can make a flat face from outlines of lines, arcs and circles on any workplane, and extrude it by a distance or symmetrically. The result can be a new solid, or be joined to a part, cut from it or intersected with it in the same step (@sec-extrude-modes). A cut can also go through the whole part, however thick it is (@sec-through-all), and a plain extrude can report which face each piece of the outline became (@sec-extrude-history). You type the outline's pieces into a small program; a sketch's regions (@sec-profiles) can't be handed to the extrude yet, and the extrude isn't recorded in a part's history.
 
 == Extrude a profile <sec-extrude>
 
@@ -270,6 +270,85 @@ let cross = extrude_feature(&k, &cross_hole,
 
 #tip(title: [A missed cut is an error])[If a through-all cut removes nothing, Saulitwerx refuses it instead of handing back the part unchanged, so a cut that went the wrong way never passes unnoticed. Change the direction, or move the outline over the part.]
 
+== Find the faces an extrude made <sec-extrude-history>
+
+#idx("extrude history")
+Most features after the first one point at something already in the part: round _this_ edge, draw on _that_ face, cut down to _this_ face. The kernel numbers every face and edge (@sec-topology), but the numbers come from the geometry engine, not from you, so you can't tell in advance which number the top of the plate gets.
+
+An extrude can tell you. Ask for it _with history_, and next to the solid you get a record of where each face came from. Faces of an extrude come in two sorts:
+
+- The two #term(key: "cap")[caps]: the flat faces at each end of the push. On the plate, the bottom and the top.
+- One #term[side face] for each edge of the outline: the wall it swept as it moved. A straight edge sweeps a flat wall; the hole's circle sweeps a round one.
+
+Follow one piece of your outline through both steps, and you know its face: the rectangle's line at x = 40 became edge 1 of the flat face, and edge 1 swept face 1 of the plate (@fig-extrude-history).
+
+#shot(
+  // cargo run -p swx-kernel --features occt --example extrude_plate -- extruded-plate.step
+  // swx-qa render --step extruded-plate.step --size 1200x840 -o docs/manual/img/extruded-plate.png
+  // Rings drawn by the template; face numbers from: cargo run -p swx-kernel --features occt --example extrude_history
+  "img/extruded-plate.png",
+  width: 78%,
+  alt: "The extruded plate with four rings: on the top face, on the hole's wall, on the short front side and on the long front side",
+  marks: (
+    (62%, 20%, [end cap: face 6]),
+    (49%, 40%, [hole wall: face 4]),
+    (18%, 71%, [face 1]),
+    (64%, 64%, [face 2]),
+  ),
+  caption: [The plate's faces, as its extrude history names them. Face 1 was swept by the rectangle's line at x = 40, face 2 by its line at y = 25, face 4 by the hole's circle. The start cap, face 5, is underneath.],
+) <fig-extrude-history>
+
+*In Saulitwerx today:* the geometry engine keeps this record for a plain extrude, the one that makes a new solid. You get it in your own program. The extrude with join, cut or intersect doesn't give one yet, the part's history doesn't keep it, and no later feature can use it to find a face yet.
+
+#task-intro(
+  goal: [Extrude the plate with history, and find which face each piece of its outline became.],
+  needs: [Saulitwerx built with OpenCascade (@ch-install).],
+  time: [5 minutes.],
+)
+
+#steps(
+  [Run the sample program:
+  #term-block("cargo run -p swx-kernel --features occt --example extrude_history")
+  It prints the two caps, then one line for each piece of the outline, then where the top is:
+  #term-block(label: "Output", "start cap     face 5\nend cap       face 6\nouter 0  ->  edge 0  ->  face 0   x 0..40  y 0..0  z 0..5\nouter 1  ->  edge 1  ->  face 1   x 40..40  y 0..25  z 0..5\nouter 2  ->  edge 2  ->  face 2   x 0..40  y 25..25  z 0..5\nouter 3  ->  edge 3  ->  face 3   x 0..0  y 0..25  z 0..5\nhole 0  ->  edge 4  ->  face 4   x 15..25  y 7.5..17.5  z 0..5\nend cap is    x 0..40  y 0..25  z 5..5")],
+  [Read the line `outer 1`. The second line of the rectangle, from (40, 0) to (40, 25), became edge 1 of the face, and edge 1 swept face 1. The box after it shows where that face is: flat at x = 40, the full 25 mm wide and 5 mm tall. That is the short side at the front left in @fig-extrude-history.],
+  [Read the line `hole 0`. The circle swept face 4, the hole's wall: 10 mm across and 5 mm tall, around the hole's center.],
+  [Read the last line. The end cap lies flat at z = 5 mm: it is the top of the plate.],
+)
+
+#result[Every face of the plate, named by the piece of the outline that made it. Faces 0 to 4 are the sides, 5 the bottom and 6 the top.]
+
+=== How the sample is built
+
+The program is `crates/swx-kernel/examples/extrude_history.rs`. It uses the outline of `extrude_plate`, and three calls do the work.
+
+#steps(
+  [*Make the face with history.* `make_face_tracked` takes the same inputs as `make_face`. It also returns, for each loop (the outer one first, then the holes), the edge each piece became, in the order you listed the pieces:
+  ```rust
+  let (face, edges) = k.make_face_tracked(&Workplane::XY, &outer, &[hole])?;
+  ```
+  Here `edges[0][1]` is the edge made from the outer loop's second piece.],
+  [*Extrude it with history.* `extrude_tracked` takes the same inputs as `extrude`, and returns an `ExtrudeHistory` with the solid:
+  ```rust
+  let (part, history) = k.extrude_tracked(&face, Extent::Distance(5.0))?;
+  ```
+  `history.start_cap` and `history.end_cap` are the two caps. `history.sides` holds one pair per edge of the face: the edge, then the side face it swept.],
+  [*Follow an edge to its face*, and ask where that face is. `sub_shape_bounding_box` gives the smallest axis-aligned box around one face, edge or vertex:
+  ```rust
+  let side = history.sides.iter()
+      .find(|(e, _)| e == edge)
+      .map(|(_, f)| *f)
+      .ok_or("edge not in history")?;
+  let bb = k.sub_shape_bounding_box(&part, side)?;
+  ```],
+)
+
+#caution(title: [The start cap isn't always the face you drew])[The sweep runs from the start cap to the end cap, along the workplane's normal. With a positive distance, the start cap is where your outline was drawn. With a negative one, the sweep starts below it: the end cap is the face you drew, and the start cap is the far end. With a symmetric extent, neither cap is on the workplane. When it matters, check with `sub_shape_bounding_box`, as the sample does.]
+
+#note(title: [Same plate, other numbers])[The plate of @sec-topology, made as a block with a cylinder cut out, has its hole's wall as face 6. The extruded plate has it as face 4. The two shapes are the same; the steps that made them differ, and so do the numbers. That is why a number is only good for the shape it came from, and why the history is worth having: it tells you which number is which.]
+
+#tip(title: [Your order, not the engine's])[However you list a loop's pieces, clockwise or counterclockwise, the edges come back in your order: the second piece you gave is always `edges[loop][1]`. You don't have to know how Saulitwerx reordered the loop.]
+
 == Common mistakes
 
 #set par(justify: false)
@@ -283,4 +362,6 @@ let cross = extrude_feature(&k, &cross_hole,
 - *A cut that goes the wrong way.* It misses the part, and the part comes back unchanged. Check the sign of the distance (@sec-extrude-modes).
 - *A cut that removes everything,* or an intersect that doesn't overlap: `empty result: extrude cut leaves no solid …`. Make the outline smaller than the face it cuts, or move it over the part.
 - *A through-all extent with another mode.* Only a cut can go through all: `a through-all extent works only with the cut mode, not "join"`. Give a distance for a join or an intersect.
+- *A through-all extent with history.* `extrude_tracked` has no target to measure, so it refuses through-all just as `extrude` does: `a through-all extent needs a target body to measure; use extrude_feature with the cut mode`.
+- *A face number from another shape.* The numbers in an extrude history belong to that solid. After a cut, face 6 may be another face, or not exist: `sub_shape_bounding_box` then gives the wrong face's box, or `face index 7 is out of range: the shape has 7 faces` (@sec-topology). Take the numbers again from the step that made the shape you ask about.
 - *A through-all cut the wrong way.* It misses the part: `the through-all cut misses the target: it removes nothing`. On a top face, use `ThroughDirection::Reversed`, or `Both` (@sec-through-all).
