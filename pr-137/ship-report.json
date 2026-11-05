@@ -1,0 +1,118 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(kernel): tracked booleans with face history",
+      "ref": "32cabfd",
+      "task_id": "pr137-tracked-booleans",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "pr137-tracked-booleans",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy (workspace)",
+      "passed": true,
+      "required": true,
+      "task_id": "pr137-tracked-booleans",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test (workspace)",
+      "passed": false,
+      "required": true,
+      "task_id": "pr137-tracked-booleans",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo test (workspace)",
+      "passed": true,
+      "required": true,
+      "task_id": "pr137-tracked-booleans",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "pr137-tracked-booleans",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "pr137-tracked-booleans",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "pr137-tracked-booleans",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "pr137-tracked-booleans",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`pub enum BooleanOp { Union, Cut, Intersect }` (public; the existing crate-private `ffi::BooleanOp` may be replaced by or mapped from it), `pub enum Operand { A, B }` and `pub struct OpHistory { pub modified: Vec<(Operand, SubShape, Vec<SubShape>)>, pub generated: Vec<(Operand, SubShape, Vec<SubShape>)> }`, documented.",
+      "`Kernel::boolean_tracked(&self, op, a, b) -> Result<(Self::Shape, OpHistory), KernelError>`: the same solid as `union` / `cut` / `intersect`, plus its history. `modified` has exactly one entry per face of `a` and per face of `b`, with its images in the result: itself if unchanged, several if split, none if deleted. Images are sorted by index. Documented and implemented for `OcctKernel`.",
+      "Tests (behind `occt`); volumes within a relative 1e-6, boxes within 1e-6. Input faces are found with `sub_shape_bounding_box`: Split top face (cut): `a = make_box((0, 0, 0), (40, 25, 10))`, `b = make_box((18, −1, 6), (4, 27, 5))` (a groove across the full width, 4 deep). Volume 9600; 10 faces. The top face of `a` (z = 10) has 2 images, with boxes (0, 0, 10)–(18, 25, 10) and (22, 0, 10)–(40, 25, 10). The bottom of `a` has 1 image. The faces of `b` at z = 11, y = −1 and y = 26 are deleted; its faces at z = 6, x = 18 and x = 22 have 1 image each. Absorbed boss (union): `a = make_box((0, 0, 0), (40, 25, 20))`, `b = make_cylinder((20, 12.5, 10), 5, 5)` (inside `a`). Volume 20000; 6 faces. Every face of `b` is deleted; every face of `a` has exactly 1 image. Embedded boss (union): `a = make_box((0, 0, 0), (40, 25, 10))`, `b = make_cylinder((20, 12.5, 5), 5, 10)`. Volume 10000 + 125π ≈ 10392.6991; 8 faces. The bottom of `b` (z = 5) is deleted; its side and top have 1 image each; the top of `a` has 1 image. Intersect: `a = make_box((0, 0, 0), (40, 25, 10))`, `b = make_box((30, 15, 5), (20, 20, 20))`. Volume 500; 6 faces. Exactly 3 faces of `a` and 3 of `b` have 1 image; the other 6 input faces are deleted. In all four tests, every result face is the image of exactly one input face in `modified`, and the tracked and untracked calls give the same volume and face count.",
+      "Errors, each with a test and never a panic: an empty result is reported as the untracked boolean reports it (e.g. a cut that removes all of `a`).",
+      "No new dependencies. `swx-kernel` still has no workspace dependencies. Every new shim function is `noexcept` and catches C++ exceptions; every new `unsafe` block is in `ffi` and documented.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and so do the CI `swx-kernel (occt)` job commands.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-05T10:28:51.720396934+00:00",
+    "constraints": [],
+    "created_at": "2026-11-05T10:28:18.658446836+00:00",
+    "description": "M3-04d: Tracked booleans: boolean_tracked and OpHistory (split, modified and deleted faces)",
+    "project_id": "saulitwerx",
+    "scope": "swx-kernel; PR #137",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 8,
+      "estimate": "medium",
+      "id": "pr137-tracked-booleans",
+      "status": "completed",
+      "title": "Implement boolean_tracked and OpHistory with tests",
+      "type": "implement"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
