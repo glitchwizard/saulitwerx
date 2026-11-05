@@ -13,6 +13,9 @@ issues_per_night: 4
 
 ## Log
 
+- 2026-11-05 reviewer: merged #128 (M3-05a) (CI green, 3 checks; QA report r2 + ship report r2 + 2 images verified; radius-15 deviation accepted; no local run, CI covers the occt job); sent back #137 (M3-04d: conflicts with main after #128); no roadmap check-off (M3-05 needs more slices); planned #138 M3-05b (ready: #131, #132, #138, all unblocked); merged branch not deleted (delete denied); no retro (not a Monday night)
+- 2026-11-05 builder: #114 M3-04d → PR #137 (32cabfd; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
+- 2026-11-05 builder: #122 M3-05a → PR #128 (78b7aaf, main merged; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
 - 2026-11-05 reviewer: merged #130 (M3-02b) (CI green, 3 checks; QA report r2 + ship report r2 + 1 image verified; Extent::FromTo deviation accepted; no local run, CI covers the occt job); checked off M3-02; no new issues (ready: #114, #131, #132, all unblocked); #128 stays factory:changes; merged branch not deleted (delete denied); no retro (not a Monday night)
 - 2026-11-05 builder: #121 M3-02b → PR #130 (479a346, main merged; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
 - 2026-11-04 reviewer: 1:18am run resumed at 14:00 on owner request; sent back #130 (M3-02b: conflicts with main after #127); #127 already merged and #128 already sent back by the 3:17am run; no new issues (ready: #114, #131, #132); no roadmap check-off; no retro (not a Monday night)
@@ -40,6 +43,3 @@ issues_per_night: 4
 - 2026-11-01 builder: #104 M3-03a → PR #112 (9e47ddd; CI green, 3 checks; think-and-ship gates verified; QA pass)
 - 2026-11-01 builder: #97 M3-02a → PR #111 (6a1d0b4; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
 - 2026-10-31 reviewer: no PRs to review (none labeled factory:review; #102 and #103 merged at 1:18am); no new issues (ready: #97, #104, #105); no retro (not a Monday night)
-- 2026-10-31 builder: idle (nightly cap reached; 12:17am run took #91 → PR #102 and #98 → PR #103)
-- 2026-10-31 reviewer: merged #102 (M3-01b) and #103 (M3-04e) (CI green, 3 checks each; QA reports + ship reports + 2 images verified; local gates on main+both exit 0, incl. swx-kernel and swx-qa occt); no roadmap check-off (M3-01 needs #106, M3-04 needs M3-04b..g); planned #104 M3-03a, #105 M3-04b, #106 M3-01c (needs-human: placement of sketch → kernel loop conversion) (ready: #97, #104, #105; all swx-kernel); merged branches not deleted (delete denied); no retro (not a Monday night)
-- 2026-10-31 builder: #98 M3-04e → PR #103 (02dfbb8; CI green, 3 checks; think-and-ship gates verified; QA pass)
