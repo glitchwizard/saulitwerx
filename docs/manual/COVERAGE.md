@@ -1,4 +1,4 @@
-manual-synced-to: a52c3b062d3344d9c17576d775183ff271ab5ba1
+manual-synced-to: 1a8c4c257ec70ac95569f7ee47e7ed8e08f02e48
 
 # Manual coverage
 
@@ -20,10 +20,12 @@ Everything a user can do or set on `main`, found from the code, `docs/ROADMAP.md
 | Kernel: `tessellate` (deflection) | 9.1, 11.4 |
 | Kernel: `export_step`, `import_step` (mm) | 3.2, 6.1, 6.4, 11.4, 11.13 |
 | Kernel: `make_face`, `extrude`; `Workplane` (`XY`, `XZ`, `YZ`, custom), `Segment2` (Line, Arc, Circle), `ProfileLoop`, `Extent` (Distance, Symmetric), `LOOP_GAP_TOLERANCE`, `PERPENDICULAR_TOLERANCE` | 4.7, 4.9, 7, 11.5 |
+| Kernel: `make_face_tracked` (segment → edge, caller's order), `extrude_tracked`, `ExtrudeHistory` (start_cap, end_cap, sides); through-all refused | 7.5, 7.6, 11.5, 12.2 |
+| Kernel: `sub_shape_bounding_box` | 7.5, 11.4 |
 | Kernel: `extrude_feature`, `ExtrudeMode` (NewSolid, Join, Cut, Intersect), `EMPTY_VOLUME_TOLERANCE` | 7.3, 11.5 |
-| Kernel: `Extent::ThroughAll`, `ThroughDirection` (Normal, Reversed, Both); through-all only with `extrude_feature` and `Cut`; miss check | 7.4, 7.5, 11.5, 12.2 |
+| Kernel: `Extent::ThroughAll`, `ThroughDirection` (Normal, Reversed, Both); through-all only with `extrude_feature` and `Cut`; miss check | 7.4, 7.6, 11.5, 12.2 |
 | Kernel: `revolve`, `revolve_feature`, `Axis` (origin, dir); angle in radians, (0, 2π]; right-hand rule; modes as extrude; axis-in-plane and profile-crossing checks, `REVOLVE_AXIS_TOLERANCE` | 8, 11.5, 11.13, 12.2, 12.4 |
-| Kernel errors (`InvalidInput`, `Backend`, `EmptyResult`), incl. every `make_face`, `extrude`, `extrude_feature`, through-all, `revolve` and `revolve_feature` message | 7.3, 7.5, 8.3, 12.2 |
+| Kernel errors (`InvalidInput`, `Backend`, `EmptyResult`), incl. every `make_face`, `extrude`, `extrude_feature`, through-all, `revolve` and `revolve_feature` message | 7.3, 7.6, 8.3, 12.2 |
 | Sketch entities: point, line, circle, arc (solving changes arc angles; sweep kept in (0, 2π]) | 4.3, 11.6 |
 | `PointRef`: Point, Start, End, Center, ArcStart, ArcEnd (arc ends in every point constraint) | 5.1, 5.6, 11.6 |
 | Constraints: coincident, horizontal, horizontal points, vertical, vertical points, fixed, distance, radius, diameter | 4.4, 4.5, 5, 11.6 |

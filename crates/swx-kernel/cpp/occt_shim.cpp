@@ -40,6 +40,7 @@
 #include <TopExp_Explorer.hxx>
 #include <TopLoc_Location.hxx>
 #include <TopoDS.hxx>
+#include <TopoDS_Edge.hxx>
 #include <TopoDS_Face.hxx>
 #include <TopoDS_Shape.hxx>
 #include <TopoDS_Vertex.hxx>
@@ -85,6 +86,16 @@ int emit(const TopoDS_Shape& shape, SwxShape** out) {
     }
     *out = new SwxShape{shape};
     return 0;
+}
+
+// Maps a sub-shape kind code (0 face, 1 edge, 2 vertex) to its OCCT type.
+bool topo_kind(int kind, TopAbs_ShapeEnum* out) {
+    switch (kind) {
+        case 0: *out = TopAbs_FACE; return true;
+        case 1: *out = TopAbs_EDGE; return true;
+        case 2: *out = TopAbs_VERTEX; return true;
+        default: return false;
+    }
 }
 
 // OCCT's data-exchange layer keeps process-global state (static controllers
@@ -188,13 +199,13 @@ int swx_occt_boolean(int op, const SwxShape* a, const SwxShape* b, SwxShape** ou
 // center u v, radius. Edge i ends exactly where edge i + 1 starts, so the
 // edges of a loop share one vertex at each junction. Fails if OCCT finds the
 // face invalid, e.g. a self-intersecting loop or a hole outside the outer loop.
-int swx_occt_make_face(const double* plane, size_t n_loops, const size_t* loop_sizes,
-                       const double* edges, SwxShape** out) noexcept {
-    if (plane == nullptr || loop_sizes == nullptr || edges == nullptr || out == nullptr ||
-        n_loops == 0) {
-        return -1;
-    }
-    try {
+// When `built` is not null it receives the face's edge for each input edge, in
+// input order (BRepBuilderAPI_MakeWire::Edge, the edge as the wire holds it).
+// Throws on OCCT failures; the extern "C" callers catch.
+static int build_face(const double* plane, size_t n_loops, const size_t* loop_sizes,
+                      const double* edges, TopoDS_Face* result_out,
+                      std::vector<TopoDS_Edge>* built) {
+    {
         const gp_Pnt origin(plane[0], plane[1], plane[2]);
         const gp_Dir x_dir(plane[3], plane[4], plane[5]);
         const gp_Dir normal(plane[6], plane[7], plane[8]);
@@ -242,6 +253,9 @@ int swx_occt_make_face(const double* plane, size_t n_loops, const size_t* loop_s
                 if (!wire.IsDone()) {
                     return -1;
                 }
+                if (built != nullptr) {
+                    built->push_back(wire.Edge());
+                }
             }
             wires.push_back(wire.Wire());
         }
@@ -257,7 +271,55 @@ int swx_occt_make_face(const double* plane, size_t n_loops, const size_t* loop_s
         if (!BRepCheck_Analyzer(result).IsValid()) {
             return -1;
         }
-        return emit(result, out);
+        *result_out = result;
+        return 0;
+    }
+}
+
+int swx_occt_make_face(const double* plane, size_t n_loops, const size_t* loop_sizes,
+                       const double* edges, SwxShape** out) noexcept {
+    if (plane == nullptr || loop_sizes == nullptr || edges == nullptr || out == nullptr ||
+        n_loops == 0) {
+        return -1;
+    }
+    try {
+        TopoDS_Face face;
+        if (build_face(plane, n_loops, loop_sizes, edges, &face, nullptr) != 0) {
+            return -1;
+        }
+        return emit(face, out);
+    } catch (...) {
+        return -1;
+    }
+}
+
+// As swx_occt_make_face, and writes to `edge_indices[i]` (n_edges entries, the
+// sum of `loop_sizes`) the 0-based TopExp::MapShapes edge index, in the new
+// face, of the edge built from input edge i.
+int swx_occt_make_face_tracked(const double* plane, size_t n_loops, const size_t* loop_sizes,
+                               const double* edges, size_t n_edges, size_t* edge_indices,
+                               SwxShape** out) noexcept {
+    if (plane == nullptr || loop_sizes == nullptr || edges == nullptr || out == nullptr ||
+        edge_indices == nullptr || n_loops == 0) {
+        return -1;
+    }
+    try {
+        TopoDS_Face face;
+        std::vector<TopoDS_Edge> built;
+        if (build_face(plane, n_loops, loop_sizes, edges, &face, &built) != 0 ||
+            built.size() != n_edges) {
+            return -1;
+        }
+        TopTools_IndexedMapOfShape map;
+        TopExp::MapShapes(face, TopAbs_EDGE, map);
+        for (size_t i = 0; i < n_edges; ++i) {
+            const int k = map.FindIndex(built[i]);
+            if (k <= 0) {
+                return -1;
+            }
+            edge_indices[i] = static_cast<size_t>(k - 1);
+        }
+        return emit(face, out);
     } catch (...) {
         return -1;
     }
@@ -267,30 +329,99 @@ int swx_occt_make_face(const double* plane, size_t n_loops, const size_t* loop_s
 // reference documentation: BRepPrimAPI_MakePrism). The face is first moved
 // `offset` along the normal, then swept `length` (> 0) along it, so the sweep
 // always follows the face normal and the solid is never inside out.
+// Moves planar face `s` `offset` along its outward normal into `moved` and
+// writes that normal to `normal`. Returns false if `s` is not a planar face.
+static bool moved_face(const SwxShape* s, double offset, TopoDS_Face* moved, gp_Dir* normal) {
+    if (s->shape.IsNull() || s->shape.ShapeType() != TopAbs_FACE) {
+        return false;
+    }
+    const TopoDS_Face& face = TopoDS::Face(s->shape);
+    Handle(Geom_Plane) plane = Handle(Geom_Plane)::DownCast(BRep_Tool::Surface(face));
+    if (plane.IsNull()) {
+        return false;
+    }
+    *normal = plane->Axis().Direction();
+    if (face.Orientation() == TopAbs_REVERSED) {
+        normal->Reverse();
+    }
+    gp_Trsf shift;
+    shift.SetTranslation(gp_Vec(*normal) * offset);
+    *moved = TopoDS::Face(face.Moved(TopLoc_Location(shift)));
+    return true;
+}
+
 int swx_occt_extrude(const SwxShape* s, double offset, double length, SwxShape** out) noexcept {
     if (s == nullptr || out == nullptr || !(length > 0.0)) {
         return -1;
     }
     try {
-        if (s->shape.IsNull() || s->shape.ShapeType() != TopAbs_FACE) {
+        TopoDS_Face face;
+        gp_Dir normal;
+        if (!moved_face(s, offset, &face, &normal)) {
             return -1;
         }
-        const TopoDS_Face& face = TopoDS::Face(s->shape);
-        Handle(Geom_Plane) plane = Handle(Geom_Plane)::DownCast(BRep_Tool::Surface(face));
-        if (plane.IsNull()) {
-            return -1;
-        }
-        gp_Dir normal = plane->Axis().Direction();
-        if (face.Orientation() == TopAbs_REVERSED) {
-            normal.Reverse();
-        }
-        gp_Trsf shift;
-        shift.SetTranslation(gp_Vec(normal) * offset);
-        BRepPrimAPI_MakePrism prism(face.Moved(TopLoc_Location(shift)), gp_Vec(normal) * length);
+        BRepPrimAPI_MakePrism prism(face, gp_Vec(normal) * length);
         if (!prism.IsDone()) {
             return -1;
         }
         return emit(prism.Shape(), out);
+    } catch (...) {
+        return -1;
+    }
+}
+
+// As swx_occt_extrude, plus its history as 0-based TopExp::MapShapes indices
+// in the result: `caps[0]`/`caps[1]` are the start and end cap faces
+// (BRepPrimAPI_MakePrism::FirstShape/LastShape), and `sides[i]` is the face
+// swept from edge i of the input face (Generated). `n_sides` must equal the
+// input face's edge count. Moving a face keeps its sub-shape order, so edge i
+// of the moved face is edge i of the input face.
+int swx_occt_extrude_tracked(const SwxShape* s, double offset, double length, size_t* caps,
+                             size_t* sides, size_t n_sides, SwxShape** out) noexcept {
+    if (s == nullptr || out == nullptr || caps == nullptr || (sides == nullptr && n_sides > 0) ||
+        !(length > 0.0)) {
+        return -1;
+    }
+    try {
+        TopoDS_Face face;
+        gp_Dir normal;
+        if (!moved_face(s, offset, &face, &normal)) {
+            return -1;
+        }
+        BRepPrimAPI_MakePrism prism(face, gp_Vec(normal) * length);
+        if (!prism.IsDone()) {
+            return -1;
+        }
+        const TopoDS_Shape result = prism.Shape();
+        TopTools_IndexedMapOfShape faces;
+        TopExp::MapShapes(result, TopAbs_FACE, faces);
+        auto face_index = [&](const TopoDS_Shape& f, size_t* at) {
+            if (f.IsNull() || f.ShapeType() != TopAbs_FACE) {
+                return false;
+            }
+            const int k = faces.FindIndex(f);
+            if (k <= 0) {
+                return false;
+            }
+            *at = static_cast<size_t>(k - 1);
+            return true;
+        };
+        if (!face_index(prism.FirstShape(), &caps[0]) ||
+            !face_index(prism.LastShape(), &caps[1])) {
+            return -1;
+        }
+        TopTools_IndexedMapOfShape edges;
+        TopExp::MapShapes(face, TopAbs_EDGE, edges);
+        if (static_cast<size_t>(edges.Extent()) != n_sides) {
+            return -1;
+        }
+        for (size_t i = 0; i < n_sides; ++i) {
+            const TopTools_ListOfShape& gen = prism.Generated(edges.FindKey(static_cast<int>(i) + 1));
+            if (gen.Extent() != 1 || !face_index(gen.First(), &sides[i])) {
+                return -1;
+            }
+        }
+        return emit(result, out);
     } catch (...) {
         return -1;
     }
@@ -452,6 +583,33 @@ int swx_occt_bounding_box(const SwxShape* s, double* out) noexcept {
     }
 }
 
+// Tight bounding box, as swx_occt_bounding_box, of sub-shape `index` (0-based,
+// TopExp::MapShapes order) of kind code `kind` (0 face, 1 edge, 2 vertex).
+int swx_occt_sub_shape_bounding_box(const SwxShape* s, int kind, size_t index,
+                                    double* out) noexcept {
+    TopAbs_ShapeEnum type;
+    if (s == nullptr || out == nullptr || !topo_kind(kind, &type)) {
+        return -1;
+    }
+    try {
+        TopTools_IndexedMapOfShape map;
+        TopExp::MapShapes(s->shape, type, map);
+        if (index >= static_cast<size_t>(map.Extent())) {
+            return -1;
+        }
+        Bnd_Box box;
+        BRepBndLib::AddOptimal(map.FindKey(static_cast<int>(index) + 1), box, Standard_False,
+                               Standard_False);
+        if (box.IsVoid()) {
+            return -1;
+        }
+        box.Get(out[0], out[1], out[2], out[3], out[4], out[5]);
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
 // Triangulates every face with BRepMesh_IncrementalMesh at the given linear
 // deflection (absolute, model units) and an angular deflection of 0.5 rad.
 // Existing triangulations are cleared first so the result always reflects
@@ -565,16 +723,6 @@ int swx_occt_face_count(const SwxShape* s, size_t* out) noexcept {
         return 0;
     } catch (...) {
         return -1;
-    }
-}
-
-// Maps a sub-shape kind code (0 face, 1 edge, 2 vertex) to its OCCT type.
-static bool topo_kind(int kind, TopAbs_ShapeEnum* out) {
-    switch (kind) {
-        case 0: *out = TopAbs_FACE; return true;
-        case 1: *out = TopAbs_EDGE; return true;
-        case 2: *out = TopAbs_VERTEX; return true;
-        default: return false;
     }
 }
 

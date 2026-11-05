@@ -77,10 +77,10 @@ Every message starts with `swx-qa: `. No picture is written when there is an err
   [`invalid input: workplane x_dir must be non-zero` (or `normal`), `workplane x_dir and normal must be perpendicular (dot …)`], [The workplane's directions are missing or not at right angles (@sec-ref-extrude).],
   [`kernel failure: make_face failed: the face is invalid (e.g. a self-intersecting loop or a hole outside the outer loop)`], [The loops pass the checks above, but the outline crosses itself, or a hole is outside the outline or touches its edge.],
   [`invalid input: extrude distance must be finite and non-zero, got <v>` (or `symmetric extrude length`)], [The extent is zero or not a number.],
-  [`kernel failure: extrude failed`], [The shape given to `extrude` isn't a face from `make_face`.],
+  [`kernel failure: extrude failed`], [The shape given to `extrude` or `extrude_tracked` isn't a face from `make_face` or `make_face_tracked`.],
   [`invalid input: extrude mode "join" needs a target body` (or `"cut"`, `"intersect"`)], [The mode combines with a part, but none was given. Pass the part as the target, or use `NewSolid` (@sec-extrude-modes).],
   [`invalid input: a through-all extent works only with the cut mode, not "join"` (or another mode)], [Only a cut can go through all. Give a distance instead (@sec-through-all).],
-  [`invalid input: a through-all extent needs a target body to measure; use extrude_feature with the cut mode`], [A through-all extent was given to `extrude`, which has no target to measure. Use `extrude_feature` with `ExtrudeMode::Cut`.],
+  [`invalid input: a through-all extent needs a target body to measure; use extrude_feature with the cut mode`], [A through-all extent was given to `extrude` or `extrude_tracked`, which have no target to measure. Use `extrude_feature` with `ExtrudeMode::Cut`.],
   [`invalid input: the through-all cut misses the target: it removes nothing`], [The cut went the wrong way, or the outline isn't over the part. Change the direction or move the outline (@sec-through-all).],
   [`invalid input: revolve angle must be in (0, 2π] radians, got <v>`], [The angle is zero, negative, more than a full turn, not a number, or given in degrees. Give radians: a full turn is 2π (@sec-revolve).],
   [`invalid input: revolve axis direction must be non-zero` (or `must be finite, got …`), `revolve axis origin must be finite, got …`], [The axis is missing its direction, or has a number that isn't finite.],
@@ -181,7 +181,7 @@ For an unknown entity, `infer` and `add_inferred` give the sketch messages above
 - A sketch's regions can't be extruded or revolved directly yet: type the outline's pieces into a program (@ch-extrude, @ch-revolve). There is no fillet or hole yet.
 - An extrude goes a set distance, or through all for a cut (@sec-through-all); not "up to a face" or "between two faces".
 - A revolve turns one way from the outline's plane by an angle; it can't yet turn both ways or symmetrically.
-- An extrude's or a revolve's target is a solid you hold in your program. Faces and edges can be counted and numbered (@sec-topology), but not picked, and their numbers don't last through a change; so the outline's workplane is given by its numbers (@sec-extrude-modes).
+- An extrude's or a revolve's target is a solid you hold in your program. Faces and edges can be counted and numbered (@sec-topology), and a plain extrude says which face each piece of the outline became (@sec-extrude-history), but they can't be picked, and their numbers don't last through a change; so the outline's workplane is given by its numbers (@sec-extrude-modes).
 - Extrudes and revolves aren't recorded in a part's history, so they don't rebuild when a parameter changes.
 - No native part files; work can't be saved with its history.
 - `swx-qa sketch` draws only its two built-in sketches. Your own sketches need a short program (@sec-picture-sketch). Sketch pictures show no dimension arrows and no marks for constraints such as horizontal.

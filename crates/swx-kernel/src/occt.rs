@@ -4,10 +4,10 @@ use std::path::Path;
 
 use crate::ffi::{self, BooleanOp, FacePlane, ShapeHandle};
 use crate::profile::{check_revolve_profile, prepare_face, prepare_revolve};
-use crate::topo::validate_adjacent;
+use crate::topo::{validate_adjacent, validate_index};
 use crate::{
     input_file_cstring, path_to_cstring, validate_point, validate_size, Axis, BoundingBox, Extent,
-    Kernel, KernelError, Mesh, Point3, ProfileLoop, SubShape, TopoKind, Workplane,
+    ExtrudeHistory, Kernel, KernelError, Mesh, Point3, ProfileLoop, SubShape, TopoKind, Workplane,
 };
 
 /// [`Kernel`] backed by the system OpenCascade libraries.
@@ -20,6 +20,28 @@ pub struct OcctShape(ShapeHandle);
 
 fn backend(op: &str) -> KernelError {
     KernelError::Backend(format!("{op} failed"))
+}
+
+fn make_face_error() -> KernelError {
+    KernelError::Backend(
+        "make_face failed: the face is invalid (e.g. a self-intersecting loop \
+         or a hole outside the outer loop)"
+            .to_string(),
+    )
+}
+
+fn bbox(b: [f64; 6]) -> BoundingBox {
+    BoundingBox {
+        min: [b[0], b[1], b[2]],
+        max: [b[3], b[4], b[5]],
+    }
+}
+
+fn face_sub(index: usize) -> SubShape {
+    SubShape {
+        kind: TopoKind::Face,
+        index,
+    }
 }
 
 impl Kernel for OcctKernel {
@@ -67,13 +89,37 @@ impl Kernel for OcctKernel {
         let (loop_sizes, edges) = face.encode();
         ffi::make_face(&face.plane_array(), &loop_sizes, &edges)
             .map(OcctShape)
-            .ok_or_else(|| {
-                KernelError::Backend(
-                    "make_face failed: the face is invalid (e.g. a self-intersecting loop \
-                     or a hole outside the outer loop)"
-                        .to_string(),
-                )
+            .ok_or_else(make_face_error)
+    }
+
+    fn make_face_tracked(
+        &self,
+        plane: &Workplane,
+        outer: &ProfileLoop,
+        holes: &[ProfileLoop],
+    ) -> Result<(OcctShape, Vec<Vec<SubShape>>), KernelError> {
+        let face = prepare_face(plane, outer, holes)?;
+        let (loop_sizes, edges) = face.encode();
+        let (shape, indices) = ffi::make_face_tracked(&face.plane_array(), &loop_sizes, &edges)
+            .ok_or_else(make_face_error)?;
+        // The shim reports edges in traversal order; a loop that
+        // `prepare_face` reversed lists its segments back to front.
+        let mut rest = indices.as_slice();
+        let loops = loop_sizes
+            .iter()
+            .zip(&face.reversed)
+            .map(|(&n, &reversed)| {
+                let (this, tail) = rest.split_at(n);
+                rest = tail;
+                (0..n)
+                    .map(|seg| SubShape {
+                        kind: TopoKind::Edge,
+                        index: this[if reversed { n - 1 - seg } else { seg }],
+                    })
+                    .collect()
             })
+            .collect();
+        Ok((OcctShape(shape), loops))
     }
 
     fn extrude(&self, face: &OcctShape, extent: Extent) -> Result<OcctShape, KernelError> {
@@ -81,6 +127,33 @@ impl Kernel for OcctKernel {
         ffi::extrude(&face.0, offset, length)
             .map(OcctShape)
             .ok_or_else(|| backend("extrude"))
+    }
+
+    fn extrude_tracked(
+        &self,
+        face: &OcctShape,
+        extent: Extent,
+    ) -> Result<(OcctShape, ExtrudeHistory), KernelError> {
+        let (offset, length) = extent.offset_and_length()?;
+        let n_edges = self.sub_shape_count(face, TopoKind::Edge)?;
+        let (shape, caps, sides) = ffi::extrude_tracked(&face.0, offset, length, n_edges)
+            .ok_or_else(|| backend("extrude"))?;
+        let history = ExtrudeHistory {
+            start_cap: face_sub(caps[0]),
+            end_cap: face_sub(caps[1]),
+            sides: sides
+                .into_iter()
+                .enumerate()
+                .map(|(i, side)| {
+                    let edge = SubShape {
+                        kind: TopoKind::Edge,
+                        index: i,
+                    };
+                    (edge, face_sub(side))
+                })
+                .collect(),
+        };
+        Ok((OcctShape(shape), history))
     }
 
     fn revolve(&self, face: &OcctShape, axis: Axis, angle: f64) -> Result<OcctShape, KernelError> {
@@ -121,11 +194,20 @@ impl Kernel for OcctKernel {
     }
 
     fn bounding_box(&self, s: &OcctShape) -> Result<BoundingBox, KernelError> {
-        let b = ffi::bounding_box(&s.0).ok_or_else(|| backend("bounding_box"))?;
-        Ok(BoundingBox {
-            min: [b[0], b[1], b[2]],
-            max: [b[3], b[4], b[5]],
-        })
+        ffi::bounding_box(&s.0)
+            .map(bbox)
+            .ok_or_else(|| backend("bounding_box"))
+    }
+
+    fn sub_shape_bounding_box(
+        &self,
+        s: &OcctShape,
+        of: SubShape,
+    ) -> Result<BoundingBox, KernelError> {
+        validate_index(of, self.sub_shape_count(s, of.kind)?)?;
+        ffi::sub_shape_bounding_box(&s.0, of.kind.code(), of.index)
+            .map(bbox)
+            .ok_or_else(|| backend("sub_shape_bounding_box"))
     }
 
     fn tessellate(&self, s: &OcctShape, deflection: f64) -> Result<Mesh, KernelError> {
@@ -702,6 +784,161 @@ mod tests {
                 matches!(err, KernelError::InvalidInput(_)),
                 "{kind:?}: {err}"
             );
+        }
+    }
+
+    /// The #90 plate's loops: the 40 × 25 rectangle, then the r5 hole.
+    fn tracked_plate_face() -> (OcctShape, Vec<Vec<SubShape>>) {
+        K.make_face_tracked(
+            &Workplane::XY,
+            &rect(40.0, 25.0),
+            &[circle([20.0, 12.5], 5.0)],
+        )
+        .unwrap()
+    }
+
+    fn assert_sub_bbox(s: &OcctShape, of: SubShape, min: Point3, max: Point3) {
+        let bb = K.sub_shape_bounding_box(s, of).unwrap();
+        for axis in 0..3 {
+            assert_close(bb.min[axis], min[axis]);
+            assert_close(bb.max[axis], max[axis]);
+        }
+    }
+
+    /// Whether faces `a` and `b` of `s` share an edge.
+    fn faces_touch(s: &OcctShape, a: SubShape, b: SubShape) -> bool {
+        let ea = K.adjacent(s, a, TopoKind::Edge).unwrap();
+        let eb = K.adjacent(s, b, TopoKind::Edge).unwrap();
+        ea.iter().any(|e| eb.contains(e))
+    }
+
+    #[test]
+    fn make_face_tracked_maps_each_segment_to_its_edge() {
+        let (face, loops) = tracked_plate_face();
+        assert_eq!(loops.iter().map(Vec::len).collect::<Vec<_>>(), [4, 1]);
+        let mut all: Vec<usize> = loops.iter().flatten().map(|e| e.index).collect();
+        assert!(loops.iter().flatten().all(|e| e.kind == TopoKind::Edge));
+        all.sort_unstable();
+        assert_eq!(all, (0..5).collect::<Vec<_>>());
+        assert_eq!(K.sub_shape_count(&face, TopoKind::Edge).unwrap(), 5);
+        assert_sub_bbox(&face, loops[0][0], [0.0; 3], [40.0, 0.0, 0.0]);
+        assert_sub_bbox(&face, loops[0][1], [40.0, 0.0, 0.0], [40.0, 25.0, 0.0]);
+        assert_sub_bbox(&face, loops[0][2], [0.0, 25.0, 0.0], [40.0, 25.0, 0.0]);
+        assert_sub_bbox(&face, loops[0][3], [0.0; 3], [0.0, 25.0, 0.0]);
+        assert_sub_bbox(&face, loops[1][0], [15.0, 7.5, 0.0], [25.0, 17.5, 0.0]);
+        let untracked = plate_face(&Workplane::XY);
+        for kind in KINDS {
+            assert_eq!(
+                K.sub_shape_count(&face, kind).unwrap(),
+                K.sub_shape_count(&untracked, kind).unwrap()
+            );
+        }
+    }
+
+    #[test]
+    fn make_face_tracked_follows_the_callers_order_on_a_clockwise_loop() {
+        // Clockwise input: the kernel reverses the loop, but segment k must
+        // still map to the edge built from segment k.
+        let cw = polygon(&[[0.0, 0.0], [0.0, 25.0], [40.0, 25.0], [40.0, 0.0]]);
+        let (face, loops) = K.make_face_tracked(&Workplane::XY, &cw, &[]).unwrap();
+        assert_eq!(loops.len(), 1);
+        assert_sub_bbox(&face, loops[0][0], [0.0; 3], [0.0, 25.0, 0.0]);
+        assert_sub_bbox(&face, loops[0][1], [0.0, 25.0, 0.0], [40.0, 25.0, 0.0]);
+        assert_sub_bbox(&face, loops[0][2], [40.0, 0.0, 0.0], [40.0, 25.0, 0.0]);
+        assert_sub_bbox(&face, loops[0][3], [0.0; 3], [40.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn extrude_tracked_plate_caps_and_sides() {
+        let (face, loops) = tracked_plate_face();
+        let (solid, h) = K.extrude_tracked(&face, Extent::Distance(10.0)).unwrap();
+        assert_close(K.volume(&solid).unwrap(), PLATE_VOLUME);
+        assert_close(PLATE_VOLUME, 9214.6018);
+        assert_sub_bbox(&solid, h.start_cap, [0.0; 3], [40.0, 25.0, 0.0]);
+        assert_sub_bbox(&solid, h.end_cap, [0.0, 0.0, 10.0], [40.0, 25.0, 10.0]);
+        assert_eq!(h.sides.len(), 5);
+        let side_of = |edge: SubShape| h.sides.iter().find(|(e, _)| *e == edge).unwrap().1;
+        let first = side_of(loops[0][0]);
+        assert_sub_bbox(&solid, first, [0.0; 3], [40.0, 0.0, 10.0]);
+        let hole = side_of(loops[1][0]);
+        assert_sub_bbox(&solid, hole, [15.0, 7.5, 0.0], [25.0, 17.5, 10.0]);
+        assert_eq!(K.adjacent(&solid, hole, TopoKind::Edge).unwrap().len(), 3);
+
+        let mut faces: Vec<SubShape> = h.sides.iter().map(|(_, f)| *f).collect();
+        faces.extend([h.start_cap, h.end_cap]);
+        faces.sort_unstable();
+        faces.dedup();
+        assert_eq!(faces.len(), 7, "caps and sides are 7 distinct faces");
+        for (_, side) in &h.sides {
+            assert!(faces_touch(&solid, *side, h.start_cap));
+            assert!(faces_touch(&solid, *side, h.end_cap));
+        }
+        assert!(faces_touch(&solid, first, side_of(loops[0][1])));
+        assert!(faces_touch(&solid, first, side_of(loops[0][3])));
+        assert!(!faces_touch(&solid, first, side_of(loops[0][2])));
+    }
+
+    #[test]
+    fn extrude_tracked_symmetric_caps() {
+        let (face, _) = tracked_plate_face();
+        let (solid, h) = K.extrude_tracked(&face, Extent::Symmetric(10.0)).unwrap();
+        assert_sub_bbox(&solid, h.start_cap, [0.0, 0.0, -5.0], [40.0, 25.0, -5.0]);
+        assert_sub_bbox(&solid, h.end_cap, [0.0, 0.0, 5.0], [40.0, 25.0, 5.0]);
+    }
+
+    #[test]
+    fn tracked_and_untracked_extrudes_agree() {
+        let (face, _) = tracked_plate_face();
+        for extent in [
+            Extent::Distance(10.0),
+            Extent::Distance(-10.0),
+            Extent::Symmetric(10.0),
+        ] {
+            let (tracked, _) = K.extrude_tracked(&face, extent).unwrap();
+            let plain = K.extrude(&plate_face(&Workplane::XY), extent).unwrap();
+            assert_close(K.volume(&tracked).unwrap(), K.volume(&plain).unwrap());
+            for kind in KINDS {
+                assert_eq!(
+                    K.sub_shape_count(&tracked, kind).unwrap(),
+                    K.sub_shape_count(&plain, kind).unwrap(),
+                    "{extent:?} {kind:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn tracked_calls_reject_bad_inputs() {
+        let invalid = |e: KernelError| matches!(e, KernelError::InvalidInput(_));
+        let mut open = rect(1.0, 1.0);
+        open.segments[2] = line([1.0, 1.0 + 1e-6], [0.0, 1.0]);
+        assert!(invalid(
+            K.make_face_tracked(&Workplane::XY, &open, &[]).unwrap_err()
+        ));
+        let (face, _) = tracked_plate_face();
+        assert!(invalid(
+            K.extrude_tracked(&face, Extent::Distance(0.0)).unwrap_err()
+        ));
+        assert!(invalid(
+            K.extrude_tracked(&face, Extent::ThroughAll(crate::ThroughDirection::Normal))
+                .unwrap_err()
+        ));
+        let f0 = sub(TopoKind::Face, 0);
+        for extent in [Extent::ToFace(f0), Extent::BetweenFaces(f0, f0)] {
+            assert!(invalid(K.extrude_tracked(&face, extent).unwrap_err()));
+        }
+        let solid = unit_box([0.0; 3], 1.0);
+        assert!(matches!(
+            K.extrude_tracked(&solid, Extent::Distance(1.0)),
+            Err(KernelError::Backend(_))
+        ));
+        assert!(K
+            .sub_shape_bounding_box(&solid, sub(TopoKind::Face, 5))
+            .is_ok());
+        for (kind, n) in KINDS.into_iter().zip([6, 12, 8]) {
+            assert!(invalid(
+                K.sub_shape_bounding_box(&solid, sub(kind, n)).unwrap_err()
+            ));
         }
     }
 }

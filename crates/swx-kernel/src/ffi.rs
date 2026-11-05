@@ -63,10 +63,28 @@ extern "C" {
         edges: *const c_double,
         out: *mut *mut RawShape,
     ) -> c_int;
+    fn swx_occt_make_face_tracked(
+        plane: *const c_double,
+        n_loops: usize,
+        loop_sizes: *const usize,
+        edges: *const c_double,
+        n_edges: usize,
+        edge_indices: *mut usize,
+        out: *mut *mut RawShape,
+    ) -> c_int;
     fn swx_occt_extrude(
         s: *const RawShape,
         offset: c_double,
         length: c_double,
+        out: *mut *mut RawShape,
+    ) -> c_int;
+    fn swx_occt_extrude_tracked(
+        s: *const RawShape,
+        offset: c_double,
+        length: c_double,
+        caps: *mut usize,
+        sides: *mut usize,
+        n_sides: usize,
         out: *mut *mut RawShape,
     ) -> c_int;
     #[allow(clippy::too_many_arguments)]
@@ -95,6 +113,12 @@ extern "C" {
     fn swx_occt_volume(s: *const RawShape, out: *mut c_double) -> c_int;
     fn swx_occt_surface_area(s: *const RawShape, out: *mut c_double) -> c_int;
     fn swx_occt_bounding_box(s: *const RawShape, out: *mut c_double) -> c_int;
+    fn swx_occt_sub_shape_bounding_box(
+        s: *const RawShape,
+        kind: c_int,
+        index: usize,
+        out: *mut c_double,
+    ) -> c_int;
     fn swx_occt_shape_free(s: *mut RawShape);
     fn swx_occt_face_count(s: *const RawShape, out: *mut usize) -> c_int;
     fn swx_occt_sub_shape_count(s: *const RawShape, kind: c_int, out: *mut usize) -> c_int;
@@ -218,6 +242,66 @@ pub(crate) fn make_face(
     take(status, raw)
 }
 
+/// As [`make_face`], plus, for each input edge in order, the 0-based index of
+/// the face's edge built from it.
+pub(crate) fn make_face_tracked(
+    plane: &[f64; 9],
+    loop_sizes: &[usize],
+    edges: &[f64],
+) -> Option<(ShapeHandle, Vec<usize>)> {
+    let n_edges = loop_sizes.iter().sum::<usize>();
+    if loop_sizes.is_empty() || edges.len() != 8 * n_edges {
+        return None;
+    }
+    let mut indices = vec![0usize; n_edges];
+    let mut raw = ptr::null_mut();
+    // SAFETY: as in `make_face` for `plane`, `loop_sizes` and `edges` (sizes
+    // checked above). `indices` is a valid writable buffer of exactly
+    // `n_edges` `usize`s (`size_t` layout), the count the shim writes. No
+    // pointer is retained; `raw` is a valid out-pointer for a new owned handle.
+    let status = unsafe {
+        swx_occt_make_face_tracked(
+            plane.as_ptr(),
+            loop_sizes.len(),
+            loop_sizes.as_ptr(),
+            edges.as_ptr(),
+            n_edges,
+            indices.as_mut_ptr(),
+            &mut raw,
+        )
+    };
+    take(status, raw).map(|h| (h, indices))
+}
+
+/// As [`extrude`], plus the 0-based face indices in the result of the start
+/// cap, the end cap, and the side swept from each of the face's `n_edges` edges.
+pub(crate) fn extrude_tracked(
+    face: &ShapeHandle,
+    offset: f64,
+    length: f64,
+    n_edges: usize,
+) -> Option<(ShapeHandle, [usize; 2], Vec<usize>)> {
+    let mut caps = [0usize; 2];
+    let mut sides = vec![0usize; n_edges];
+    let mut raw = ptr::null_mut();
+    // SAFETY: `face` is a live handle read-only for the call and not
+    // retained. `caps` is a valid writable array of the 2 `usize`s the shim
+    // writes, and `sides` one of exactly `n_edges` (`size_t` layout); the shim
+    // fails rather than write more. `raw` receives a new owned handle.
+    let status = unsafe {
+        swx_occt_extrude_tracked(
+            face.0.as_ptr(),
+            offset,
+            length,
+            caps.as_mut_ptr(),
+            sides.as_mut_ptr(),
+            n_edges,
+            &mut raw,
+        )
+    };
+    take(status, raw).map(|h| (h, caps, sides))
+}
+
 pub(crate) fn extrude(face: &ShapeHandle, offset: f64, length: f64) -> Option<ShapeHandle> {
     let mut raw = ptr::null_mut();
     // SAFETY: as in `boolean`: `face` is a live handle read-only for the call
@@ -308,6 +392,17 @@ pub(crate) fn bounding_box(s: &ShapeHandle) -> Option<[f64; 6]> {
     // SAFETY: `s` is a live handle read-only for the call; `out` is a valid
     // writable array of exactly the 6 doubles the shim writes.
     let status = unsafe { swx_occt_bounding_box(s.0.as_ptr(), out.as_mut_ptr()) };
+    (status == 0).then_some(out)
+}
+
+/// Bounding box `[xmin, ymin, zmin, xmax, ymax, zmax]` of sub-shape `index`
+/// of shim kind code `kind`. `None` when `index` is out of range.
+pub(crate) fn sub_shape_bounding_box(s: &ShapeHandle, kind: i32, index: usize) -> Option<[f64; 6]> {
+    let mut out = [0.0 as c_double; 6];
+    // SAFETY: `s` is a live handle read-only for the call; `out` is a valid
+    // writable array of exactly the 6 doubles the shim writes.
+    let status =
+        unsafe { swx_occt_sub_shape_bounding_box(s.0.as_ptr(), kind, index, out.as_mut_ptr()) };
     (status == 0).then_some(out)
 }
 

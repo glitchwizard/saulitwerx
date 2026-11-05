@@ -34,7 +34,7 @@ pub use profile::{
     Axis, Extent, ProfileLoop, Segment2, ThroughDirection, Workplane, LOOP_GAP_TOLERANCE,
     PERPENDICULAR_TOLERANCE, REVOLVE_AXIS_TOLERANCE,
 };
-pub use topo::{SubShape, TopoKind};
+pub use topo::{ExtrudeHistory, SubShape, TopoKind};
 
 /// A point or vector in model space, `[x, y, z]`.
 pub type Point3 = [f64; 3];
@@ -110,6 +110,26 @@ pub trait Kernel {
     ///
     /// A zero or non-finite length is an error.
     fn extrude(&self, face: &Self::Shape, extent: Extent) -> Result<Self::Shape, KernelError>;
+    /// [`Kernel::make_face`], plus where each segment went: for each loop
+    /// (`outer` first, then `holes` in order) and each of its segments in the
+    /// caller's order, the face's edge built from it. Same inputs and errors
+    /// as `make_face`.
+    fn make_face_tracked(
+        &self,
+        plane: &Workplane,
+        outer: &ProfileLoop,
+        holes: &[ProfileLoop],
+    ) -> Result<(Self::Shape, Vec<Vec<SubShape>>), KernelError>;
+    /// [`Kernel::extrude`], plus its [`ExtrudeHistory`]: the start and end
+    /// caps and, for every edge of `face`, the side face it swept. The same
+    /// input checks as `extrude` apply; [`Extent::ThroughAll`],
+    /// [`Extent::ToFace`] and [`Extent::BetweenFaces`] are
+    /// [`KernelError::InvalidInput`], since they need a target body.
+    fn extrude_tracked(
+        &self,
+        face: &Self::Shape,
+        extent: Extent,
+    ) -> Result<(Self::Shape, ExtrudeHistory), KernelError>;
     /// Solid swept by turning a planar `face` `angle` radians about `axis`.
     ///
     /// `axis.dir` is normalized first; a positive angle turns counterclockwise
@@ -180,6 +200,15 @@ pub trait Kernel {
     /// A `face` whose kind isn't [`TopoKind::Face`], an index out of range
     /// and a non-planar face are [`KernelError::InvalidInput`].
     fn face_plane(&self, s: &Self::Shape, face: SubShape) -> Result<(Point3, Point3), KernelError>;
+
+    /// Tight axis-aligned bounding box of one sub-shape of `s`. An index out
+    /// of range for `of.kind` is [`KernelError::InvalidInput`], checked
+    /// before anything reaches the backend.
+    fn sub_shape_bounding_box(
+        &self,
+        s: &Self::Shape,
+        of: SubShape,
+    ) -> Result<BoundingBox, KernelError>;
 
     /// Writes `s` to a STEP (ISO 10303-21) file at `path`, replacing any
     /// existing file. Lengths are written in millimetres.
