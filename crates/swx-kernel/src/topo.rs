@@ -47,6 +47,21 @@ pub struct SubShape {
     pub index: usize,
 }
 
+/// Where the faces of an extruded solid came from, as returned by
+/// [`Kernel::extrude_tracked`](crate::Kernel::extrude_tracked). Every
+/// [`SubShape`] here is a face of the result, except the first of each
+/// `sides` pair, which is an edge of the input face.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExtrudeHistory {
+    /// The face the sweep starts from: the input face, moved by the extent's offset.
+    pub start_cap: SubShape,
+    /// The face where the sweep ends: the start cap translated by the length.
+    pub end_cap: SubShape,
+    /// Edge of the input face → the side face it swept, one pair per edge of
+    /// the input face, in the input face's edge index order.
+    pub sides: Vec<(SubShape, SubShape)>,
+}
+
 /// Checks an adjacency query before it reaches the backend: `kind` must
 /// differ from `of.kind`, and `of.index` must be below `count`, the number
 /// of sub-shapes of `of.kind` in the shape.
@@ -63,6 +78,13 @@ pub(crate) fn validate_adjacent(
             kind.name()
         )));
     }
+    validate_index(of, count)
+}
+
+/// Checks that `of.index` is below `count`, the number of sub-shapes of
+/// `of.kind` in the shape.
+#[cfg_attr(not(feature = "occt"), allow(dead_code))]
+pub(crate) fn validate_index(of: SubShape, count: usize) -> Result<(), KernelError> {
     if of.index >= count {
         return Err(KernelError::InvalidInput(format!(
             "{} index {} is out of range: the shape has {count} {}s",

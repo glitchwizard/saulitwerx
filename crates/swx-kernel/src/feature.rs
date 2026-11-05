@@ -4,7 +4,7 @@
 //! existing body through the [`Kernel`] booleans, as an extrude feature's
 //! result mode does (PRODUCT.md §1 items 6 and 9).
 
-use crate::{Axis, BoundingBox, Extent, Kernel, KernelError, ThroughDirection};
+use crate::{Axis, BoundingBox, Extent, Kernel, KernelError, SubShape, ThroughDirection, TopoKind};
 
 /// Results with a volume below this (model units cubed) count as empty.
 pub const EMPTY_VOLUME_TOLERANCE: f64 = 1e-9;
@@ -12,7 +12,17 @@ pub const EMPTY_VOLUME_TOLERANCE: f64 = 1e-9;
 /// Relative volume change below which a through-all cut counts as removing nothing.
 const MISSED_CUT_TOLERANCE: f64 = 1e-9;
 
-/// Rejects an [`Extent::ThroughAll`] with any mode but [`ExtrudeMode::Cut`].
+/// Largest angle, in radians, between a face's normal and the workplane
+/// normal (or its reverse) for the face to count as parallel to the workplane.
+pub const PARALLEL_FACE_TOLERANCE: f64 = 1e-9;
+
+/// Smallest distance, in model units, between two parallel planes for them to
+/// count as distinct (the same value as OCCT's `Precision::Confusion`).
+pub const FACE_DISTANCE_TOLERANCE: f64 = 1e-7;
+
+/// Rejects an [`Extent::ThroughAll`] with any mode but [`ExtrudeMode::Cut`],
+/// and an [`Extent::ToFace`] or [`Extent::BetweenFaces`] with
+/// [`ExtrudeMode::NewSolid`].
 fn check_extent_mode(extent: Extent, mode: ExtrudeMode) -> Result<(), KernelError> {
     match (extent, mode) {
         (Extent::ThroughAll(_), m) if m != ExtrudeMode::Cut => {
@@ -21,8 +31,111 @@ fn check_extent_mode(extent: Extent, mode: ExtrudeMode) -> Result<(), KernelErro
                 m.name()
             )))
         }
+        (Extent::ToFace(_) | Extent::BetweenFaces(..), ExtrudeMode::NewSolid) => {
+            Err(KernelError::InvalidInput(
+                "a to-face or between-faces extent needs a target body: it works with the \
+                 join, cut and intersect modes, not \"new solid\""
+                    .into(),
+            ))
+        }
         _ => Ok(()),
     }
+}
+
+/// Signed distance along the workplane's unit normal `n0` from the workplane
+/// (through `p0`) to the plane through `p` with unit normal `n`.
+///
+/// The planes are parallel when the angle θ between `n` and `±n0` is at most
+/// [`PARALLEL_FACE_TOLERANCE`], tested as `|n0 × n| = sin θ ≤ sin(tol)`. Then
+/// the distance is the projection `(p − p0) · n0` (point-to-plane distance,
+/// e.g. any analytic-geometry text). A plane that isn't parallel is
+/// [`KernelError::InvalidInput`] naming `what`.
+fn plane_offset(
+    what: &str,
+    p0: [f64; 3],
+    n0: [f64; 3],
+    p: [f64; 3],
+    n: [f64; 3],
+) -> Result<f64, KernelError> {
+    let cross = [
+        n0[1] * n[2] - n0[2] * n[1],
+        n0[2] * n[0] - n0[0] * n[2],
+        n0[0] * n[1] - n0[1] * n[0],
+    ];
+    let sin = cross.iter().map(|c| c * c).sum::<f64>().sqrt();
+    if !sin.is_finite() || sin > PARALLEL_FACE_TOLERANCE.sin() {
+        return Err(KernelError::InvalidInput(format!(
+            "{what} (normal {n:?}) is not parallel to the workplane (normal {n0:?})"
+        )));
+    }
+    Ok((0..3).map(|i| (p[i] - p0[i]) * n0[i]).sum())
+}
+
+/// Turns the signed distances of the face planes from the workplane into a
+/// finite extent: `ToFace` uses `d[0]`, `BetweenFaces` runs from `d[0]` to
+/// `d[1]`. A face in the workplane, or two coplanar faces, give zero length
+/// and are [`KernelError::InvalidInput`] (tolerance [`FACE_DISTANCE_TOLERANCE`]).
+fn face_extent(extent: Extent, d: &[f64]) -> Result<Extent, KernelError> {
+    match extent {
+        Extent::ToFace(f) => {
+            if d[0].abs() <= FACE_DISTANCE_TOLERANCE {
+                return Err(KernelError::InvalidInput(format!(
+                    "face {} lies in the workplane: the to-face extrude has zero length",
+                    f.index
+                )));
+            }
+            Ok(Extent::Distance(d[0]))
+        }
+        Extent::BetweenFaces(a, b) => {
+            if (d[1] - d[0]).abs() <= FACE_DISTANCE_TOLERANCE {
+                return Err(KernelError::InvalidInput(format!(
+                    "faces {} and {} are coplanar: the between-faces extrude has zero length",
+                    a.index, b.index
+                )));
+            }
+            Ok(Extent::FromTo(d[0], d[1]))
+        }
+        other => Ok(other),
+    }
+}
+
+/// Resolves an [`Extent::ToFace`] or [`Extent::BetweenFaces`] against the
+/// planes of `target`'s faces; other extents are returned unchanged.
+///
+/// The workplane is the plane of the profile `face` with its outward normal,
+/// the direction [`Kernel::extrude`] takes for a positive distance. `face`
+/// must be a single face.
+fn resolve_face_extent<K: Kernel>(
+    k: &K,
+    face: &K::Shape,
+    extent: Extent,
+    target: &K::Shape,
+) -> Result<Extent, KernelError> {
+    let faces = match extent {
+        Extent::ToFace(f) => vec![f],
+        Extent::BetweenFaces(a, b) => vec![a, b],
+        other => return Ok(other),
+    };
+    if k.sub_shape_count(face, TopoKind::Face)? != 1 {
+        return Err(KernelError::InvalidInput(
+            "the extrude profile must be a single planar face".into(),
+        ));
+    }
+    let (p0, n0) = k.face_plane(
+        face,
+        SubShape {
+            kind: TopoKind::Face,
+            index: 0,
+        },
+    )?;
+    let d = faces
+        .iter()
+        .map(|&f| {
+            let (p, n) = k.face_plane(target, f)?;
+            plane_offset(&format!("target face {}", f.index), p0, n0, p, n)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    face_extent(extent, &d)
 }
 
 /// Replaces a through-all direction with a finite extent that reaches past
@@ -90,6 +203,17 @@ impl ExtrudeMode {
 /// to pass through the whole target (see `through_all_extent` for the bound).
 /// A through-all cut whose result has the target's volume within a relative
 /// 1e-9 misses the target and is [`KernelError::InvalidInput`].
+///
+/// [`Extent::ToFace`] and [`Extent::BetweenFaces`] work with every mode but
+/// [`ExtrudeMode::NewSolid`] ([`KernelError::InvalidInput`], checked first,
+/// like a missing target). Their faces are [`SubShape`]s of `target`, which
+/// must be planar ([`Kernel::face_plane`]) and parallel to the workplane
+/// within [`PARALLEL_FACE_TOLERANCE`] radians. They become
+/// `Extent::Distance(d)` and `Extent::FromTo(d_a, d_b)`, with `d` the signed
+/// distance of a face's plane from the workplane along its normal, so a face
+/// behind the workplane extrudes against the normal. A zero length (a face in
+/// the workplane, two coplanar faces; [`FACE_DISTANCE_TOLERANCE`]) is
+/// [`KernelError::InvalidInput`].
 pub fn extrude_feature<K: Kernel>(
     k: &K,
     face: &K::Shape,
@@ -104,6 +228,9 @@ pub fn extrude_feature<K: Kernel>(
             through_all_extent(dir, k.bounding_box(face)?, k.bounding_box(t)?),
             true,
         ),
+        (Extent::ToFace(_) | Extent::BetweenFaces(..), Some(t)) => {
+            (resolve_face_extent(k, face, extent, t)?, false)
+        }
         _ => (extent, false),
     };
     let tool = k.extrude(face, extent)?;
@@ -206,6 +333,71 @@ mod pure_tests {
         for mode in [ExtrudeMode::NewSolid, ExtrudeMode::Join] {
             assert_eq!(check_extent_mode(Extent::Distance(1.0), mode), Ok(()));
         }
+    }
+
+    const F0: SubShape = SubShape {
+        kind: TopoKind::Face,
+        index: 0,
+    };
+    const F1: SubShape = SubShape {
+        kind: TopoKind::Face,
+        index: 1,
+    };
+
+    #[test]
+    fn face_extents_need_a_combining_mode() {
+        for ext in [Extent::ToFace(F0), Extent::BetweenFaces(F0, F1)] {
+            let err = check_extent_mode(ext, ExtrudeMode::NewSolid).unwrap_err();
+            assert!(
+                matches!(&err, KernelError::InvalidInput(m) if m.contains("not \"new solid\"")),
+                "{err}"
+            );
+            for mode in [ExtrudeMode::Join, ExtrudeMode::Cut, ExtrudeMode::Intersect] {
+                assert_eq!(check_extent_mode(ext, mode), Ok(()));
+            }
+        }
+    }
+
+    #[test]
+    fn plane_offset_is_the_signed_distance_along_the_workplane_normal() {
+        let up = [0.0, 0.0, 1.0];
+        let down = [0.0, 0.0, -1.0];
+        let p0 = [1.0, 2.0, 5.0];
+        // Parallel and anti-parallel normals both count; the sign follows n0.
+        assert_eq!(plane_offset("f", p0, up, [7.0, -3.0, 30.0], up), Ok(25.0));
+        assert_eq!(plane_offset("f", p0, up, [0.0, 0.0, 0.0], down), Ok(-5.0));
+        assert_eq!(plane_offset("f", p0, down, [0.0, 0.0, 30.0], up), Ok(-25.0));
+        // Within 1e-9 rad still counts as parallel.
+        let tilt = |a: f64| [a.sin(), 0.0, a.cos()];
+        assert!(plane_offset("f", p0, up, p0, tilt(0.5e-9)).is_ok());
+        for bad in [tilt(1e-8), [1.0, 0.0, 0.0], [f64::NAN, 0.0, 1.0]] {
+            let err = plane_offset("target face 3", p0, up, p0, bad).unwrap_err();
+            assert!(
+                matches!(&err, KernelError::InvalidInput(m)
+                    if m.contains("target face 3") && m.contains("not parallel")),
+                "{bad:?}: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn face_extent_turns_distances_into_finite_extents() {
+        assert_eq!(
+            face_extent(Extent::ToFace(F0), &[25.0]),
+            Ok(Extent::Distance(25.0))
+        );
+        assert_eq!(
+            face_extent(Extent::ToFace(F0), &[-5.0]),
+            Ok(Extent::Distance(-5.0))
+        );
+        assert_eq!(
+            face_extent(Extent::BetweenFaces(F0, F1), &[10.0, 30.0]),
+            Ok(Extent::FromTo(10.0, 30.0))
+        );
+        let err = face_extent(Extent::ToFace(F0), &[1e-8]).unwrap_err();
+        assert!(err.to_string().contains("lies in the workplane"), "{err}");
+        let err = face_extent(Extent::BetweenFaces(F0, F1), &[10.0, 10.0 + 1e-8]).unwrap_err();
+        assert!(err.to_string().contains("coplanar"), "{err}");
     }
 
     #[test]
@@ -736,6 +928,298 @@ mod tests {
             matches!(&err, KernelError::InvalidInput(m) if m.contains("through-all")),
             "{err}"
         );
+    }
+
+    /// The stepped target T: a 40 × 25 × 10 block joined with a 20 × 25 × 30
+    /// block (volume 20000; step face at z = 10, top face at z = 30).
+    fn stepped() -> OcctShape {
+        let low = K.make_box([0.0; 3], [40.0, 25.0, 10.0]).unwrap();
+        let high = K.make_box([0.0; 3], [20.0, 25.0, 30.0]).unwrap();
+        K.union(&low, &high).unwrap()
+    }
+
+    fn face(index: usize) -> SubShape {
+        SubShape {
+            kind: TopoKind::Face,
+            index,
+        }
+    }
+
+    /// The faces of `s` whose plane has outward normal `normal` and passes
+    /// through the point at `along` along it, found with `face_plane`.
+    fn faces_on_plane(s: &OcctShape, normal: Point3, along: f64) -> Vec<SubShape> {
+        (0..K.sub_shape_count(s, TopoKind::Face).unwrap())
+            .map(face)
+            .filter(|&f| match K.face_plane(s, f) {
+                Ok((p, n)) => {
+                    let dot = |a: Point3, b: Point3| (0..3).map(|i| a[i] * b[i]).sum::<f64>();
+                    dot(n, normal) > 1.0 - 1e-12 && (dot(p, normal) - along).abs() < 1e-9
+                }
+                Err(_) => false,
+            })
+            .collect()
+    }
+
+    /// The single face of `s` on the plane `faces_on_plane` describes.
+    fn face_on_plane(s: &OcctShape, normal: Point3, along: f64) -> SubShape {
+        let found = faces_on_plane(s, normal, along);
+        assert_eq!(
+            found.len(),
+            1,
+            "faces on plane {normal:?} at {along}: {found:?}"
+        );
+        found[0]
+    }
+
+    /// A 10 × 10 square with its corner at `corner` on `Workplane::XY`.
+    fn xy_square(corner: [f64; 2]) -> OcctShape {
+        let [x, y] = corner;
+        let pts = [[x, y], [x + 10.0, y], [x + 10.0, y + 10.0], [x, y + 10.0]];
+        let outer = ProfileLoop {
+            segments: (0..4)
+                .map(|i| Segment2::Line {
+                    start: pts[i],
+                    end: pts[(i + 1) % 4],
+                })
+                .collect(),
+        };
+        K.make_face(&Workplane::XY, &outer, &[]).unwrap()
+    }
+
+    const UP: Point3 = [0.0, 0.0, 1.0];
+
+    #[test]
+    fn stepped_target_faces() {
+        let t = stepped();
+        assert_close(K.volume(&t).unwrap(), 20000.0);
+        face_on_plane(&t, UP, 10.0);
+        face_on_plane(&t, UP, 30.0);
+        // The union keeps the two boxes' bottoms as separate faces.
+        assert!(!faces_on_plane(&t, [0.0, 0.0, -1.0], 0.0).is_empty());
+    }
+
+    #[test]
+    fn cut_to_the_top_face() {
+        let t = stepped();
+        let top = face_on_plane(&t, UP, 30.0);
+        let r = extrude_feature(
+            &K,
+            &xy_square([5.0, 7.5]),
+            Extent::ToFace(top),
+            ExtrudeMode::Cut,
+            Some(&t),
+        )
+        .unwrap();
+        assert_close(K.volume(&r).unwrap(), 17000.0);
+    }
+
+    #[test]
+    fn cut_to_the_step_face() {
+        let t = stepped();
+        let step = face_on_plane(&t, UP, 10.0);
+        let r = extrude_feature(
+            &K,
+            &xy_square([5.0, 7.5]),
+            Extent::ToFace(step),
+            ExtrudeMode::Cut,
+            Some(&t),
+        )
+        .unwrap();
+        assert_close(K.volume(&r).unwrap(), 19000.0);
+    }
+
+    #[test]
+    fn cut_between_the_step_and_top_faces() {
+        let t = stepped();
+        let step = face_on_plane(&t, UP, 10.0);
+        let top = face_on_plane(&t, UP, 30.0);
+        let r = extrude_feature(
+            &K,
+            &xy_square([5.0, 7.5]),
+            Extent::BetweenFaces(step, top),
+            ExtrudeMode::Cut,
+            Some(&t),
+        )
+        .unwrap();
+        assert_close(K.volume(&r).unwrap(), 18000.0);
+        assert_bbox(&r, [0.0; 3], [40.0, 25.0, 30.0]);
+    }
+
+    #[test]
+    fn join_to_the_top_face() {
+        let t = stepped();
+        let top = face_on_plane(&t, UP, 30.0);
+        let r = extrude_feature(
+            &K,
+            &xy_square([25.0, 7.5]),
+            Extent::ToFace(top),
+            ExtrudeMode::Join,
+            Some(&t),
+        )
+        .unwrap();
+        assert_close(K.volume(&r).unwrap(), 22000.0);
+        assert_bbox(&r, [0.0; 3], [40.0, 25.0, 30.0]);
+    }
+
+    #[test]
+    fn intersect_to_a_face_behind_the_workplane() {
+        // Workplane at z = 40 (above T), extruding down to the step face:
+        // the 10 × 10 column from z = 10 to 40 overlaps T from 10 to 30.
+        let t = stepped();
+        let step = face_on_plane(&t, UP, 10.0);
+        let plane = Workplane {
+            origin: [0.0, 0.0, 40.0],
+            ..Workplane::XY
+        };
+        let r = extrude_feature(
+            &K,
+            &circle_on(plane, [10.0, 12.5]),
+            Extent::ToFace(step),
+            ExtrudeMode::Intersect,
+            Some(&t),
+        )
+        .unwrap();
+        assert_close(K.volume(&r).unwrap(), 25.0 * PI * 20.0);
+    }
+
+    fn assert_invalid(r: Result<OcctShape, KernelError>, want: &str) {
+        let err = r.unwrap_err();
+        assert!(
+            matches!(&err, KernelError::InvalidInput(m) if m.contains(want)),
+            "expected InvalidInput containing {want:?}, got {err}"
+        );
+    }
+
+    fn cut_to(t: &OcctShape, extent: Extent) -> Result<OcctShape, KernelError> {
+        extrude_feature(
+            &K,
+            &xy_square([5.0, 7.5]),
+            extent,
+            ExtrudeMode::Cut,
+            Some(t),
+        )
+    }
+
+    #[test]
+    fn to_face_rejects_a_side_face() {
+        let t = stepped();
+        let side = face_on_plane(&t, [1.0, 0.0, 0.0], 40.0);
+        assert_invalid(cut_to(&t, Extent::ToFace(side)), "not parallel");
+        let side = faces_on_plane(&t, [-1.0, 0.0, 0.0], 0.0)[0];
+        assert_invalid(cut_to(&t, Extent::ToFace(side)), "not parallel");
+    }
+
+    #[test]
+    fn to_face_rejects_a_curved_face() {
+        let t = K.make_cylinder([10.0, 12.5, 0.0], 12.0, 30.0).unwrap();
+        let n = K.sub_shape_count(&t, TopoKind::Face).unwrap();
+        let curved = (0..n)
+            .map(face)
+            .find(|&f| K.face_plane(&t, f).is_err())
+            .expect("a cylinder has a curved face");
+        assert_invalid(cut_to(&t, Extent::ToFace(curved)), "not planar");
+    }
+
+    #[test]
+    fn to_face_rejects_a_face_in_the_workplane() {
+        let t = stepped();
+        for bottom in faces_on_plane(&t, [0.0, 0.0, -1.0], 0.0) {
+            assert_invalid(cut_to(&t, Extent::ToFace(bottom)), "lies in the workplane");
+        }
+    }
+
+    #[test]
+    fn between_faces_rejects_coplanar_faces() {
+        let a = K.make_box([0.0; 3], [20.0, 25.0, 10.0]).unwrap();
+        let b = K.make_box([30.0, 0.0, 0.0], [20.0, 25.0, 10.0]).unwrap();
+        let t = K.union(&a, &b).unwrap();
+        let tops = faces_on_plane(&t, UP, 10.0);
+        assert_eq!(tops.len(), 2, "{tops:?}");
+        assert_invalid(
+            cut_to(&t, Extent::BetweenFaces(tops[0], tops[1])),
+            "coplanar",
+        );
+        assert_invalid(
+            cut_to(&t, Extent::BetweenFaces(tops[0], tops[0])),
+            "coplanar",
+        );
+    }
+
+    #[test]
+    fn face_extents_reject_bad_sub_shapes() {
+        let t = stepped();
+        let n = K.sub_shape_count(&t, TopoKind::Face).unwrap();
+        assert_invalid(cut_to(&t, Extent::ToFace(face(n))), "out of range");
+        let top = face_on_plane(&t, UP, 30.0);
+        assert_invalid(
+            cut_to(&t, Extent::BetweenFaces(top, face(n + 5))),
+            "out of range",
+        );
+        let edge = SubShape {
+            kind: TopoKind::Edge,
+            index: 0,
+        };
+        assert_invalid(cut_to(&t, Extent::ToFace(edge)), "needs a face");
+    }
+
+    #[test]
+    fn face_extents_need_a_target_and_not_new_solid() {
+        let t = stepped();
+        let top = face_on_plane(&t, UP, 30.0);
+        for extent in [Extent::ToFace(top), Extent::BetweenFaces(top, top)] {
+            let r = extrude_feature(
+                &K,
+                &xy_square([5.0, 7.5]),
+                extent,
+                ExtrudeMode::NewSolid,
+                Some(&t),
+            );
+            assert_invalid(r, "not \"new solid\"");
+            let r = extrude_feature(&K, &xy_square([5.0, 7.5]), extent, ExtrudeMode::Join, None);
+            assert_invalid(r, "needs a target");
+        }
+    }
+
+    #[test]
+    fn kernel_extrude_rejects_face_extents_and_takes_from_to() {
+        let t = stepped();
+        let top = face_on_plane(&t, UP, 30.0);
+        let sq = xy_square([5.0, 7.5]);
+        for extent in [Extent::ToFace(top), Extent::BetweenFaces(top, top)] {
+            assert_invalid(K.extrude(&sq, extent), "to-face or between-faces");
+        }
+        for extent in [Extent::FromTo(10.0, 30.0), Extent::FromTo(30.0, 10.0)] {
+            let r = K.extrude(&sq, extent).unwrap();
+            assert_close(K.volume(&r).unwrap(), 2000.0);
+            assert_bbox(&r, [5.0, 7.5, 10.0], [15.0, 17.5, 30.0]);
+        }
+    }
+
+    #[test]
+    fn face_plane_of_a_box() {
+        let b = K.make_box([0.0; 3], [40.0, 25.0, 10.0]).unwrap();
+        // Each of the 6 faces has a unit outward normal along an axis.
+        let mut seen = Vec::new();
+        for i in 0..6 {
+            let (p, n) = K.face_plane(&b, face(i)).unwrap();
+            let axis = (0..3).find(|&a| n[a].abs() > 0.5).unwrap();
+            let sign = n[axis].signum();
+            assert_close(n[axis].abs(), 1.0);
+            let want = if sign > 0.0 {
+                [40.0, 25.0, 10.0][axis]
+            } else {
+                0.0
+            };
+            assert_close(p[axis], want);
+            seen.push((axis, sign > 0.0));
+        }
+        seen.sort();
+        seen.dedup();
+        assert_eq!(seen.len(), 6);
+        assert!(matches!(
+            K.face_plane(&b, face(6)),
+            Err(KernelError::InvalidInput(_))
+        ));
     }
 
     #[test]

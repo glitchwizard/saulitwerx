@@ -51,3 +51,7 @@ required-features = ["occt"]
 [[example]]
 name = "part_topology"
 required-features = ["occt"]
+
+[[example]]
+name = "extrude_history"
+required-features = ["occt"]

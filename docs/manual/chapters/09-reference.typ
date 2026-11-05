@@ -85,6 +85,7 @@ Success and errors work as for `render`. `--step` and `--crease` belong to `rend
   [`cargo run -p swx-kernel --features occt --example extrude_slot -- <file.step>`], [Extrudes a slot three ways (@sec-extrude-direction).],
   [`cargo run -p swx-kernel --features occt --example extrude_modes -- <dir>`], [Joins, cuts and intersects extrudes with a block (@sec-extrude-modes). STEP files in `<dir>`.],
   [`cargo run -p swx-kernel --features occt --example extrude_through_all -- <dir>`], [Cuts two holes through a block (@sec-through-all). STEP files in `<dir>`.],
+  [`cargo run -p swx-kernel --features occt --example extrude_history`], [Extrudes the plate with history and prints which face each piece of the outline became (@sec-extrude-history).],
   [`cargo run -p swx-kernel --features occt --example revolve_bushing -- <dir>`], [Revolves a bushing and cuts a groove in it (@ch-revolve). STEP files in `<dir>`.],
   [`cargo run -p swx-core --example feature_history`], [Runs the history sample (@ch-history).],
   [`cargo run -p swx-core --example parameter_table`], [Runs the parameter-table sample (@sec-param-table).],
@@ -112,6 +113,7 @@ The `occt` feature switches on OpenCascade. It is off by default, so a plain bui
   [`face_count(s)`], [The number of faces.],
   [`sub_shape_count(s, kind)`], [The number of faces, edges or vertices (`kind`), each shared one counted once. Their indices run from 0 to the count minus 1 (@sec-topology).],
   [`adjacent(s, of, kind)`], [The sub-shapes of `kind` that touch `of`, sorted by index, without repeats: going down, the edges or vertices of a face, or the vertices of an edge; going up, the faces or edges that contain `of`. `kind` must differ from `of.kind`, and `of.index` must be in range.],
+  [`sub_shape_bounding_box(s, of)`], [The smallest axis-aligned box around one face, edge or vertex `of` of `s`, as for `bounding_box`. `of.index` must be in range.],
   [`tessellate(s, deflection)`], [Breaks the surface into triangles, no farther than `deflection` (mm, > 0) from the true surface.],
   [`export_step(s, path)`], [Writes a STEP file in millimeters, replacing any existing file.],
   [`import_step(path)`], [Reads everything in a STEP file as one shape.],
@@ -145,9 +147,22 @@ All positions must be finite numbers; all sizes finite and greater than zero.
   [`ThroughDirection::Normal`, `::Reversed`, `::Both`], [Which way a through-all cut goes: along the normal, against it, or both ways.],
   [`LOOP_GAP_TOLERANCE`], [1e-7 mm: the largest gap between two ends that still counts as joined. Ends that close are moved to meet exactly.],
   [`PERPENDICULAR_TOLERANCE`], [1e-9: how far from a right angle `x_dir` and `normal` may be.],
+  [`REVOLVE_AXIS_TOLERANCE`], [1e-7 mm: how far a revolve's axis may be off the face's plane, and how far the face may reach past the axis, and still pass (@sec-revolve-mistakes).],
 )
 
 All numbers must be finite. A face is refused if a loop is empty, has no area, doesn't close, or crosses itself, or if a hole isn't wholly inside the outer loop. Every refusal is an error (@sec-errors), never a crash.
+
+`make_face_tracked(plane, outer, holes)` and `extrude_tracked(face, extent)` do the same as `make_face` and `extrude`, and also say where each piece went (@sec-extrude-history). They take the same inputs and give the same errors; `extrude_tracked` refuses `Extent::ThroughAll` as `extrude` does.
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("Returns", "What it holds"),
+  [`make_face_tracked` → `(face, edges)`], [`edges[l][i]`: the edge of `face` made from piece `i` of loop `l`, with loop 0 the outer loop and loop 1 onward the holes in order. Pieces in the order you listed them, whichever way round the loop goes.],
+  [`extrude_tracked` → `(solid, history)`], [The solid, as `extrude` makes it, and its `ExtrudeHistory`.],
+  [`ExtrudeHistory::start_cap`], [The face the sweep starts from: the input face moved by the extent's start, a face of the solid. For a positive distance it is on the workplane; for a negative distance or a symmetric extent it isn't.],
+  [`ExtrudeHistory::end_cap`], [The face where the sweep ends: the start cap moved by the length along the normal.],
+  [`ExtrudeHistory::sides`], [One `(edge, face)` pair per edge of the input face, in edge index order: an edge of the input face, then the side face of the solid it swept.],
+)
 
 `extrude_feature(k, face, extent, mode, target)` extrudes `face` like `extrude`, then combines the result with `target` as `mode` says (@sec-extrude-modes). It returns a new solid; `target` is left unchanged.
 
@@ -172,7 +187,7 @@ A through-all extent with any mode but cut, and a missing target, are checked fi
   [`angle`], [Radians, greater than 0 and at most 2π (a full turn; up to 1e-12 over 2π also counts as a full turn). A positive angle turns counterclockwise looking against `dir`, from its tip (right-hand rule).],
 )
 
-The axis and the angle are checked before any geometry is made. Saulitwerx doesn't yet check that the axis lies in the face's plane or stays clear of the face (@sec-revolve-mistakes).
+The axis and the angle are checked before any geometry is made. Then `revolve` checks the face against the axis: the face must be one flat face, the axis must lie in its plane, and the face must not have points on both sides of the axis. Each check allows `REVOLVE_AXIS_TOLERANCE`, 1e-7 mm; a face that touches the axis passes (@sec-revolve-mistakes).
 
 == Sketch entities and constraints <sec-ref-sketch>
 

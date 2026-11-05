@@ -8,7 +8,7 @@
 
 use std::f64::consts::TAU;
 
-use crate::{KernelError, Point3};
+use crate::{KernelError, Point3, SubShape};
 
 /// Gap allowed between consecutive segments of a loop.
 pub const LOOP_GAP_TOLERANCE: f64 = 1e-7;
@@ -103,6 +103,21 @@ pub enum Extent {
     /// length is measured from the target; [`Kernel::extrude`](crate::Kernel::extrude)
     /// rejects it.
     ThroughAll(ThroughDirection),
+    /// From signed distance `start` to signed distance `end` along the
+    /// workplane normal, in either order. Both must be finite and differ.
+    FromTo(f64, f64),
+    /// From the workplane to the plane of a planar face of the target body,
+    /// which must be parallel to the workplane. The face may be on either
+    /// side. Like [`Extent::ThroughAll`], it needs a target:
+    /// [`extrude_feature`](crate::extrude_feature) resolves it (any mode but
+    /// [`ExtrudeMode::NewSolid`](crate::ExtrudeMode::NewSolid)), and
+    /// [`Kernel::extrude`](crate::Kernel::extrude) rejects it.
+    ToFace(SubShape),
+    /// From the plane of the first face to the plane of the second, both
+    /// planar faces of the target body parallel to the workplane; the
+    /// workplane's own position doesn't matter. Resolved and rejected like
+    /// [`Extent::ToFace`].
+    BetweenFaces(SubShape, SubShape),
 }
 
 /// Which way a [`Extent::ThroughAll`] extrude goes from the workplane.
@@ -143,9 +158,23 @@ impl Extent {
                 let l = check("symmetric extrude length", l)?.abs();
                 Ok((-l / 2.0, l))
             }
+            Extent::FromTo(start, end) => {
+                if !start.is_finite() || !end.is_finite() {
+                    return Err(KernelError::InvalidInput(format!(
+                        "extrude start and end must be finite, got {start} and {end}"
+                    )));
+                }
+                check("extrude length (end − start)", end - start)?;
+                Ok((start.min(end), (end - start).abs()))
+            }
             Extent::ThroughAll(_) => Err(KernelError::InvalidInput(
                 "a through-all extent needs a target body to measure; \
                  use extrude_feature with the cut mode"
+                    .into(),
+            )),
+            Extent::ToFace(_) | Extent::BetweenFaces(..) => Err(KernelError::InvalidInput(
+                "a to-face or between-faces extent needs a target body to measure; \
+                 use extrude_feature with the join, cut or intersect mode"
                     .into(),
             )),
         }
@@ -326,6 +355,9 @@ pub(crate) struct PreparedFace {
     pub normal: [f64; 3],
     /// The outer loop first, then the holes.
     pub loops: Vec<Vec<Edge2>>,
+    /// Per loop: `true` when its edges are in the reverse of the caller's
+    /// segment order (edge `k` came from segment `n - 1 - k`).
+    pub reversed: Vec<bool>,
 }
 
 fn invalid(msg: String) -> KernelError {
@@ -443,8 +475,13 @@ fn chain(edges: &[Edge2], first_reversed: bool) -> Option<Vec<Edge2>> {
 
 /// Validates a loop and returns its edges in traversal order, with each
 /// shared endpoint snapped to the midpoint of the two it joins, oriented
-/// counterclockwise if `ccw`, else clockwise.
-fn prepare_loop(name: &str, lp: &ProfileLoop, ccw: bool) -> Result<Vec<Edge2>, KernelError> {
+/// counterclockwise if `ccw`, else clockwise. The flag is `true` when the
+/// edges are in the reverse of the segment order.
+fn prepare_loop(
+    name: &str,
+    lp: &ProfileLoop,
+    ccw: bool,
+) -> Result<(Vec<Edge2>, bool), KernelError> {
     let edges = lp
         .segments
         .iter()
@@ -486,10 +523,11 @@ fn prepare_loop(name: &str, lp: &ProfileLoop, ccw: bool) -> Result<Vec<Edge2>, K
     if area.abs() <= LOOP_GAP_TOLERANCE * LOOP_GAP_TOLERANCE {
         return Err(invalid(format!("{name} loop encloses no area")));
     }
-    if (area > 0.0) != ccw {
+    let reverse = (area > 0.0) != ccw;
+    if reverse {
         edges = edges.into_iter().rev().map(Edge2::reversed).collect();
     }
-    Ok(edges)
+    Ok((edges, reverse))
 }
 
 /// Validates [`Kernel::make_face`](crate::Kernel::make_face) inputs.
@@ -511,15 +549,26 @@ pub(crate) fn prepare_face(
             "workplane x_dir and normal must be perpendicular (dot {dot})"
         )));
     }
-    let mut loops = vec![prepare_loop("outer", outer, true)?];
-    for (i, h) in holes.iter().enumerate() {
-        loops.push(prepare_loop(&format!("hole {i}"), h, false)?);
+    let (mut loops, mut reversed) = (Vec::new(), Vec::new());
+    for (i, (name, lp)) in std::iter::once(("outer".to_string(), outer))
+        .chain(
+            holes
+                .iter()
+                .enumerate()
+                .map(|(i, h)| (format!("hole {i}"), h)),
+        )
+        .enumerate()
+    {
+        let (edges, rev) = prepare_loop(&name, lp, i == 0)?;
+        loops.push(edges);
+        reversed.push(rev);
     }
     Ok(PreparedFace {
         origin: plane.origin,
         x_dir,
         normal,
         loops,
+        reversed,
     })
 }
 
@@ -875,6 +924,25 @@ mod tests {
         for bad in [0.0, -0.0, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
             assert!(Extent::Distance(bad).offset_and_length().is_err());
             assert!(Extent::Symmetric(bad).offset_and_length().is_err());
+        }
+        assert_eq!(
+            Extent::FromTo(10.0, 30.0).offset_and_length(),
+            Ok((10.0, 20.0))
+        );
+        assert_eq!(
+            Extent::FromTo(5.0, -15.0).offset_and_length(),
+            Ok((-15.0, 20.0))
+        );
+        for (a, b) in [(3.0, 3.0), (f64::NAN, 1.0), (0.0, f64::INFINITY)] {
+            assert!(Extent::FromTo(a, b).offset_and_length().is_err());
+        }
+        let face = crate::SubShape {
+            kind: crate::TopoKind::Face,
+            index: 0,
+        };
+        for ext in [Extent::ToFace(face), Extent::BetweenFaces(face, face)] {
+            let err = ext.offset_and_length().unwrap_err();
+            assert!(err.to_string().contains("needs a target body"), "{err}");
         }
     }
 

@@ -11,6 +11,7 @@
     ("Bounding box", [The smallest box, with sides parallel to the axes, that holds a solid.]),
     ("Boolean operation", [Combining two solids by union, cut or intersect.]),
     ("CAD", [Computer-aided design: using a computer to design physical objects.]),
+    ("Cap", [One of the two flat faces at the ends of an extrude: where the push starts and where it ends.]),
     ("Coincident", [A constraint that puts two points at the same place.]),
     ("Conflicting", [Said of a sketch whose rules contradict each other, so no shape can meet them all.]),
     ("Constraint", [A rule about a sketch's shape, such as "horizontal" or "these points touch".]),
@@ -55,6 +56,7 @@
     ("Revolve", [Turning a flat outline around an axis into a round solid.]),
     ("Revolve angle", [How far a revolve turns: a full turn (2π radians, 360°) or part of one.]),
     ("Seam", [An edge where a closed round face, such as the wall of a hole, meets itself.]),
+    ("Side face", [A face of an extrude swept by one edge of its outline: a flat wall from a line, a round one from an arc or circle.]),
     ("Sketch", [A 2D drawing on a plane, made of points, lines, circles and arcs.]),
     ("Solid", [A closed 3D shape with an inside and an outside.]),
     ("Solver", [The calculation that moves sketch geometry until every constraint holds.]),
@@ -80,6 +82,19 @@
 }
 
 = What's new
+
+== 2026-11-04: which face is which
+
+- *New:* extrude with history, and find out which face of the solid each piece of your outline became: the two caps and every side face (@sec-extrude-history, @sec-ref-extrude).
+- *New:* ask for the bounding box of a single face, edge or vertex (@sec-ref-kernel).
+- *Pictures:* the extruded plate, with its faces named by their history.
+- Help: two new common mistakes; two error messages and a known limitation updated. Glossary: cap, side face.
+
+== 2026-11-03: safer revolves
+
+- *New:* a revolve now checks its axis first. An axis that runs through the outline, or doesn't lie in the outline's plane, gets a clear message saying which, instead of a broken solid or a vague failure (@sec-revolve-mistakes).
+- The revolve sample shows both new errors (@sec-revolve).
+- Help: three new error messages; the revolve rows and the known limitation about unchecked axes updated.
 
 == 2026-11-02: faces, edges and vertices
 
@@ -164,7 +179,6 @@ These are the next items on the public roadmap. None of them works yet. When one
   columns: (auto, 1fr),
   header: ("Soon", "What you'll be able to do"),
   [Extrude from a sketch], [Hand a sketch's region straight to the extrude and the revolve, and extrude up to a face or between two faces.],
-  [Safer revolves], [A clear error when a revolve's axis runs through the outline or lies outside its plane.],
   [More part features], [Fillet, chamfer, shell and hole, driven by sketches.],
   [Lasting references], [A feature built on a face or an edge keeps finding it when earlier features change.],
   [Part files], [Save a part with its full history, and open it again.],

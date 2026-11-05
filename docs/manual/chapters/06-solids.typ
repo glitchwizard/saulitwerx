@@ -110,7 +110,7 @@ face 7: invalid input: face index 7 is out of range: the shape has 7 faces")],
 
 #note(title: [Why 15 edges, and an edge with one face])[A box has 12 edges; the hole adds its two rims, which makes 14. The fifteenth is a #term[seam]: the kernel makes a closed round face, like the hole's wall, from a sheet rolled up until its two sides meet, and the line where they meet is an edge. It doesn't show in pictures. Because the wall lies on both sides of it, the seam, edge 14, lists only one face.]
 
-#caution(title: [A number belongs to one shape])[Indices count the sub-shapes of one shape, so face 6 of this plate means nothing for another shape, even the same plate after a change. Ask again after every operation. Names that last through changes are on the way; see *Coming next*.]
+#caution(title: [A number belongs to one shape])[Indices count the sub-shapes of one shape, so face 6 of this plate means nothing for another shape, even the same plate after a change. Ask again after every operation. An extrude can tell you which of its faces is which (@sec-extrude-history); names that last through changes are on the way, see *Coming next*.]
 
 *Common mistakes*
 
