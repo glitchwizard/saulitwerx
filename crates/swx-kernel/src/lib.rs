@@ -23,7 +23,10 @@ mod ffi;
 #[cfg(feature = "occt")]
 mod occt;
 
-pub use feature::{extrude_feature, revolve_feature, ExtrudeMode, EMPTY_VOLUME_TOLERANCE};
+pub use feature::{
+    extrude_feature, revolve_feature, ExtrudeMode, EMPTY_VOLUME_TOLERANCE, FACE_DISTANCE_TOLERANCE,
+    PARALLEL_FACE_TOLERANCE,
+};
 pub use mesh::Mesh;
 #[cfg(feature = "occt")]
 pub use occt::{OcctKernel, OcctShape};
@@ -119,8 +122,9 @@ pub trait Kernel {
     ) -> Result<(Self::Shape, Vec<Vec<SubShape>>), KernelError>;
     /// [`Kernel::extrude`], plus its [`ExtrudeHistory`]: the start and end
     /// caps and, for every edge of `face`, the side face it swept. The same
-    /// input checks as `extrude` apply; [`Extent::ThroughAll`] is
-    /// [`KernelError::InvalidInput`], since it needs a target body.
+    /// input checks as `extrude` apply; [`Extent::ThroughAll`],
+    /// [`Extent::ToFace`] and [`Extent::BetweenFaces`] are
+    /// [`KernelError::InvalidInput`], since they need a target body.
     fn extrude_tracked(
         &self,
         face: &Self::Shape,
@@ -188,6 +192,14 @@ pub trait Kernel {
         of: SubShape,
         kind: TopoKind,
     ) -> Result<Vec<SubShape>, KernelError>;
+
+    /// The plane of the planar face `face` of `s`: a point on it and its unit
+    /// outward normal (pointing out of the solid; for a lone face, the
+    /// direction a positive [`Kernel::extrude`] distance goes).
+    ///
+    /// A `face` whose kind isn't [`TopoKind::Face`], an index out of range
+    /// and a non-planar face are [`KernelError::InvalidInput`].
+    fn face_plane(&self, s: &Self::Shape, face: SubShape) -> Result<(Point3, Point3), KernelError>;
 
     /// Tight axis-aligned bounding box of one sub-shape of `s`. An index out
     /// of range for `of.kind` is [`KernelError::InvalidInput`], checked

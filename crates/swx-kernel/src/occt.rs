@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use crate::ffi::{self, BooleanOp, ShapeHandle};
+use crate::ffi::{self, BooleanOp, FacePlane, ShapeHandle};
 use crate::profile::{check_revolve_profile, prepare_face, prepare_revolve};
 use crate::topo::{validate_adjacent, validate_index};
 use crate::{
@@ -239,6 +239,30 @@ impl Kernel for OcctKernel {
             .into_iter()
             .map(|index| SubShape { kind, index })
             .collect())
+    }
+
+    fn face_plane(&self, s: &OcctShape, face: SubShape) -> Result<(Point3, Point3), KernelError> {
+        if face.kind != TopoKind::Face {
+            return Err(KernelError::InvalidInput(format!(
+                "face_plane needs a face, got a {:?} sub-shape",
+                face.kind
+            )));
+        }
+        let count = self.sub_shape_count(s, TopoKind::Face)?;
+        if face.index >= count {
+            return Err(KernelError::InvalidInput(format!(
+                "face index {} is out of range (the shape has {count} faces)",
+                face.index
+            )));
+        }
+        match ffi::face_plane(&s.0, face.index) {
+            Some(FacePlane::Plane(point, normal)) => Ok((point, normal)),
+            Some(FacePlane::NotPlanar) => Err(KernelError::InvalidInput(format!(
+                "face {} is not planar",
+                face.index
+            ))),
+            None => Err(backend("face_plane")),
+        }
     }
 
     fn export_step(&self, s: &OcctShape, path: &Path) -> Result<(), KernelError> {
@@ -899,6 +923,10 @@ mod tests {
             K.extrude_tracked(&face, Extent::ThroughAll(crate::ThroughDirection::Normal))
                 .unwrap_err()
         ));
+        let f0 = sub(TopoKind::Face, 0);
+        for extent in [Extent::ToFace(f0), Extent::BetweenFaces(f0, f0)] {
+            assert!(invalid(K.extrude_tracked(&face, extent).unwrap_err()));
+        }
         let solid = unit_box([0.0; 3], 1.0);
         assert!(matches!(
             K.extrude_tracked(&solid, Extent::Distance(1.0)),

@@ -122,6 +122,7 @@ extern "C" {
     fn swx_occt_shape_free(s: *mut RawShape);
     fn swx_occt_face_count(s: *const RawShape, out: *mut usize) -> c_int;
     fn swx_occt_sub_shape_count(s: *const RawShape, kind: c_int, out: *mut usize) -> c_int;
+    fn swx_occt_face_plane(s: *const RawShape, index: usize, out: *mut c_double) -> c_int;
     fn swx_occt_adjacent(
         s: *const RawShape,
         of_kind: c_int,
@@ -420,6 +421,33 @@ pub(crate) fn sub_shape_count(s: &ShapeHandle, kind: i32) -> Option<usize> {
     // writable `usize` on our stack (`size_t` and `usize` share a layout).
     let status = unsafe { swx_occt_sub_shape_count(s.0.as_ptr(), kind, &mut out) };
     (status == 0).then_some(out)
+}
+
+/// What `swx_occt_face_plane` reports about one face.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum FacePlane {
+    /// A point on the face's plane and its unit outward normal.
+    Plane([f64; 3], [f64; 3]),
+    /// The face is not planar.
+    NotPlanar,
+}
+
+/// Plane of face `index` (0-based) of `s`. `None` on any failure, including
+/// an index out of range.
+pub(crate) fn face_plane(s: &ShapeHandle, index: usize) -> Option<FacePlane> {
+    let mut out = [0.0 as c_double; 6];
+    // SAFETY: `s` is a live handle read-only for the call and not retained;
+    // `index` is a plain `usize` (`size_t` layout) by value; `out` is a valid
+    // writable array of exactly the 6 doubles the shim writes.
+    let status = unsafe { swx_occt_face_plane(s.0.as_ptr(), index, out.as_mut_ptr()) };
+    match status {
+        0 => Some(FacePlane::Plane(
+            [out[0], out[1], out[2]],
+            [out[3], out[4], out[5]],
+        )),
+        1 => Some(FacePlane::NotPlanar),
+        _ => None,
+    }
 }
 
 /// 0-based indices of the sub-shapes of kind code `kind` adjacent to

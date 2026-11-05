@@ -742,6 +742,41 @@ int swx_occt_sub_shape_count(const SwxShape* s, int kind, size_t* out) noexcept 
     }
 }
 
+// Plane of face `index` (0-based, in the TopExp::MapShapes face order) of
+// `s`: writes a point on the plane (3) and the unit outward normal (3) to
+// `out`. The plane's own normal is reversed when the face is REVERSED in `s`,
+// so the normal points out of the solid (OCCT reference documentation:
+// TopoDS_Shape::Orientation, BRepAdaptor_Surface). Returns 1 when the face is
+// not planar, -1 on any other failure (including an index out of range).
+int swx_occt_face_plane(const SwxShape* s, size_t index, double* out) noexcept {
+    if (s == nullptr || out == nullptr) {
+        return -1;
+    }
+    try {
+        TopTools_IndexedMapOfShape faces;
+        TopExp::MapShapes(s->shape, TopAbs_FACE, faces);
+        if (index >= static_cast<size_t>(faces.Extent())) {
+            return -1;
+        }
+        const TopoDS_Face& face = TopoDS::Face(faces(static_cast<int>(index) + 1));
+        BRepAdaptor_Surface surface(face);
+        if (surface.GetType() != GeomAbs_Plane) {
+            return 1;
+        }
+        const gp_Pln plane = surface.Plane();
+        const gp_Pnt p = plane.Location();
+        gp_Dir n = plane.Axis().Direction();
+        if (face.Orientation() == TopAbs_REVERSED) {
+            n.Reverse();
+        }
+        const double values[6] = {p.X(), p.Y(), p.Z(), n.X(), n.Y(), n.Z()};
+        std::copy(values, values + 6, out);
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
 // Indices (0-based, in the TopExp::MapShapes order of `kind`) of the
 // sub-shapes of `kind` adjacent to sub-shape `of_index` of `of_kind`.
 // Going up (e.g. faces of an edge) uses TopExp::MapShapesAndAncestors; going
