@@ -18,6 +18,8 @@
 #include <BRepBuilderAPI_MakeVertex.hxx>
 #include <BRepBuilderAPI_MakeWire.hxx>
 #include <BRepCheck_Analyzer.hxx>
+#include <BRepFilletAPI_MakeChamfer.hxx>
+#include <BRepFilletAPI_MakeFillet.hxx>
 #include <BRepGProp.hxx>
 #include <BRepLProp_SLProps.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
@@ -529,6 +531,66 @@ int swx_occt_revolve_profile(const SwxShape* s, double ox, double oy, double oz,
         const double values[8] = {p0.X(), p0.Y(), p0.Z(), n.X(), n.Y(), n.Z(), lo, hi};
         std::copy(values, values + 8, out);
         return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+// Rounds (op 0, BRepFilletAPI_MakeFillet, constant radius) or bevels (op 1,
+// BRepFilletAPI_MakeChamfer, equal distance on both faces) the `n` edges of
+// `s` given by 0-based TopExp::MapShapes indices in `edges`, by `value`.
+// Fails if an index is out of range, if OCCT can't build the result, or if
+// the result is not a valid shape. `s` itself is never modified.
+int swx_occt_fillet_chamfer(int op, const SwxShape* s, const size_t* edges, size_t n,
+                            double value, SwxShape** out) noexcept {
+    if (s == nullptr || edges == nullptr || out == nullptr || n == 0 || !(value > 0.0) ||
+        (op != 0 && op != 1)) {
+        return -1;
+    }
+    try {
+        TopTools_IndexedMapOfShape map;
+        TopExp::MapShapes(s->shape, TopAbs_EDGE, map);
+        auto edge_at = [&](size_t i, TopoDS_Edge* e) {
+            if (edges[i] >= static_cast<size_t>(map.Extent())) {
+                return false;
+            }
+            *e = TopoDS::Edge(map.FindKey(static_cast<int>(edges[i]) + 1));
+            return true;
+        };
+        TopoDS_Shape result;
+        if (op == 0) {
+            BRepFilletAPI_MakeFillet maker(s->shape);
+            for (size_t i = 0; i < n; ++i) {
+                TopoDS_Edge e;
+                if (!edge_at(i, &e)) {
+                    return -1;
+                }
+                maker.Add(value, e);
+            }
+            maker.Build();
+            if (!maker.IsDone()) {
+                return -1;
+            }
+            result = maker.Shape();
+        } else {
+            BRepFilletAPI_MakeChamfer maker(s->shape);
+            for (size_t i = 0; i < n; ++i) {
+                TopoDS_Edge e;
+                if (!edge_at(i, &e)) {
+                    return -1;
+                }
+                maker.Add(value, e);
+            }
+            maker.Build();
+            if (!maker.IsDone()) {
+                return -1;
+            }
+            result = maker.Shape();
+        }
+        if (result.IsNull() || !BRepCheck_Analyzer(result).IsValid()) {
+            return -1;
+        }
+        return emit(result, out);
     } catch (...) {
         return -1;
     }
