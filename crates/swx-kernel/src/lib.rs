@@ -34,7 +34,7 @@ pub use profile::{
     Axis, Extent, ProfileLoop, Segment2, ThroughDirection, Workplane, LOOP_GAP_TOLERANCE,
     PERPENDICULAR_TOLERANCE, REVOLVE_AXIS_TOLERANCE,
 };
-pub use topo::{ExtrudeHistory, SubShape, TopoKind};
+pub use topo::{BooleanOp, ExtrudeHistory, OpHistory, Operand, SubShape, TopoKind};
 
 /// A point or vector in model space, `[x, y, z]`.
 pub type Point3 = [f64; 3];
@@ -156,6 +156,20 @@ pub trait Kernel {
     fn cut(&self, a: &Self::Shape, b: &Self::Shape) -> Result<Self::Shape, KernelError>;
     /// Boolean intersection `a ∩ b`.
     fn intersect(&self, a: &Self::Shape, b: &Self::Shape) -> Result<Self::Shape, KernelError>;
+    /// The same solid as [`Kernel::union`], [`Kernel::cut`] or
+    /// [`Kernel::intersect`] (by `op`), plus its [`OpHistory`].
+    ///
+    /// `modified` has exactly one entry per face of `a` (as [`Operand::A`])
+    /// and then per face of `b` ([`Operand::B`]), each in face index order,
+    /// with its images in the result: itself if unchanged, several if split,
+    /// none if deleted. `generated` is empty (faces only, see [`OpHistory`]).
+    /// Errors are those of the untracked call.
+    fn boolean_tracked(
+        &self,
+        op: BooleanOp,
+        a: &Self::Shape,
+        b: &Self::Shape,
+    ) -> Result<(Self::Shape, OpHistory), KernelError>;
 
     /// Enclosed volume.
     fn volume(&self, s: &Self::Shape) -> Result<f64, KernelError>;

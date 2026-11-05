@@ -9,6 +9,7 @@
 
 #include <BRepAdaptor_Curve.hxx>
 #include <BRepAdaptor_Surface.hxx>
+#include <BRepAlgoAPI_BooleanOperation.hxx>
 #include <BRepAlgoAPI_Common.hxx>
 #include <BRepAlgoAPI_Cut.hxx>
 #include <BRepAlgoAPI_Fuse.hxx>
@@ -62,6 +63,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <mutex>
 #include <utility>
 #include <vector>
@@ -180,6 +182,89 @@ int swx_occt_boolean(int op, const SwxShape* a, const SwxShape* b, SwxShape** ou
         }
         if (!ok) {
             return -1;
+        }
+        return emit(result, out);
+    } catch (...) {
+        return -1;
+    }
+}
+
+// As swx_occt_boolean, plus the face history (OCCT reference documentation:
+// BRepAlgoAPI_BooleanOperation, BRepBuilderAPI_MakeShape::Modified and
+// IsDeleted; TopExp::MapShapes).
+//
+// The input faces are the faces of `a` in its TopExp::MapShapes order, then
+// those of `b`; `n_in` must equal their total. For each, `counts[i]` receives
+// the number of its images in the result and `images` receives the images'
+// 0-based face indices in the result, input after input, each run sorted and
+// without duplicates. A deleted face has no image; a face OCCT neither
+// modifies nor deletes is its own image when the result contains it.
+// `images` holds `cap` entries. When more are needed, `*needed` receives the
+// count, nothing else is written and the call returns 2; on success
+// `*needed` is the count written.
+int swx_occt_boolean_tracked(int op, const SwxShape* a, const SwxShape* b, size_t n_in,
+                             size_t* counts, size_t* images, size_t cap, size_t* needed,
+                             SwxShape** out) noexcept {
+    if (a == nullptr || b == nullptr || counts == nullptr || needed == nullptr ||
+        out == nullptr || (images == nullptr && cap > 0)) {
+        return -1;
+    }
+    try {
+        std::unique_ptr<BRepAlgoAPI_BooleanOperation> algo;
+        switch (op) {
+            case 0: algo.reset(new BRepAlgoAPI_Fuse(a->shape, b->shape)); break;
+            case 1: algo.reset(new BRepAlgoAPI_Cut(a->shape, b->shape)); break;
+            case 2: algo.reset(new BRepAlgoAPI_Common(a->shape, b->shape)); break;
+            default: return -1;
+        }
+        if (!algo->IsDone() || algo->HasErrors()) {
+            return -1;
+        }
+        const TopoDS_Shape result = algo->Shape();
+        if (result.IsNull()) {
+            return -1;
+        }
+        TopTools_IndexedMapOfShape result_faces;
+        TopExp::MapShapes(result, TopAbs_FACE, result_faces);
+        TopTools_IndexedMapOfShape faces_a, faces_b;
+        TopExp::MapShapes(a->shape, TopAbs_FACE, faces_a);
+        TopExp::MapShapes(b->shape, TopAbs_FACE, faces_b);
+        if (static_cast<size_t>(faces_a.Extent() + faces_b.Extent()) != n_in) {
+            return -1;
+        }
+
+        std::vector<std::vector<size_t>> found(n_in);
+        size_t total = 0;
+        for (size_t i = 0; i < n_in; ++i) {
+            const int na = faces_a.Extent();
+            const TopoDS_Shape& face = static_cast<int>(i) < na
+                                           ? faces_a(static_cast<int>(i) + 1)
+                                           : faces_b(static_cast<int>(i) - na + 1);
+            std::vector<size_t>& out_i = found[i];
+            if (!algo->IsDeleted(face)) {
+                const TopTools_ListOfShape& modified = algo->Modified(face);
+                if (modified.IsEmpty()) {
+                    const int k = result_faces.FindIndex(face);
+                    if (k > 0) out_i.push_back(static_cast<size_t>(k - 1));
+                } else {
+                    for (TopTools_ListIteratorOfListOfShape it(modified); it.More(); it.Next()) {
+                        const int k = result_faces.FindIndex(it.Value());
+                        if (k > 0) out_i.push_back(static_cast<size_t>(k - 1));
+                    }
+                }
+            }
+            std::sort(out_i.begin(), out_i.end());
+            out_i.erase(std::unique(out_i.begin(), out_i.end()), out_i.end());
+            total += out_i.size();
+        }
+        *needed = total;
+        if (total > cap) {
+            return 2;
+        }
+        size_t at = 0;
+        for (size_t i = 0; i < n_in; ++i) {
+            counts[i] = found[i].size();
+            for (size_t k : found[i]) images[at++] = k;
         }
         return emit(result, out);
     } catch (...) {

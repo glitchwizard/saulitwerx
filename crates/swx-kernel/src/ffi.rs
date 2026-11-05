@@ -11,7 +11,7 @@ use std::os::raw::{c_char, c_double, c_float, c_int};
 use std::ptr::{self, NonNull};
 
 use crate::profile::RevolveProfile;
-use crate::Mesh;
+use crate::{BooleanOp, Mesh};
 
 /// Opaque C++ shape record (`struct SwxShape` in the shim).
 #[repr(C)]
@@ -54,6 +54,18 @@ extern "C" {
         op: c_int,
         a: *const RawShape,
         b: *const RawShape,
+        out: *mut *mut RawShape,
+    ) -> c_int;
+    #[allow(clippy::too_many_arguments)]
+    fn swx_occt_boolean_tracked(
+        op: c_int,
+        a: *const RawShape,
+        b: *const RawShape,
+        n_in: usize,
+        counts: *mut usize,
+        images: *mut usize,
+        cap: usize,
+        needed: *mut usize,
         out: *mut *mut RawShape,
     ) -> c_int;
     fn swx_occt_make_face(
@@ -161,14 +173,6 @@ impl Drop for ShapeHandle {
     }
 }
 
-/// Boolean operation codes understood by `swx_occt_boolean`.
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum BooleanOp {
-    Union = 0,
-    Cut = 1,
-    Intersect = 2,
-}
-
 /// Turns a status code plus out-pointer into an owned handle.
 fn take(status: c_int, raw: *mut RawShape) -> Option<ShapeHandle> {
     if status == 0 {
@@ -212,6 +216,62 @@ pub(crate) fn boolean(op: BooleanOp, a: &ShapeHandle, b: &ShapeHandle) -> Option
     // out-pointer that receives a new, independently owned handle.
     let status = unsafe { swx_occt_boolean(op as c_int, a.0.as_ptr(), b.0.as_ptr(), &mut raw) };
     take(status, raw)
+}
+
+/// As [`boolean`], plus the face history: for each of the `n_in` input faces
+/// (those of `a` in index order, then those of `b`), its image face indices
+/// in the result, sorted. `op` is passed as its discriminant (`BooleanOp`
+/// codes match the shim's).
+pub(crate) fn boolean_tracked(
+    op: BooleanOp,
+    a: &ShapeHandle,
+    b: &ShapeHandle,
+    n_in: usize,
+) -> Option<(ShapeHandle, Vec<Vec<usize>>)> {
+    let mut cap = 2 * n_in + 16;
+    // At most two calls: the first reports the size needed when `cap` is short.
+    for _ in 0..2 {
+        let mut counts = vec![0usize; n_in];
+        let mut images = vec![0usize; cap];
+        let mut needed = 0usize;
+        let mut raw = ptr::null_mut();
+        // SAFETY: `a` and `b` are live handles read-only for the call and not
+        // retained. `counts` is a writable buffer of exactly `n_in` `usize`s
+        // (`size_t` layout) and `images` one of exactly `cap`; the shim writes
+        // no more than those sizes and fails if the faces don't number `n_in`.
+        // `needed` is a valid out-pointer, and `raw` receives a new owned
+        // handle only on success (status 0).
+        let status = unsafe {
+            swx_occt_boolean_tracked(
+                op as c_int,
+                a.0.as_ptr(),
+                b.0.as_ptr(),
+                n_in,
+                counts.as_mut_ptr(),
+                images.as_mut_ptr(),
+                cap,
+                &mut needed,
+                &mut raw,
+            )
+        };
+        if status == 2 && needed > cap {
+            cap = needed;
+            continue;
+        }
+        let handle = take(status, raw)?;
+        if needed > cap || counts.iter().sum::<usize>() != needed {
+            return None;
+        }
+        let mut rest = &images[..needed];
+        let mut per_face = Vec::with_capacity(n_in);
+        for &n in &counts {
+            let (head, tail) = rest.split_at(n);
+            per_face.push(head.to_vec());
+            rest = tail;
+        }
+        return Some((handle, per_face));
+    }
+    None
 }
 
 /// Builds a planar face. `plane` is origin, x direction and normal;
