@@ -55,3 +55,11 @@ required-features = ["occt"]
 [[example]]
 name = "extrude_history"
 required-features = ["occt"]
+
+[[example]]
+name = "extrude_to_face"
+required-features = ["occt"]
+
+[[example]]
+name = "fillet_chamfer"
+required-features = ["occt"]

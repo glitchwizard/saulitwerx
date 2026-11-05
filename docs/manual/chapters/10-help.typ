@@ -67,7 +67,13 @@ Every message starts with `swx-qa: `. No picture is written when there is an err
   [`invalid input: no such file: f`], [The STEP file to read doesn't exist.],
   [`invalid input: adjacent needs two different kinds, got edge and edge`], [`adjacent` was asked for the same kind it starts from. Ask for another kind: the faces or vertices of an edge (@sec-topology).],
   [`invalid input: face index 7 is out of range: the shape has 7 faces`], [The index is past the last sub-shape of its kind. Indices start at 0, so the last is the count minus 1. An index from another shape, or from before a change, can also be out of range (@sec-topology).],
-  [`kernel failure: <operation> failed`], [OpenCascade couldn't complete the operation. For a cut, check that the tool solid overlaps the part (@ch-solids).],
+  [`kernel failure: <operation> failed`], [OpenCascade couldn't complete the operation. For a cut, check that the tool solid overlaps the part (@ch-solids). For a `fillet` or a `chamfer`, the size is too large for the faces next to the edges: make it smaller (@sec-fillet-mistakes).],
+  [`invalid input: the edge list is empty`], [A fillet or a chamfer was given no edges. Give at least one (@ch-fillet).],
+  [`invalid input: expected an edge, got face 0` (or `vertex`)], [A fillet's or a chamfer's list holds something that isn't an edge. Give edges only (@sec-fillet-mistakes).],
+  [`invalid input: edge index 12 is out of range: the shape has 12 edges`], [As for faces: the edge number is past the last edge, or comes from another solid. Find the edges in the solid you are softening.],
+  [`invalid input: face index 14 is out of range (the shape has 14 faces)`], [`face_plane`, or a face extent, was given a face number past the last face of the target.],
+  [`invalid input: face_plane needs a face, got a Edge sub-shape` (or `Vertex`)], [`face_plane` was given an edge or a vertex. Give a face.],
+  [`invalid input: face 2 is not planar`], [The face is curved, so it has no plane: a to-face extrude can't end on it. Pick a flat face (@sec-extrude-to-face).],
   [`invalid input: outer loop: consecutive segments don't meet within 0.0000001` (or `hole N loop: …`)], [Two pieces of the loop, or its last and first, don't meet. Reuse the same corner values for both ends (@ch-extrude).],
   [`invalid input: outer loop is empty`, `… loop encloses no area`], [The loop has no pieces, or they enclose nothing: a line there and back, or a figure eight whose halves are the same size.],
   [`invalid input: … loop of one segment must be a circle`, `… a circle must be the only segment of its loop`], [A loop of one piece must be a full circle, and a circle can't share a loop. Use arcs to round corners.],
@@ -81,6 +87,11 @@ Every message starts with `swx-qa: `. No picture is written when there is an err
   [`invalid input: extrude mode "join" needs a target body` (or `"cut"`, `"intersect"`)], [The mode combines with a part, but none was given. Pass the part as the target, or use `NewSolid` (@sec-extrude-modes).],
   [`invalid input: a through-all extent works only with the cut mode, not "join"` (or another mode)], [Only a cut can go through all. Give a distance instead (@sec-through-all).],
   [`invalid input: a through-all extent needs a target body to measure; use extrude_feature with the cut mode`], [A through-all extent was given to `extrude` or `extrude_tracked`, which have no target to measure. Use `extrude_feature` with `ExtrudeMode::Cut`.],
+  [`invalid input: a to-face or between-faces extent needs a target body: it works with the join, cut and intersect modes, not "new solid"`], [A face extent was given with the new-solid mode. Use join, cut or intersect, with the part as the target (@sec-extrude-to-face).],
+  [`invalid input: a to-face or between-faces extent needs a target body to measure; use extrude_feature with the join, cut or intersect mode`], [A face extent was given to `extrude` or `extrude_tracked`. Use `extrude_feature`.],
+  [`invalid input: target face 11 (normal …) is not parallel to the workplane (normal …)`], [The face stands at an angle to the outline's plane. Pick a face parallel to the workplane (@sec-extrude-to-face).],
+  [`invalid input: face 5 lies in the workplane: the to-face extrude has zero length`, `faces 7 and 9 are coplanar: the between-faces extrude has zero length`], [The face is on the outline's own plane, or the two faces are on one plane, so the extrude has no length. Pick another face.],
+  [`invalid input: extrude start and end must be finite, got …`, `extrude length (end − start) must be finite and non-zero, got 0`], [A from–to extent has a number that isn't finite, or the same start and end.],
   [`invalid input: the through-all cut misses the target: it removes nothing`], [The cut went the wrong way, or the outline isn't over the part. Change the direction or move the outline (@sec-through-all).],
   [`invalid input: revolve angle must be in (0, 2π] radians, got <v>`], [The angle is zero, negative, more than a full turn, not a number, or given in degrees. Give radians: a full turn is 2π (@sec-revolve).],
   [`invalid input: revolve axis direction must be non-zero` (or `must be finite, got …`), `revolve axis origin must be finite, got …`], [The axis is missing its direction, or has a number that isn't finite.],
@@ -178,11 +189,12 @@ For an unknown entity, `infer` and `add_inferred` give the sketch messages above
 == Known limitations
 
 - No desktop app, 3D view, mouse or keyboard controls yet.
-- A sketch's regions can't be extruded or revolved directly yet: type the outline's pieces into a program (@ch-extrude, @ch-revolve). There is no fillet or hole yet.
-- An extrude goes a set distance, or through all for a cut (@sec-through-all); not "up to a face" or "between two faces".
+- A sketch's regions can't be extruded or revolved directly yet: type the outline's pieces into a program (@ch-extrude, @ch-revolve). There is no hole or shell feature yet.
+- An extrude can end on a face (@sec-extrude-to-face) only when the face is flat and parallel to the workplane, and it ends on the face's whole plane: it doesn't stop at the face's edges, or follow a curved face.
+- A fillet has one radius for all its edges, and a chamfer one distance, the same on both faces (@ch-fillet). There is no fillet whose radius changes along the edge, and no chamfer by two distances or by a distance and an angle.
 - A revolve turns one way from the outline's plane by an angle; it can't yet turn both ways or symmetrically.
 - An extrude's or a revolve's target is a solid you hold in your program. Faces and edges can be counted and numbered (@sec-topology), and a plain extrude says which face each piece of the outline became (@sec-extrude-history), but they can't be picked, and their numbers don't last through a change; so the outline's workplane is given by its numbers (@sec-extrude-modes).
-- Extrudes and revolves aren't recorded in a part's history, so they don't rebuild when a parameter changes.
+- Extrudes, revolves, fillets and chamfers aren't recorded in a part's history, so they don't rebuild when a parameter changes.
 - No native part files; work can't be saved with its history.
 - `swx-qa sketch` draws only its two built-in sketches. Your own sketches need a short program (@sec-picture-sketch). Sketch pictures show no dimension arrows and no marks for constraints such as horizontal.
 - A parameter's unit is free text. Only the seven units of @sec-ref-expr are understood by formulas; any other unit counts as none.
