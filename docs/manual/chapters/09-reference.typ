@@ -86,7 +86,9 @@ Success and errors work as for `render`. `--step` and `--crease` belong to `rend
   [`cargo run -p swx-kernel --features occt --example extrude_modes -- <dir>`], [Joins, cuts and intersects extrudes with a block (@sec-extrude-modes). STEP files in `<dir>`.],
   [`cargo run -p swx-kernel --features occt --example extrude_through_all -- <dir>`], [Cuts two holes through a block (@sec-through-all). STEP files in `<dir>`.],
   [`cargo run -p swx-kernel --features occt --example extrude_history`], [Extrudes the plate with history and prints which face each piece of the outline became (@sec-extrude-history).],
+  [`cargo run -p swx-kernel --features occt --example extrude_to_face -- <dir>`], [Extrudes up to and between the faces of a stepped block (@sec-extrude-to-face). STEP files in `<dir>`.],
   [`cargo run -p swx-kernel --features occt --example revolve_bushing -- <dir>`], [Revolves a bushing and cuts a groove in it (@ch-revolve). STEP files in `<dir>`.],
+  [`cargo run -p swx-kernel --features occt --example fillet_chamfer -- <dir>`], [Fillets and chamfers the edges of a block (@ch-fillet). STEP files in `<dir>`.],
   [`cargo run -p swx-core --example feature_history`], [Runs the history sample (@ch-history).],
   [`cargo run -p swx-core --example parameter_table`], [Runs the parameter-table sample (@sec-param-table).],
   [`cargo run -p swx-sketch --example driven_plate`], [Runs the bound-dimension sample (@sec-drive-sketch).],
@@ -114,6 +116,9 @@ The `occt` feature switches on OpenCascade. It is off by default, so a plain bui
   [`sub_shape_count(s, kind)`], [The number of faces, edges or vertices (`kind`), each shared one counted once. Their indices run from 0 to the count minus 1 (@sec-topology).],
   [`adjacent(s, of, kind)`], [The sub-shapes of `kind` that touch `of`, sorted by index, without repeats: going down, the edges or vertices of a face, or the vertices of an edge; going up, the faces or edges that contain `of`. `kind` must differ from `of.kind`, and `of.index` must be in range.],
   [`sub_shape_bounding_box(s, of)`], [The smallest axis-aligned box around one face, edge or vertex `of` of `s`, as for `bounding_box`. `of.index` must be in range.],
+  [`face_plane(s, face)`], [The plane of the flat face `face` of `s`: a point on it and its unit outward normal, pointing out of the solid (@sec-extrude-to-face). `face` must be a face, in range, and flat.],
+  [`fillet(s, edges, radius)`], [Rounds every edge in `edges` with one radius (@ch-fillet). Radius > 0; the list not empty, edges only, each in range; an edge listed twice counts once. A radius that doesn't fit fails, and `s` is unchanged.],
+  [`chamfer(s, edges, distance)`], [Bevels every edge in `edges`, set back `distance` along both of its faces. Same rules as `fillet`.],
   [`tessellate(s, deflection)`], [Breaks the surface into triangles, no farther than `deflection` (mm, > 0) from the true surface.],
   [`export_step(s, path)`], [Writes a STEP file in millimeters, replacing any existing file.],
   [`import_step(path)`], [Reads everything in a STEP file as one shape.],
@@ -145,14 +150,19 @@ All positions must be finite numbers; all sizes finite and greater than zero.
   [`Extent::Symmetric(l)`], [`l` mm in total, half on each side of the plane. Not zero.],
   [`Extent::ThroughAll(dir)`], [Through the whole target body (@sec-through-all). Only `extrude_feature` with `ExtrudeMode::Cut` accepts it; `extrude` refuses it.],
   [`ThroughDirection::Normal`, `::Reversed`, `::Both`], [Which way a through-all cut goes: along the normal, against it, or both ways.],
+  [`Extent::FromTo(start, end)`], [From `start` mm to `end` mm along the normal, in either order. Both finite, and not equal.],
+  [`Extent::ToFace(face)`], [From the workplane to the plane of `face`, a flat face of the target body parallel to the workplane, on either side of it (@sec-extrude-to-face). Only `extrude_feature` with join, cut or intersect accepts it.],
+  [`Extent::BetweenFaces(a, b)`], [From the plane of face `a` to the plane of face `b`, both flat faces of the target body parallel to the workplane; the workplane's own position doesn't matter. Accepted as `ToFace`.],
   [`LOOP_GAP_TOLERANCE`], [1e-7 mm: the largest gap between two ends that still counts as joined. Ends that close are moved to meet exactly.],
   [`PERPENDICULAR_TOLERANCE`], [1e-9: how far from a right angle `x_dir` and `normal` may be.],
+  [`PARALLEL_FACE_TOLERANCE`], [1e-9 radians: how far a face's normal may tilt from the workplane's normal, or its reverse, and still count as parallel.],
+  [`FACE_DISTANCE_TOLERANCE`], [1e-7 mm: two planes closer than this count as one, so the extrude between them has no length and is refused.],
   [`REVOLVE_AXIS_TOLERANCE`], [1e-7 mm: how far a revolve's axis may be off the face's plane, and how far the face may reach past the axis, and still pass (@sec-revolve-mistakes).],
 )
 
 All numbers must be finite. A face is refused if a loop is empty, has no area, doesn't close, or crosses itself, or if a hole isn't wholly inside the outer loop. Every refusal is an error (@sec-errors), never a crash.
 
-`make_face_tracked(plane, outer, holes)` and `extrude_tracked(face, extent)` do the same as `make_face` and `extrude`, and also say where each piece went (@sec-extrude-history). They take the same inputs and give the same errors; `extrude_tracked` refuses `Extent::ThroughAll` as `extrude` does.
+`make_face_tracked(plane, outer, holes)` and `extrude_tracked(face, extent)` do the same as `make_face` and `extrude`, and also say where each piece went (@sec-extrude-history). They take the same inputs and give the same errors; `extrude_tracked` refuses `Extent::ThroughAll`, `ToFace` and `BetweenFaces` as `extrude` does.
 
 #ref-table(
   columns: (auto, 1fr),
@@ -176,7 +186,7 @@ All numbers must be finite. A face is refused if a loop is empty, has no area, d
   [`EMPTY_VOLUME_TOLERANCE`], [1e-9 mm³: a result with less volume than this counts as empty and is refused with `EmptyResult`.],
 )
 
-A through-all extent with any mode but cut, and a missing target, are checked first, before any geometry is made. A through-all cut is made a little longer than the distance from the outline to the far side of the target, measured from their bounding boxes. If it leaves the target's volume unchanged (within a relative 1e-9), it is refused as a miss. Errors from `extrude` and from the Boolean operations come through unchanged.
+A through-all extent with any mode but cut, a face extent with the new-solid mode, and a missing target, are checked first, before any geometry is made. A face extent is then turned into a plain one: `ToFace` into `Distance(d)`, `BetweenFaces` into `FromTo(d_a, d_b)`, where each `d` is the signed distance of a face's plane from the workplane along its normal, so a face behind the workplane gives a negative distance. A through-all cut is made a little longer than the distance from the outline to the far side of the target, measured from their bounding boxes. If it leaves the target's volume unchanged (within a relative 1e-9), it is refused as a miss. Errors from `extrude` and from the Boolean operations come through unchanged.
 
 `revolve(face, axis, angle)` turns a face from `make_face` about `axis` by `angle` radians into a new solid (@ch-revolve). `revolve_feature(k, face, axis, angle, mode, target)` revolves it and combines the result with `target`, with the same modes and rules as `extrude_feature` (@sec-revolve-modes).
 
