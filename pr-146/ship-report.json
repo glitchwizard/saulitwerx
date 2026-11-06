@@ -1,0 +1,110 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(kernel): shell a solid inward with open faces by index",
+      "ref": "0d2c03c",
+      "task_id": "shell-131",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "shell-131",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "passed": true,
+      "required": true,
+      "task_id": "shell-131",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "required": true,
+      "task_id": "shell-131",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "clippy swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "shell-131",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "test swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "shell-131",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "clippy swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "shell-131",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "test swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "shell-131",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "Kernel::shell(&self, s: &Self::Shape, open: &[SubShape], thickness: f64) -> Result<Self::Shape, KernelError>, documented (walls grow inward from the original faces, so the outer size is unchanged) and implemented for OcctKernel with one new noexcept shim function that catches C++ exceptions and rejects a result BRepCheck_Analyzer finds invalid.",
+      "Box tests (behind occt), box 10 x 20 x 30 from the origin, volumes within a relative 1e-6, boxes within 1e-6: open the top face (z = 30), thickness 1: volume 6000 - 8*18*29 = 1824; bounding box (0, 0, 0)-(10, 20, 30); 11 faces. Open the top and bottom faces, thickness 1: volume 30*(200 - 8*18) = 1680; 10 faces. The input solid is unchanged (volume 6000, 6 faces).",
+      "Cylinder test: make_cylinder radius 10, height 20 on +Z, open the top face, thickness 2: volume 2000pi - 1152pi = 848pi ~ 2664.0706 (relative 1e-6); bounding box unchanged.",
+      "Errors, each with a test and never a panic: an empty open list, a non-face SubShape, an index out of range, and a thickness that is zero, negative or not finite are InvalidInput, checked before the backend. Duplicate faces are accepted once. A thickness too large for the part (5 on the 10 x 20 x 30 box) is an error (Backend or InvalidInput), not a panic.",
+      "No new dependencies beyond an OCCT toolkit link. swx-kernel still has no workspace dependencies. Every new unsafe block is in ffi and documented; the algorithm's doc comment cites the OCCT reference documentation.",
+      "cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace pass, and so do the CI swx-kernel (occt) job commands.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-06T10:29:48.397489537+00:00",
+    "constraints": [],
+    "created_at": "2026-11-06T10:28:19.224064843+00:00",
+    "description": "M3-06a: Kernel shell (constant inward thickness, open faces by index) — #131, PR #146",
+    "project_id": "saulitwerx",
+    "scope": "crates/swx-kernel (build.rs, cpp/occt_shim.cpp, ffi.rs, lib.rs, occt.rs, topo.rs); branch feat/131-kernel-shell, head 0d2c03c",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 7,
+      "estimate": "medium",
+      "id": "shell-131",
+      "status": "completed",
+      "title": "Implement Kernel::shell with tests and verify gates",
+      "type": "implement"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
