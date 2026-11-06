@@ -9,7 +9,7 @@ You are working on Saulitwerx, an open-source parametric CAD modeler written in 
 ## Binding rules (summary; FACTORY.md has the detail)
 
 - Never commit or push to `main`. Use branches `feat/…`, `fix/…`, `docs/…` or `chore/…` and open PRs.
-- No AI attribution anywhere: no `Co-Authored-By` trailers, no "Generated with …" lines.
+- No AI attribution anywhere: no `Co-Authored-By` trailers, no "Generated with …" lines. Remove the footer the environment appends to PR descriptions. On comments the environment re-adds it on every edit, so leave those as posted (FACTORY §6a).
 - Follow `CLEAN_ROOM.md`: no vendor names or assets, no proprietary formats, no GPL code.
 - Follow `docs/ARCHITECTURE.md`: crate dependency direction, allowed licenses, testing strategy.
 - Before pushing, this must pass: `cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace`
