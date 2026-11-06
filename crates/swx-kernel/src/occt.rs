@@ -4,7 +4,7 @@ use std::path::Path;
 
 use crate::ffi::{self, EdgeOp, FacePlane, ShapeHandle};
 use crate::profile::{check_revolve_profile, prepare_face, prepare_revolve};
-use crate::topo::{validate_adjacent, validate_edges, validate_index};
+use crate::topo::{validate_adjacent, validate_edges, validate_faces, validate_index};
 use crate::{
     input_file_cstring, path_to_cstring, validate_point, validate_size, Axis, BooleanOp,
     BoundingBox, Extent, ExtrudeHistory, Kernel, KernelError, Mesh, OpHistory, Operand, Point3,
@@ -192,6 +192,19 @@ impl Kernel for OcctKernel {
         ffi::fillet_chamfer(EdgeOp::Chamfer, &s.0, &indices, distance)
             .map(OcctShape)
             .ok_or_else(|| backend("chamfer"))
+    }
+
+    fn shell(
+        &self,
+        s: &OcctShape,
+        open: &[SubShape],
+        thickness: f64,
+    ) -> Result<OcctShape, KernelError> {
+        validate_size("shell thickness", thickness)?;
+        let indices = validate_faces(open, self.sub_shape_count(s, TopoKind::Face)?)?;
+        ffi::shell(&s.0, &indices, thickness)
+            .map(OcctShape)
+            .ok_or_else(|| backend("shell"))
     }
 
     fn union(&self, a: &OcctShape, b: &OcctShape) -> Result<OcctShape, KernelError> {
@@ -1305,5 +1318,112 @@ mod tests {
             }
             (p, t) => panic!("untracked {p:?} vs tracked {:?}", t.map(|(_, h)| h)),
         }
+    }
+
+    /// The face of `s` that lies in the plane `axis = value` (both ends of
+    /// its bounding box on that axis within 1e-6).
+    fn planar_face(s: &OcctShape, axis: usize, value: f64) -> SubShape {
+        let n = K.sub_shape_count(s, TopoKind::Face).unwrap();
+        let hits: Vec<SubShape> = (0..n)
+            .map(|index| SubShape {
+                kind: TopoKind::Face,
+                index,
+            })
+            .filter(|&f| {
+                let b = K.sub_shape_bounding_box(s, f).unwrap();
+                (b.min[axis] - value).abs() <= 1e-6 && (b.max[axis] - value).abs() <= 1e-6
+            })
+            .collect();
+        assert_eq!(hits.len(), 1, "faces in plane {axis} = {value}");
+        hits[0]
+    }
+
+    fn assert_box_close(b: BoundingBox, min: Point3, max: Point3) {
+        for i in 0..3 {
+            assert!((b.min[i] - min[i]).abs() <= 1e-6, "min {:?}", b.min);
+            assert!((b.max[i] - max[i]).abs() <= 1e-6, "max {:?}", b.max);
+        }
+    }
+
+    #[test]
+    fn shell_box_with_the_top_open() {
+        let b = box_10x20x30();
+        let top = planar_face(&b, 2, 30.0);
+        let shelled = K.shell(&b, &[top], 1.0).unwrap();
+        assert_close(K.volume(&shelled).unwrap(), 6000.0 - 8.0 * 18.0 * 29.0);
+        assert_box_close(
+            K.bounding_box(&shelled).unwrap(),
+            [0.0, 0.0, 0.0],
+            [10.0, 20.0, 30.0],
+        );
+        assert_eq!(K.face_count(&shelled).unwrap(), 11);
+        // The same face listed twice counts once.
+        let twice = K.shell(&b, &[top, top], 1.0).unwrap();
+        assert_close(K.volume(&twice).unwrap(), 1824.0);
+        // The input solid is unchanged.
+        assert_close(K.volume(&b).unwrap(), 6000.0);
+        assert_eq!(K.face_count(&b).unwrap(), 6);
+    }
+
+    #[test]
+    fn shell_box_with_top_and_bottom_open() {
+        let b = box_10x20x30();
+        let open = [planar_face(&b, 2, 30.0), planar_face(&b, 2, 0.0)];
+        let shelled = K.shell(&b, &open, 1.0).unwrap();
+        assert_close(K.volume(&shelled).unwrap(), 30.0 * (200.0 - 8.0 * 18.0));
+        assert_eq!(K.face_count(&shelled).unwrap(), 10);
+        assert_box_close(
+            K.bounding_box(&shelled).unwrap(),
+            [0.0, 0.0, 0.0],
+            [10.0, 20.0, 30.0],
+        );
+    }
+
+    #[test]
+    fn shell_cylinder_cup() {
+        let c = K.make_cylinder([0.0, 0.0, 0.0], 10.0, 20.0).unwrap();
+        let before = K.bounding_box(&c).unwrap();
+        let top = planar_face(&c, 2, 20.0);
+        let cup = K.shell(&c, &[top], 2.0).unwrap();
+        assert_close(K.volume(&cup).unwrap(), 848.0 * PI);
+        assert_box_close(K.bounding_box(&cup).unwrap(), before.min, before.max);
+    }
+
+    #[test]
+    fn shell_rejects_bad_inputs() {
+        let b = box_10x20x30();
+        let top = planar_face(&b, 2, 30.0);
+        let invalid =
+            |r: Result<OcctShape, KernelError>| matches!(r, Err(KernelError::InvalidInput(_)));
+        assert!(invalid(K.shell(&b, &[], 1.0)));
+        let edge = SubShape {
+            kind: TopoKind::Edge,
+            index: 0,
+        };
+        assert!(invalid(K.shell(&b, &[top, edge], 1.0)));
+        let out_of_range = SubShape {
+            kind: TopoKind::Face,
+            index: 6,
+        };
+        assert!(invalid(K.shell(&b, &[out_of_range], 1.0)));
+        for bad in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+            assert!(invalid(K.shell(&b, &[top], bad)), "thickness {bad}");
+        }
+    }
+
+    #[test]
+    fn shell_too_thick_is_an_error_and_keeps_the_input() {
+        let b = box_10x20x30();
+        let top = planar_face(&b, 2, 30.0);
+        let r = K.shell(&b, &[top], 5.0);
+        assert!(
+            matches!(
+                r,
+                Err(KernelError::Backend(_) | KernelError::InvalidInput(_))
+            ),
+            "thickness 5 on a 10 mm wide box should fail"
+        );
+        assert_close(K.volume(&b).unwrap(), 6000.0);
+        assert!(K.shell(&b, &[top], 1.0).is_ok());
     }
 }

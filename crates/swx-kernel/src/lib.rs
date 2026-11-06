@@ -173,6 +173,24 @@ pub trait Kernel {
         distance: f64,
     ) -> Result<Self::Shape, KernelError>;
 
+    /// Hollows `s` into a shell with walls of constant `thickness`, leaving
+    /// the `open` faces open.
+    ///
+    /// The walls grow inward from the original faces, so the outer size
+    /// (bounding box) is unchanged; corners of the inner cavity are joined
+    /// with arcs where the offset needs them. Duplicate faces count once. It
+    /// is [`KernelError::InvalidInput`], checked before the backend, when
+    /// `thickness` is not finite or ≤ 0, when `open` is empty, or when an
+    /// entry is not a face or its index is out of range. A thickness the
+    /// backend can't build (e.g. half the part's width or more) is an error,
+    /// and `s` is unchanged either way.
+    fn shell(
+        &self,
+        s: &Self::Shape,
+        open: &[SubShape],
+        thickness: f64,
+    ) -> Result<Self::Shape, KernelError>;
+
     /// Boolean union `a ∪ b`.
     fn union(&self, a: &Self::Shape, b: &Self::Shape) -> Result<Self::Shape, KernelError>;
     /// Boolean difference `a − b`.
