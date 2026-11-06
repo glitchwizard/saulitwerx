@@ -24,9 +24,9 @@ Think back to the plate of @ch-first. There you made it in two steps: a block, t
 Two more words come with it:
 
 - The #term[workplane] is the flat plane the outline is drawn on. It has its own left–right and up–down directions, and a third direction straight out of it, called its _normal_. The extrude goes along the normal.
-- The #term[extent] says how far the extrude goes: a distance one way, or a length split evenly on both sides of the workplane.
+- The #term[extent] says how far the extrude goes: a distance one way, a length split evenly on both sides of the workplane, or up to a face of the part.
 
-*In Saulitwerx today:* the geometry engine can make a flat face from outlines of lines, arcs and circles on any workplane, and extrude it by a distance or symmetrically. The result can be a new solid, or be joined to a part, cut from it or intersected with it in the same step (@sec-extrude-modes). A cut can also go through the whole part, however thick it is (@sec-through-all), and a plain extrude can report which face each piece of the outline became (@sec-extrude-history). You type the outline's pieces into a small program; a sketch's regions (@sec-profiles) can't be handed to the extrude yet, and the extrude isn't recorded in a part's history.
+*In Saulitwerx today:* the geometry engine can make a flat face from outlines of lines, arcs and circles on any workplane, and extrude it by a distance or symmetrically. The result can be a new solid, or be joined to a part, cut from it or intersected with it in the same step (@sec-extrude-modes). A cut can also go through the whole part, however thick it is (@sec-through-all), an extrude can end on a face of the part instead of at a distance (@sec-extrude-to-face), and a plain extrude can report which face each piece of the outline became (@sec-extrude-history). You type the outline's pieces into a small program; a sketch's regions (@sec-profiles) can't be handed to the extrude yet, and the extrude isn't recorded in a part's history.
 
 == Extrude a profile <sec-extrude>
 
@@ -349,6 +349,84 @@ The program is `crates/swx-kernel/examples/extrude_history.rs`. It uses the outl
 
 #tip(title: [Your order, not the engine's])[However you list a loop's pieces, clockwise or counterclockwise, the edges come back in your order: the second piece you gave is always `edges[loop][1]`. You don't have to know how Saulitwerx reordered the loop.]
 
+== Extrude up to a face <sec-extrude-to-face>
+
+#idx("to face")#idx("between faces")
+Often the depth you want isn't a number but a place on the part: a post that should end level with the top, a pocket that should go down exactly to a step. You could measure the height and type it in, but if the part changes later, the number is wrong. An extent can name a face of the target body instead. A #term[to-face] extent goes from the workplane to that face. A #term[between-faces] extent goes from one face to another, wherever the outline was drawn.
+
+The face has to be flat and parallel to the workplane, like a step or a top face. The extrude ends on the plane that face lies on, so the face can be on either side of the workplane: Saulitwerx works out which way to go.
+
+#image-row(
+  (
+    // cargo run -p swx-kernel --features occt --example extrude_to_face -- toface
+    // swx-qa render --step toface/toface-<name>.step --size 900x700 -o docs/manual/img/toface-<name>.png
+    ("img/toface-target.png", "Target: a stepped block", "A block with a low part on the right and a tall part on the left"),
+    ("img/toface-post.png", "Join up to the top face", "The stepped block with a round post on its low part, ending level with the tall part's top"),
+    ("img/toface-pocket.png", "Cut down to the step face", "The stepped block with a square pocket in the top of its tall part"),
+    ("img/toface-slot.png", "Cut between the two faces", "The stepped block with its tall part split in two by a slot down to the step"),
+  ),
+  caption: [Three extrudes whose depth comes from faces of the target. The step face is the top of the low part, 10 mm up; the top face is the top of the tall part, 30 mm up. Each picture is scaled to fill its frame.],
+) <fig-extrude-to-face>
+
+*In Saulitwerx today:* you give the face by its number in the target (@sec-topology), so your program finds it first. The face must be flat; a round face, or one standing at an angle to the workplane, is refused. The face's number belongs to the target as it is, so if the target changes, find the face again.
+
+#task-intro(
+  goal: [Add a post that ends level with a part's top, a pocket that stops at its step, and a slot between the two, each with one extrude.],
+  needs: [Saulitwerx built with OpenCascade, and `swx-qa` built with it too (@ch-install).],
+  time: [10 minutes.],
+)
+
+#steps(
+  [Run the sample program, and tell it to save its parts in a folder called `toface`:
+  #term-block("cargo run -p swx-kernel --features occt --example extrude_to_face -- toface")
+  It prints the block and its two faces, a line for each extrude, then two errors on purpose, then the files it wrote:
+  #term-block(label: "Output", "stepped block  20000.00 mm³  14 faces  z from 0 to 30\nstep face is face 12, top face is face 7\npost to top    21570.80 mm³  16 faces  z from 0 to 30\npocket to step 18000.00 mm³  19 faces  z from 0 to 30\nslot between   17200.00 mm³  20 faces  z from 0 to 30\nfrom 10 to 30   2800.00 mm³   6 faces  z from 10 to 30\nnew solid -> error: invalid input: a to-face or between-faces extent needs a target body: it works with the join, cut and intersect modes, not \"new solid\"\nside face -> error: invalid input: target face 11 (normal [1.0, 0.0, -0.0]) is not parallel to the workplane (normal [0.0, 0.0, 1.0])\n…  (the geometry engine's file reports)\nwrote toface/toface-target.step\nwrote toface/toface-post.step\nwrote toface/toface-pocket.step\nwrote toface/toface-slot.step")],
+  [Read the second line. The program looked through the block's faces and found the step face, number 12, and the top face, number 7.],
+  [Read the `post to top` line. The post is drawn on the step face and joined up to the top face: a 10 mm circle 20 mm tall adds 1570.80 mm³. Nobody typed 20 mm; it is the distance between the two faces.],
+  [Read the `pocket to step` line. The pocket is drawn on the top face and cut to the step face. The step face is below the outline, so the cut goes down, 20 mm, and removes 10 × 10 × 20 = 2000 mm³.],
+  [Read the `slot between` line. The slot is drawn on the XY plane at the very bottom, z = 0, but it is cut only between the step face and the top face: a 20 × 7 mm rectangle, 20 mm tall, removes 2800 mm³ and splits the tall part in two.],
+  [Draw the slot result:
+  #term-block("target/release/swx-qa render --step toface/toface-slot.step -o toface-slot.png")
+  Open `toface-slot.png`. You should see the block of @fig-extrude-to-face with its tall part split by a slot. Draw the other files the same way.],
+)
+
+#result[Three extrudes whose depths come from the part itself. If the tall part were 50 mm high instead of 30, the post would still end level with its top, and the slot would still reach the step.]
+
+=== How the sample is built
+
+The program is `crates/swx-kernel/examples/extrude_to_face.rs`. It does two new things.
+
+#steps(
+  [*Find the faces.* `face_plane(s, face)` gives a flat face's plane: a point on it and its _outward normal_, the direction pointing out of the solid. The sample's `find_face` goes through every face and keeps the one whose normal points up and whose plane is at the height it wants. A round face has no plane, and `face_plane` refuses it, so the search skips it:
+  ```rust
+  for index in 0..k.sub_shape_count(s, TopoKind::Face)? {
+      let face = SubShape { kind: TopoKind::Face, index };
+      if let Ok((p, n)) = k.face_plane(s, face) {
+          if dot(n, normal) > 0.999_999 && (dot(p, normal) - at).abs() < 1e-6 {
+              return Ok(face);
+          }
+      }
+  }
+  ```],
+  [*Name the faces in the extent.* `Extent::ToFace(face)` and `Extent::BetweenFaces(first, second)` take faces of the target, and work with `extrude_feature` in the join, cut and intersect modes:
+  ```rust
+  let joined = extrude_feature(&k, &post, Extent::ToFace(top),
+      ExtrudeMode::Join, Some(&stepped))?;
+  let slotted = extrude_feature(&k, &slot, Extent::BetweenFaces(step, top),
+      ExtrudeMode::Cut, Some(&stepped))?;
+  ```],
+)
+
+Behind the scenes, Saulitwerx measures how far each face's plane is from the workplane, along its normal, and turns the face extent into a plain one. A to-face extent becomes a distance: +20 mm for the post, −20 mm for the pocket. A between-faces extent becomes a #term[from–to] extent, `Extent::FromTo(start, end)`: from 10 mm to 30 mm along the normal for the slot. You can use a from–to extent yourself, with no target at all, as the sample's `from 10 to 30` line does:
+
+```rust
+let block = k.extrude(&slot, Extent::FromTo(10.0, 30.0))?;
+```
+
+#tip(title: [The order of the two faces doesn't matter])[Either order gives the same slot, from the step up to the top or from the top down to the step. The same goes for the two numbers of a from–to extent.]
+
+#caution(title: [A face extent needs a target])[The faces belong to the target body, so a to-face or between-faces extent works only with `extrude_feature` and the join, cut or intersect mode. With the new-solid mode, as in the sample's first error, or with `extrude` or `extrude_tracked`, it is refused.]
+
 == Common mistakes
 
 #set par(justify: false)
@@ -365,3 +443,6 @@ The program is `crates/swx-kernel/examples/extrude_history.rs`. It uses the outl
 - *A through-all extent with history.* `extrude_tracked` has no target to measure, so it refuses through-all just as `extrude` does: `a through-all extent needs a target body to measure; use extrude_feature with the cut mode`.
 - *A face number from another shape.* The numbers in an extrude history belong to that solid. After a cut, face 6 may be another face, or not exist: `sub_shape_bounding_box` then gives the wrong face's box, or `face index 7 is out of range: the shape has 7 faces` (@sec-topology). Take the numbers again from the step that made the shape you ask about.
 - *A through-all cut the wrong way.* It misses the part: `the through-all cut misses the target: it removes nothing`. On a top face, use `ThroughDirection::Reversed`, or `Both` (@sec-through-all).
+- *A face that isn't parallel to the workplane.* A to-face extrude can only end on a face that faces the same way as the outline, or the opposite way: `target face 11 (normal …) is not parallel to the workplane (normal …)`. Pick a face whose normal matches the workplane's, or its reverse (@sec-extrude-to-face).
+- *A round face.* A to-face extrude can't end on a curved face: `face 2 is not planar`. Use a flat face.
+- *A face in the workplane.* If the face lies on the same plane as the outline, there is nothing to extrude: `face 5 lies in the workplane: the to-face extrude has zero length`. The same goes for two faces on one plane: `faces 7 and 9 are coplanar: the between-faces extrude has zero length`.

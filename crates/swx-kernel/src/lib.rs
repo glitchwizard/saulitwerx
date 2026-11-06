@@ -150,6 +150,29 @@ pub trait Kernel {
         angle: f64,
     ) -> Result<Self::Shape, KernelError>;
 
+    /// Rounds `edges` of `s` with a constant-radius fillet.
+    ///
+    /// Duplicate edges count once. It is [`KernelError::InvalidInput`],
+    /// checked before the backend, when `radius` is not finite or ≤ 0, when
+    /// `edges` is empty, or when an entry is not an edge or its index is out
+    /// of range. A radius the backend can't build (e.g. larger than a face it
+    /// touches) is an error, and `s` is unchanged either way.
+    fn fillet(
+        &self,
+        s: &Self::Shape,
+        edges: &[SubShape],
+        radius: f64,
+    ) -> Result<Self::Shape, KernelError>;
+    /// Bevels `edges` of `s` with an equal-distance chamfer: `distance` is
+    /// set back along both faces of each edge. Same checks as
+    /// [`Kernel::fillet`].
+    fn chamfer(
+        &self,
+        s: &Self::Shape,
+        edges: &[SubShape],
+        distance: f64,
+    ) -> Result<Self::Shape, KernelError>;
+
     /// Boolean union `a ∪ b`.
     fn union(&self, a: &Self::Shape, b: &Self::Shape) -> Result<Self::Shape, KernelError>;
     /// Boolean difference `a − b`.

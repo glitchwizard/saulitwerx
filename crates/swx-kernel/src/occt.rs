@@ -2,9 +2,9 @@
 
 use std::path::Path;
 
-use crate::ffi::{self, FacePlane, ShapeHandle};
+use crate::ffi::{self, EdgeOp, FacePlane, ShapeHandle};
 use crate::profile::{check_revolve_profile, prepare_face, prepare_revolve};
-use crate::topo::{validate_adjacent, validate_index};
+use crate::topo::{validate_adjacent, validate_edges, validate_index};
 use crate::{
     input_file_cstring, path_to_cstring, validate_point, validate_size, Axis, BooleanOp,
     BoundingBox, Extent, ExtrudeHistory, Kernel, KernelError, Mesh, OpHistory, Operand, Point3,
@@ -166,6 +166,32 @@ impl Kernel for OcctKernel {
         ffi::revolve(&face.0, origin, dir, angle)
             .map(OcctShape)
             .ok_or_else(|| backend("revolve"))
+    }
+
+    fn fillet(
+        &self,
+        s: &OcctShape,
+        edges: &[SubShape],
+        radius: f64,
+    ) -> Result<OcctShape, KernelError> {
+        validate_size("fillet radius", radius)?;
+        let indices = validate_edges(edges, self.sub_shape_count(s, TopoKind::Edge)?)?;
+        ffi::fillet_chamfer(EdgeOp::Fillet, &s.0, &indices, radius)
+            .map(OcctShape)
+            .ok_or_else(|| backend("fillet"))
+    }
+
+    fn chamfer(
+        &self,
+        s: &OcctShape,
+        edges: &[SubShape],
+        distance: f64,
+    ) -> Result<OcctShape, KernelError> {
+        validate_size("chamfer distance", distance)?;
+        let indices = validate_edges(edges, self.sub_shape_count(s, TopoKind::Edge)?)?;
+        ffi::fillet_chamfer(EdgeOp::Chamfer, &s.0, &indices, distance)
+            .map(OcctShape)
+            .ok_or_else(|| backend("chamfer"))
     }
 
     fn union(&self, a: &OcctShape, b: &OcctShape) -> Result<OcctShape, KernelError> {
@@ -821,6 +847,131 @@ mod tests {
                 "{kind:?}: {err}"
             );
         }
+    }
+
+    fn box_10x20x30() -> OcctShape {
+        K.make_box([0.0; 3], [10.0, 20.0, 30.0]).unwrap()
+    }
+
+    fn edge(index: usize) -> SubShape {
+        sub(TopoKind::Edge, index)
+    }
+
+    /// Treats each of the box's 12 edges on its own and checks the removed
+    /// volume, which is `per_length · L` with L the edge length, so the
+    /// lengths found must be 10, 20 and 30, four times each.
+    fn assert_each_edge_removes(
+        op: impl Fn(&OcctShape, &[SubShape]) -> Result<OcctShape, KernelError>,
+        per_length: f64,
+    ) {
+        let b = box_10x20x30();
+        assert_eq!(K.sub_shape_count(&b, TopoKind::Edge).unwrap(), 12);
+        let mut lengths = Vec::new();
+        for i in 0..12 {
+            let r = op(&b, &[edge(i)]).unwrap();
+            let removed = 6000.0 - K.volume(&r).unwrap();
+            let l = removed / per_length;
+            let nearest = [10.0, 20.0, 30.0]
+                .into_iter()
+                .min_by(|a: &f64, c: &f64| (a - l).abs().total_cmp(&(c - l).abs()))
+                .unwrap();
+            assert_close(removed, per_length * nearest);
+            lengths.push(nearest as u32);
+            let counts = KINDS.map(|k| K.sub_shape_count(&r, k).unwrap());
+            assert_eq!(counts, [7, 15, 10], "edge {i}");
+            assert_bbox(&r, [0.0; 3], [10.0, 20.0, 30.0]);
+        }
+        lengths.sort_unstable();
+        assert_eq!(lengths, [10, 10, 10, 10, 20, 20, 20, 20, 30, 30, 30, 30]);
+    }
+
+    #[test]
+    fn fillet_each_box_edge_radius_2() {
+        assert_each_edge_removes(|s, e| K.fillet(s, e, 2.0), 4.0 * (1.0 - PI / 4.0));
+    }
+
+    #[test]
+    fn chamfer_each_box_edge_distance_2() {
+        assert_each_edge_removes(|s, e| K.chamfer(s, e, 2.0), 2.0);
+    }
+
+    #[test]
+    fn fillet_two_opposite_edges_and_duplicates() {
+        let b = box_10x20x30();
+        let faces_of = |i| K.adjacent(&b, edge(i), TopoKind::Face).unwrap();
+        let (i, j) = (0..12)
+            .flat_map(|i| (i + 1..12).map(move |j| (i, j)))
+            .find(|&(i, j)| faces_of(i).iter().all(|f| !faces_of(j).contains(f)))
+            .expect("a box has edges that share no face");
+        let removed = |s: &OcctShape| 6000.0 - K.volume(s).unwrap();
+        let one = removed(&K.fillet(&b, &[edge(i)], 2.0).unwrap());
+        let other = removed(&K.fillet(&b, &[edge(j)], 2.0).unwrap());
+        let both = K.fillet(&b, &[edge(i), edge(j)], 2.0).unwrap();
+        assert_eq!(K.sub_shape_count(&both, TopoKind::Face).unwrap(), 8);
+        assert_close(removed(&both), one + other);
+        assert_bbox(&both, [0.0; 3], [10.0, 20.0, 30.0]);
+        let twice = K.fillet(&b, &[edge(i), edge(i)], 2.0).unwrap();
+        assert_close(removed(&twice), one);
+        let twice = K.chamfer(&b, &[edge(j), edge(j)], 2.0).unwrap();
+        assert_close(
+            removed(&twice),
+            removed(&K.chamfer(&b, &[edge(j)], 2.0).unwrap()),
+        );
+    }
+
+    #[test]
+    fn fillet_and_chamfer_reject_bad_inputs() {
+        let b = box_10x20x30();
+        let invalid =
+            |r: Result<OcctShape, KernelError>| matches!(r, Err(KernelError::InvalidInput(_)));
+        for bad in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+            assert!(invalid(K.fillet(&b, &[edge(0)], bad)), "radius {bad}");
+            assert!(invalid(K.chamfer(&b, &[edge(0)], bad)), "distance {bad}");
+        }
+        assert!(invalid(K.fillet(&b, &[], 2.0)));
+        assert!(invalid(K.chamfer(&b, &[], 2.0)));
+        for not_edge in [sub(TopoKind::Face, 0), sub(TopoKind::Vertex, 0)] {
+            assert!(invalid(K.fillet(&b, &[edge(0), not_edge], 2.0)));
+            assert!(invalid(K.chamfer(&b, &[not_edge], 2.0)));
+        }
+        assert!(invalid(K.fillet(&b, &[edge(12)], 2.0)));
+        assert!(invalid(K.chamfer(&b, &[edge(0), edge(99)], 2.0)));
+    }
+
+    #[test]
+    fn fillet_radius_too_large_is_an_error_and_keeps_the_input() {
+        // A radius-r fillet sets back r along both faces of the edge. The
+        // edges of length 20 and 30 each border a face 10 wide, so r = 15
+        // can't fit there; the edges of length 10 border faces 20 and 30
+        // wide, so r = 15 fits. r = 25 fits nowhere (every edge borders a
+        // face at most 20 wide).
+        let b = box_10x20x30();
+        let per_length = |r: f64| r * r * (1.0 - PI / 4.0);
+        let mut built = 0;
+        for i in 0..12 {
+            let small = K.fillet(&b, &[edge(i)], 2.0).unwrap();
+            let length = (6000.0 - K.volume(&small).unwrap()) / per_length(2.0);
+            let r15 = K.fillet(&b, &[edge(i)], 15.0);
+            if (length - 10.0).abs() < 1e-3 {
+                let r15 = r15.unwrap();
+                assert_close(6000.0 - K.volume(&r15).unwrap(), per_length(15.0) * 10.0);
+                built += 1;
+            } else {
+                assert!(
+                    matches!(r15, Err(KernelError::Backend(_))),
+                    "edge {i} (length {length}): radius 15 should fail"
+                );
+            }
+            assert!(
+                matches!(K.fillet(&b, &[edge(i)], 25.0), Err(KernelError::Backend(_))),
+                "edge {i}: radius 25 should fail"
+            );
+        }
+        assert_eq!(built, 4);
+        assert_close(K.volume(&b).unwrap(), 6000.0);
+        assert_eq!(K.face_count(&b).unwrap(), 6);
+        // The input still works as an operand afterwards.
+        assert!(K.fillet(&b, &[edge(0)], 2.0).is_ok());
     }
 
     /// The #90 plate's loops: the 40 × 25 rectangle, then the r5 hole.

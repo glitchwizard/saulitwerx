@@ -11,7 +11,9 @@
     ("Bounding box", [The smallest box, with sides parallel to the axes, that holds a solid.]),
     ("Boolean operation", [Combining two solids by union, cut or intersect.]),
     ("CAD", [Computer-aided design: using a computer to design physical objects.]),
+    ("Between faces", [An extrude extent that runs from one flat face of the target body to another.]),
     ("Cap", [One of the two flat faces at the ends of an extrude: where the push starts and where it ends.]),
+    ("Chamfer", [A flat, angled face cut along an edge in place of the sharp edge, set back the same distance on both faces.]),
     ("Coincident", [A constraint that puts two points at the same place.]),
     ("Conflicting", [Said of a sketch whose rules contradict each other, so no shape can meet them all.]),
     ("Constraint", [A rule about a sketch's shape, such as "horizontal" or "these points touch".]),
@@ -24,15 +26,17 @@
     ("Edge", [A curve where two faces of a solid meet, or where one round face meets itself (a seam).]),
     ("Equal", [A constraint that makes two lines the same length, or two circles or arcs the same size.]),
     ("Entity", [One piece of sketch geometry: a point, line, circle or arc.]),
-    ("Extent", [How far an extrude goes: a distance one way, or a length split evenly on both sides of the workplane.]),
+    ("Extent", [How far an extrude goes: a distance one way, a length split evenly on both sides of the workplane, through all, or up to a face.]),
     ("Extrude", [Pushing a flat outline straight out into a solid with straight sides.]),
     ("Extrude mode", [What an extrude does with its shape: keep it as a new solid, or join, cut or intersect it with a target body.]),
     ("Face", [One flat or curved patch of a solid's surface.]),
     ("Expression", [A small formula with units that works out a value, such as `d1 / 2 + 5 mm`.]),
     ("Feature", [One step in building a part, such as a sketch or a cut. Features are kept in the history.]),
     ("Feature tree", [Another name for a part's history.]),
+    ("Fillet", [A rounded face along an edge in place of the sharp edge, with a set radius.]),
     ("Fixed", [A constraint that keeps a point at exact coordinates.]),
     ("Fully constrained", [A sketch whose constraints and dimensions leave nothing free to move.]),
+    ("From–to", [An extrude extent given by a start and an end distance along the workplane's normal.]),
     ("Geometry kernel", [The part of a CAD program that does the 3D math. Saulitwerx uses OpenCascade.]),
     ("History", [A part's features, in the order they were made.]),
     ("Inference", [Saulitwerx adding the constraints a newly drawn piece already almost satisfies, such as coincident or horizontal.]),
@@ -66,6 +70,7 @@
     ("Surface area", [The total area of a solid's faces.]),
     ("Tangent", [Touching without cutting in: a line and a circle, or two circles, that meet at one point.]),
     ("Target body", [The solid an extrude or a revolve joins to, cuts from or intersects with.]),
+    ("To face", [An extrude extent that ends on the plane of a flat face of the target body.]),
     ("Through all", [An extrude cut with no depth of its own, which goes right through the target body.]),
     ("Under-constrained", [Said of a sketch with at least one degree of freedom left.]),
     ("Union", [A Boolean operation that joins two solids into one.]),
@@ -82,6 +87,14 @@
 }
 
 = What's new
+
+== 2026-11-05: up to a face, fillets and chamfers
+
+- *New:* extrude up to a flat face of the part, or between two of its faces, instead of by a distance; and give an extrude a start and an end distance (@sec-extrude-to-face).
+- *New:* round edges with a fillet, or bevel them with a chamfer, in a new chapter (@ch-fillet).
+- *New:* ask for the plane of a flat face (@sec-ref-kernel).
+- *Pictures:* a stepped block extruded up to its faces; a block with filleted and chamfered edges.
+- Help: thirteen new error messages, eight new common mistakes, and the known limitations updated. Glossary: between faces, chamfer, fillet, from–to, to face.
 
 == 2026-11-04: which face is which
 
@@ -178,8 +191,8 @@ These are the next items on the public roadmap. None of them works yet. When one
 #ref-table(
   columns: (auto, 1fr),
   header: ("Soon", "What you'll be able to do"),
-  [Extrude from a sketch], [Hand a sketch's region straight to the extrude and the revolve, and extrude up to a face or between two faces.],
-  [More part features], [Fillet, chamfer, shell and hole, driven by sketches.],
+  [Extrude from a sketch], [Hand a sketch's region straight to the extrude and the revolve.],
+  [More part features], [Shell, hole and draft; fillets and chamfers kept in a part's history.],
   [Lasting references], [A feature built on a face or an edge keeps finding it when earlier features change.],
   [Part files], [Save a part with its full history, and open it again.],
   [Desktop app], [A window with a 3D view, a model browser, sketch mode and property panels.],
@@ -236,6 +249,7 @@ Later milestones add assemblies, 2D drawings and exploded views. The full plan i
         [`make_face` · `extrude`], [outline → face → solid],
         [`extrude_feature`], [extrude and combine],
         [`revolve_feature`], [revolve and combine],
+        [`fillet` · `chamfer`], [round / bevel edges],
         [`export_step` · `import_step`], [STEP file out / in],
       )
       #text(font: sans, weight: "bold", fill: accent, "UNITS")
