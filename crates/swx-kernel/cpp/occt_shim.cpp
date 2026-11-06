@@ -681,6 +681,66 @@ int swx_occt_fillet_chamfer(int op, const SwxShape* s, const size_t* edges, size
     }
 }
 
+// Bevels the `n` edges of `s` given by 0-based TopExp::MapShapes indices in
+// `edges`, each with its reference face `faces[i]` (a face index), using
+// BRepFilletAPI_MakeChamfer. Mode 0: two distances, `v1` on the reference
+// face and `v2` on the other (Add(Dis1, Dis2, E, F); OCCT measures Dis1 on
+// F). Mode 1: distance `v1` on the reference face and angle `v2` radians
+// between the chamfer face and the reference face (AddDA). Fails if an index
+// is out of range, if a face does not bound its edge, if OCCT can't build the
+// result, or if the result is not a valid shape. `s` is never modified.
+int swx_occt_chamfer_asymmetric(int mode, const SwxShape* s, const size_t* edges,
+                                const size_t* faces, size_t n, double v1, double v2,
+                                SwxShape** out) noexcept {
+    if (s == nullptr || edges == nullptr || faces == nullptr || out == nullptr || n == 0 ||
+        !(v1 > 0.0) || !(v2 > 0.0) || (mode != 0 && mode != 1)) {
+        return -1;
+    }
+    try {
+        TopTools_IndexedMapOfShape edge_map;
+        TopTools_IndexedMapOfShape face_map;
+        TopExp::MapShapes(s->shape, TopAbs_EDGE, edge_map);
+        TopExp::MapShapes(s->shape, TopAbs_FACE, face_map);
+        TopTools_IndexedDataMapOfShapeListOfShape edge_faces;
+        TopExp::MapShapesAndAncestors(s->shape, TopAbs_EDGE, TopAbs_FACE, edge_faces);
+        BRepFilletAPI_MakeChamfer maker(s->shape);
+        for (size_t i = 0; i < n; ++i) {
+            if (edges[i] >= static_cast<size_t>(edge_map.Extent()) ||
+                faces[i] >= static_cast<size_t>(face_map.Extent())) {
+                return -1;
+            }
+            const TopoDS_Edge e = TopoDS::Edge(edge_map.FindKey(static_cast<int>(edges[i]) + 1));
+            const TopoDS_Face f = TopoDS::Face(face_map.FindKey(static_cast<int>(faces[i]) + 1));
+            bool bounds = false;
+            for (TopTools_ListIteratorOfListOfShape it(edge_faces.FindFromKey(e)); it.More();
+                 it.Next()) {
+                if (it.Value().IsSame(f)) {
+                    bounds = true;
+                }
+            }
+            if (!bounds) {
+                return -1;
+            }
+            if (mode == 0) {
+                maker.Add(v1, v2, e, f);
+            } else {
+                maker.AddDA(v1, v2, e, f);
+            }
+        }
+        maker.Build();
+        if (!maker.IsDone()) {
+            return -1;
+        }
+        const TopoDS_Shape result = maker.Shape();
+        if (result.IsNull() || !BRepCheck_Analyzer(result).IsValid()) {
+            return -1;
+        }
+        return emit(result, out);
+    } catch (...) {
+        return -1;
+    }
+}
+
 // Volume by OCCT mass-properties integration.
 int swx_occt_volume(const SwxShape* s, double* out) noexcept {
     if (s == nullptr || out == nullptr) {

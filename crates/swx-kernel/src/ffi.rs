@@ -130,6 +130,16 @@ extern "C" {
         value: c_double,
         out: *mut *mut RawShape,
     ) -> c_int;
+    fn swx_occt_chamfer_asymmetric(
+        mode: c_int,
+        s: *const RawShape,
+        edges: *const usize,
+        faces: *const usize,
+        n: usize,
+        v1: c_double,
+        v2: c_double,
+        out: *mut *mut RawShape,
+    ) -> c_int;
     fn swx_occt_volume(s: *const RawShape, out: *mut c_double) -> c_int;
     fn swx_occt_surface_area(s: *const RawShape, out: *mut c_double) -> c_int;
     fn swx_occt_bounding_box(s: *const RawShape, out: *mut c_double) -> c_int;
@@ -434,6 +444,46 @@ pub(crate) fn fillet_chamfer(
             edges.as_ptr(),
             edges.len(),
             value,
+            &mut raw,
+        )
+    };
+    take(status, raw)
+}
+
+/// Asymmetric chamfer modes understood by `swx_occt_chamfer_asymmetric`.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum ChamferMode {
+    /// `v1` on the reference face, `v2` on the other face.
+    TwoDistances = 0,
+    /// `v1` on the reference face, `v2` the angle in radians.
+    DistanceAngle = 1,
+}
+
+/// Chamfers each `(edge, face)` index pair of `s`, with `face` the reference
+/// face of `edge`. `None` on any failure, including an index out of range or
+/// a face that does not bound its edge.
+pub(crate) fn chamfer_asymmetric(
+    mode: ChamferMode,
+    s: &ShapeHandle,
+    pairs: &[(usize, usize)],
+    v1: f64,
+    v2: f64,
+) -> Option<ShapeHandle> {
+    let (edges, faces): (Vec<usize>, Vec<usize>) = pairs.iter().copied().unzip();
+    let mut raw = ptr::null_mut();
+    // SAFETY: `s` is a live handle read-only for the call and not retained;
+    // `edges` and `faces` each point to `pairs.len()` readable `usize`s
+    // (`size_t` layout) that the shim only reads during the call; `raw` is a
+    // valid out-pointer that receives a new, independently owned handle.
+    let status = unsafe {
+        swx_occt_chamfer_asymmetric(
+            mode as c_int,
+            s.0.as_ptr(),
+            edges.as_ptr(),
+            faces.as_ptr(),
+            pairs.len(),
+            v1,
+            v2,
             &mut raw,
         )
     };
