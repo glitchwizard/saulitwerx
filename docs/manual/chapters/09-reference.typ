@@ -110,6 +110,7 @@ The `occt` feature switches on OpenCascade. It is off by default, so a plain bui
   [`make_cylinder(base, r, h)`], [A cylinder along +Z with its base circle centered at `base`. Radius and height > 0.],
   [`make_sphere(center, r)`], [A sphere. Radius > 0.],
   [`union(a, b)`, `cut(a, b)`, `intersect(a, b)`], [Boolean operations (@sec-feature). Inputs unchanged.],
+  [`boolean_tracked(op, a, b)`], [The same solid as `union`, `cut` or `intersect` (by `op`), with an `OpHistory` (@sec-boolean-history). Same errors as the plain call.],
   [`volume(s)`, `surface_area(s)`], [In mm³ and mm².],
   [`bounding_box(s)`], [The smallest box, aligned with the axes, that holds the solid: its `min` and `max` corners.],
   [`face_count(s)`], [The number of faces.],
@@ -119,6 +120,7 @@ The `occt` feature switches on OpenCascade. It is off by default, so a plain bui
   [`face_plane(s, face)`], [The plane of the flat face `face` of `s`: a point on it and its unit outward normal, pointing out of the solid (@sec-extrude-to-face). `face` must be a face, in range, and flat.],
   [`fillet(s, edges, radius)`], [Rounds every edge in `edges` with one radius (@ch-fillet). Radius > 0; the list not empty, edges only, each in range; an edge listed twice counts once. A radius that doesn't fit fails, and `s` is unchanged.],
   [`chamfer(s, edges, distance)`], [Bevels every edge in `edges`, set back `distance` along both of its faces. Same rules as `fillet`.],
+  [`chamfer_asymmetric(s, edges, size)`], [Bevels every edge in `edges`, a list of `EdgeOnFace`, by one `ChamferSize` measured from each edge's reference face (@sec-chamfer-sizes). The list not empty; each edge an edge and each face a face, in range; each face one of the two that bound its edge; an edge listed once, or twice with the same face. A size that doesn't fit fails, and `s` is unchanged.],
   [`tessellate(s, deflection)`], [Breaks the surface into triangles, no farther than `deflection` (mm, > 0) from the true surface.],
   [`export_step(s, path)`], [Writes a STEP file in millimeters, replacing any existing file.],
   [`import_step(path)`], [Reads everything in a STEP file as one shape.],
@@ -131,6 +133,11 @@ All positions must be finite numbers; all sizes finite and greater than zero.
   header: ("Type", "Fields and rules"),
   [`TopoKind`], [`Face`, `Edge` or `Vertex`.],
   [`SubShape { kind, index }`], [One face, edge or vertex: the `index`-th of its `kind`, counted from 0. Valid only for the shape it came from; ask again after each operation.],
+  [`EdgeOnFace { edge, face }`], [An edge, and the reference face an uneven chamfer measures its first size on: one of the two faces that meet at the edge.],
+  [`ChamferSize::TwoDistances { d1, d2 }`], [`d1` on the reference face, `d2` on the other face. Both finite and > 0, in mm.],
+  [`ChamferSize::DistanceAngle { distance, angle }`], [`distance` on the reference face, finite and > 0, in mm. `angle` between the reference face and the new face, in radians, strictly between 0 and π/2.],
+  [`BooleanOp`], [`Union`, `Cut` or `Intersect`.],
+  [`OpHistory { modified, generated }`], [`modified`: one entry `(operand, face, images)` for each face of `a` (`Operand::A`), then of `b` (`Operand::B`), in index order. `images` are the result's faces it became, sorted: one if it lives on (perhaps trimmed), several if split, none if deleted. `generated` is empty for a Boolean. Faces only.],
 )
 
 == Profiles, extrude and revolve <sec-ref-extrude>

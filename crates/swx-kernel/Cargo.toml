@@ -63,3 +63,11 @@ required-features = ["occt"]
 [[example]]
 name = "fillet_chamfer"
 required-features = ["occt"]
+
+[[example]]
+name = "chamfer_sizes"
+required-features = ["occt"]
+
+[[example]]
+name = "boolean_history"
+required-features = ["occt"]
