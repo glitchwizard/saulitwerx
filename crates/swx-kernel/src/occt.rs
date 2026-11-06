@@ -2,12 +2,13 @@
 
 use std::path::Path;
 
-use crate::ffi::{self, BooleanOp, EdgeOp, FacePlane, ShapeHandle};
+use crate::ffi::{self, BooleanOp, ChamferMode, EdgeOp, FacePlane, ShapeHandle};
 use crate::profile::{check_revolve_profile, prepare_face, prepare_revolve};
-use crate::topo::{validate_adjacent, validate_edges, validate_index};
+use crate::topo::{validate_adjacent, validate_edges, validate_edges_on_faces, validate_index};
 use crate::{
-    input_file_cstring, path_to_cstring, validate_point, validate_size, Axis, BoundingBox, Extent,
-    ExtrudeHistory, Kernel, KernelError, Mesh, Point3, ProfileLoop, SubShape, TopoKind, Workplane,
+    input_file_cstring, path_to_cstring, validate_point, validate_size, Axis, BoundingBox,
+    ChamferSize, EdgeOnFace, Extent, ExtrudeHistory, Kernel, KernelError, Mesh, Point3,
+    ProfileLoop, SubShape, TopoKind, Workplane,
 };
 
 /// [`Kernel`] backed by the system OpenCascade libraries.
@@ -189,6 +190,44 @@ impl Kernel for OcctKernel {
         validate_size("chamfer distance", distance)?;
         let indices = validate_edges(edges, self.sub_shape_count(s, TopoKind::Edge)?)?;
         ffi::fillet_chamfer(EdgeOp::Chamfer, &s.0, &indices, distance)
+            .map(OcctShape)
+            .ok_or_else(|| backend("chamfer"))
+    }
+
+    fn chamfer_asymmetric(
+        &self,
+        s: &OcctShape,
+        edges: &[EdgeOnFace],
+        size: ChamferSize,
+    ) -> Result<OcctShape, KernelError> {
+        size.validate()?;
+        let pairs = validate_edges_on_faces(
+            edges,
+            self.sub_shape_count(s, TopoKind::Edge)?,
+            self.sub_shape_count(s, TopoKind::Face)?,
+        )?;
+        for &(e, f) in &pairs {
+            let edge = SubShape {
+                kind: TopoKind::Edge,
+                index: e,
+            };
+            let face = SubShape {
+                kind: TopoKind::Face,
+                index: f,
+            };
+            if !self.adjacent(s, edge, TopoKind::Face)?.contains(&face) {
+                return Err(KernelError::InvalidInput(format!(
+                    "face {f} does not bound edge {e}"
+                )));
+            }
+        }
+        let (mode, v1, v2) = match size {
+            ChamferSize::TwoDistances { d1, d2 } => (ChamferMode::TwoDistances, d1, d2),
+            ChamferSize::DistanceAngle { distance, angle } => {
+                (ChamferMode::DistanceAngle, distance, angle)
+            }
+        };
+        ffi::chamfer_asymmetric(mode, &s.0, &pairs, v1, v2)
             .map(OcctShape)
             .ok_or_else(|| backend("chamfer"))
     }
@@ -936,6 +975,215 @@ mod tests {
         assert_eq!(K.face_count(&b).unwrap(), 6);
         // The input still works as an operand afterwards.
         assert!(K.fillet(&b, &[edge(0)], 2.0).is_ok());
+    }
+
+    /// Every (edge, reference face) pair of the 10 × 20 × 30 box: 12 edges,
+    /// each with its 2 faces.
+    fn edge_face_pairs(b: &OcctShape) -> Vec<EdgeOnFace> {
+        (0..12)
+            .flat_map(|i| {
+                let faces = K.adjacent(b, edge(i), TopoKind::Face).unwrap();
+                assert_eq!(faces.len(), 2, "edge {i}");
+                faces.into_iter().map(move |face| EdgeOnFace {
+                    edge: edge(i),
+                    face,
+                })
+            })
+            .collect()
+    }
+
+    /// Chamfers each of the 24 edge/face pairs of the box on its own with
+    /// `size` and checks the removed volume, `per_length · L` with L the
+    /// edge length (so the lengths found are 10, 20 and 30, eight times
+    /// each), the sub-shape counts and the unchanged bounding box.
+    fn assert_each_edge_face_removes(size: ChamferSize, per_length: f64) {
+        let b = box_10x20x30();
+        let mut lengths = Vec::new();
+        for p in edge_face_pairs(&b) {
+            let r = K.chamfer_asymmetric(&b, &[p], size).unwrap();
+            let removed = 6000.0 - K.volume(&r).unwrap();
+            let l = removed / per_length;
+            let nearest = [10.0, 20.0, 30.0]
+                .into_iter()
+                .min_by(|a: &f64, c: &f64| (a - l).abs().total_cmp(&(c - l).abs()))
+                .unwrap();
+            assert_close(removed, per_length * nearest);
+            lengths.push(nearest as u32);
+            let counts = KINDS.map(|k| K.sub_shape_count(&r, k).unwrap());
+            assert_eq!(counts, [7, 15, 10], "{p:?}");
+            assert_bbox(&r, [0.0; 3], [10.0, 20.0, 30.0]);
+        }
+        lengths.sort_unstable();
+        let mut expected = [10; 24];
+        expected[8..16].fill(20);
+        expected[16..].fill(30);
+        assert_eq!(lengths, expected);
+    }
+
+    #[test]
+    fn chamfer_two_distances_each_edge_and_face() {
+        // d1·d2/2 per unit length.
+        assert_each_edge_face_removes(ChamferSize::TwoDistances { d1: 2.0, d2: 4.0 }, 4.0);
+    }
+
+    #[test]
+    fn chamfer_distance_angle_each_edge_and_face() {
+        // distance · (distance · tan(angle)) / 2 per unit length.
+        let size = ChamferSize::DistanceAngle {
+            distance: 2.0,
+            angle: PI / 6.0,
+        };
+        assert_each_edge_face_removes(size, 2.0 * (2.0 * (PI / 6.0).tan()) / 2.0);
+    }
+
+    #[test]
+    fn asymmetric_chamfer_with_equal_setbacks_matches_chamfer() {
+        let b = box_10x20x30();
+        let removed = |s: &OcctShape| 6000.0 - K.volume(s).unwrap();
+        for p in edge_face_pairs(&b) {
+            let equal = removed(&K.chamfer(&b, &[p.edge], 2.0).unwrap());
+            let at_45 = ChamferSize::DistanceAngle {
+                distance: 2.0,
+                angle: PI / 4.0,
+            };
+            let same = ChamferSize::TwoDistances { d1: 2.0, d2: 2.0 };
+            for size in [at_45, same] {
+                let r = K.chamfer_asymmetric(&b, &[p], size).unwrap();
+                assert_close(removed(&r), equal);
+            }
+        }
+    }
+
+    /// The one face of `s` lying in the plane `axis = value`.
+    fn face_in_plane(s: &OcctShape, axis: usize, value: f64) -> (SubShape, BoundingBox) {
+        let found: Vec<_> = (0..K.face_count(s).unwrap())
+            .map(|i| sub(TopoKind::Face, i))
+            .map(|f| (f, K.sub_shape_bounding_box(s, f).unwrap()))
+            .filter(|(_, bb)| {
+                (bb.min[axis] - value).abs() < 1e-6 && (bb.max[axis] - value).abs() < 1e-6
+            })
+            .collect();
+        assert_eq!(found.len(), 1, "faces in plane {axis} = {value}");
+        found[0]
+    }
+
+    #[test]
+    fn asymmetric_chamfer_setbacks_follow_the_reference_face() {
+        // The edge where the top face (z = 30) meets the front face (y = 0).
+        let b = box_10x20x30();
+        let (top, _) = face_in_plane(&b, 2, 30.0);
+        let (front, _) = face_in_plane(&b, 1, 0.0);
+        let top_front = (0..12)
+            .map(edge)
+            .find(|&e| {
+                let faces = K.adjacent(&b, e, TopoKind::Face).unwrap();
+                faces.contains(&top) && faces.contains(&front)
+            })
+            .unwrap();
+        let tan30 = (PI / 6.0).tan();
+        let two = ChamferSize::TwoDistances { d1: 2.0, d2: 4.0 };
+        let da = ChamferSize::DistanceAngle {
+            distance: 2.0,
+            angle: PI / 6.0,
+        };
+        // (size, reference face, top face's y.min, front face's z.max)
+        let cases = [
+            (two, top, 2.0, 26.0),
+            (da, top, 2.0, 30.0 - 2.0 * tan30),
+            (two, front, 4.0, 28.0),
+            (da, front, 2.0 * tan30, 28.0),
+        ];
+        for (size, face, y_min, z_max) in cases {
+            let p = EdgeOnFace {
+                edge: top_front,
+                face,
+            };
+            let r = K.chamfer_asymmetric(&b, &[p], size).unwrap();
+            let (_, t) = face_in_plane(&r, 2, 30.0);
+            assert_close(t.min[1], y_min);
+            assert_close(t.max[1], 20.0);
+            let (_, f) = face_in_plane(&r, 1, 0.0);
+            assert_close(f.min[2], 0.0);
+            assert_close(f.max[2], z_max);
+            assert_bbox(&r, [0.0; 3], [10.0, 20.0, 30.0]);
+        }
+    }
+
+    #[test]
+    fn asymmetric_chamfer_rejects_bad_inputs() {
+        let b = box_10x20x30();
+        let invalid =
+            |r: Result<OcctShape, KernelError>| matches!(r, Err(KernelError::InvalidInput(_)));
+        let pairs = edge_face_pairs(&b);
+        let p = pairs[0];
+        let two = |d1, d2| ChamferSize::TwoDistances { d1, d2 };
+        let da = |distance, angle| ChamferSize::DistanceAngle { distance, angle };
+        for bad in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+            assert!(invalid(K.chamfer_asymmetric(&b, &[p], two(bad, 2.0))));
+            assert!(invalid(K.chamfer_asymmetric(&b, &[p], two(2.0, bad))));
+            assert!(invalid(K.chamfer_asymmetric(&b, &[p], da(bad, 0.5))));
+        }
+        for bad in [0.0, -0.5, PI / 2.0, 2.0, f64::NAN, f64::INFINITY] {
+            assert!(invalid(K.chamfer_asymmetric(&b, &[p], da(2.0, bad))));
+        }
+        let size = two(2.0, 4.0);
+        assert!(invalid(K.chamfer_asymmetric(&b, &[], size)));
+        for wrong in [sub(TopoKind::Face, 0), sub(TopoKind::Vertex, 0)] {
+            let e = EdgeOnFace { edge: wrong, ..p };
+            assert!(invalid(K.chamfer_asymmetric(&b, &[e], size)));
+        }
+        for wrong in [edge(0), sub(TopoKind::Vertex, 0)] {
+            let e = EdgeOnFace { face: wrong, ..p };
+            assert!(invalid(K.chamfer_asymmetric(&b, &[e], size)));
+        }
+        let out_of_range = [
+            EdgeOnFace {
+                edge: edge(12),
+                ..p
+            },
+            EdgeOnFace {
+                face: sub(TopoKind::Face, 6),
+                ..p
+            },
+        ];
+        for e in out_of_range {
+            assert!(invalid(K.chamfer_asymmetric(&b, &[e], size)));
+        }
+        let not_adjacent = (0..6)
+            .map(|i| sub(TopoKind::Face, i))
+            .find(|f| !K.adjacent(&b, p.edge, TopoKind::Face).unwrap().contains(f))
+            .unwrap();
+        let e = EdgeOnFace {
+            face: not_adjacent,
+            ..p
+        };
+        assert!(invalid(K.chamfer_asymmetric(&b, &[e], size)));
+        // The same edge with both of its faces.
+        assert_eq!(pairs[1].edge, p.edge);
+        assert!(invalid(K.chamfer_asymmetric(&b, &[p, pairs[1]], size)));
+        // An identical entry twice counts once.
+        let once = K.chamfer_asymmetric(&b, &[p], size).unwrap();
+        let twice = K.chamfer_asymmetric(&b, &[p, p], size).unwrap();
+        assert_close(K.volume(&twice).unwrap(), K.volume(&once).unwrap());
+    }
+
+    #[test]
+    fn asymmetric_chamfer_too_large_is_an_error_and_keeps_the_input() {
+        // A 35 setback is wider than every face of the box.
+        let b = box_10x20x30();
+        let size = ChamferSize::TwoDistances { d1: 2.0, d2: 35.0 };
+        for p in edge_face_pairs(&b) {
+            let r = K.chamfer_asymmetric(&b, &[p], size);
+            assert!(matches!(r, Err(KernelError::Backend(_))), "{p:?}");
+        }
+        assert_close(K.volume(&b).unwrap(), 6000.0);
+        assert!(K
+            .chamfer_asymmetric(
+                &b,
+                &edge_face_pairs(&b)[..1],
+                ChamferSize::TwoDistances { d1: 2.0, d2: 4.0 }
+            )
+            .is_ok());
     }
 
     /// The #90 plate's loops: the 40 × 25 rectangle, then the r5 hole.

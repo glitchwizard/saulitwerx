@@ -34,7 +34,7 @@ pub use profile::{
     Axis, Extent, ProfileLoop, Segment2, ThroughDirection, Workplane, LOOP_GAP_TOLERANCE,
     PERPENDICULAR_TOLERANCE, REVOLVE_AXIS_TOLERANCE,
 };
-pub use topo::{ExtrudeHistory, SubShape, TopoKind};
+pub use topo::{ChamferSize, EdgeOnFace, ExtrudeHistory, SubShape, TopoKind};
 
 /// A point or vector in model space, `[x, y, z]`.
 pub type Point3 = [f64; 3];
@@ -171,6 +171,26 @@ pub trait Kernel {
         s: &Self::Shape,
         edges: &[SubShape],
         distance: f64,
+    ) -> Result<Self::Shape, KernelError>;
+    /// Bevels `edges` of `s` with a chamfer whose two setbacks may differ.
+    ///
+    /// Each entry names an edge and its reference face; `size` follows the
+    /// convention on [`ChamferSize`]: the first distance is measured on the
+    /// reference face, the second (or the one the angle gives) on the other
+    /// face of the edge. An identical entry listed twice counts once.
+    ///
+    /// It is [`KernelError::InvalidInput`], checked before the chamfer
+    /// reaches the backend, when a distance is not finite or ≤ 0, when the
+    /// angle is not finite or not strictly between 0 and π/2, when `edges`
+    /// is empty, when an `edge` is not an edge or a `face` not a face, when
+    /// an index is out of range, when a face does not bound its edge, or
+    /// when the same edge is listed with two different faces. A size the
+    /// backend can't build is an error, and `s` is unchanged either way.
+    fn chamfer_asymmetric(
+        &self,
+        s: &Self::Shape,
+        edges: &[EdgeOnFace],
+        size: ChamferSize,
     ) -> Result<Self::Shape, KernelError>;
 
     /// Boolean union `a ∪ b`.
