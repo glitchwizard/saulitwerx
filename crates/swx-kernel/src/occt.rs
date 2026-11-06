@@ -2,12 +2,13 @@
 
 use std::path::Path;
 
-use crate::ffi::{self, BooleanOp, EdgeOp, FacePlane, ShapeHandle};
+use crate::ffi::{self, EdgeOp, FacePlane, ShapeHandle};
 use crate::profile::{check_revolve_profile, prepare_face, prepare_revolve};
 use crate::topo::{validate_adjacent, validate_edges, validate_index};
 use crate::{
-    input_file_cstring, path_to_cstring, validate_point, validate_size, Axis, BoundingBox, Extent,
-    ExtrudeHistory, Kernel, KernelError, Mesh, Point3, ProfileLoop, SubShape, TopoKind, Workplane,
+    input_file_cstring, path_to_cstring, validate_point, validate_size, Axis, BooleanOp,
+    BoundingBox, Extent, ExtrudeHistory, Kernel, KernelError, Mesh, OpHistory, Operand, Point3,
+    ProfileLoop, SubShape, TopoKind, Workplane,
 };
 
 /// [`Kernel`] backed by the system OpenCascade libraries.
@@ -209,6 +210,41 @@ impl Kernel for OcctKernel {
         ffi::boolean(BooleanOp::Intersect, &a.0, &b.0)
             .map(OcctShape)
             .ok_or_else(|| backend("intersect"))
+    }
+
+    fn boolean_tracked(
+        &self,
+        op: BooleanOp,
+        a: &OcctShape,
+        b: &OcctShape,
+    ) -> Result<(OcctShape, OpHistory), KernelError> {
+        let name = match op {
+            BooleanOp::Union => "union",
+            BooleanOp::Cut => "cut",
+            BooleanOp::Intersect => "intersect",
+        };
+        let n_a = self.sub_shape_count(a, TopoKind::Face)?;
+        let n_b = self.sub_shape_count(b, TopoKind::Face)?;
+        let (shape, images) =
+            ffi::boolean_tracked(op, &a.0, &b.0, n_a + n_b).ok_or_else(|| backend(name))?;
+        let modified = images
+            .into_iter()
+            .enumerate()
+            .map(|(i, faces)| {
+                let (operand, index) = if i < n_a {
+                    (Operand::A, i)
+                } else {
+                    (Operand::B, i - n_a)
+                };
+                let images = faces.into_iter().map(face_sub).collect();
+                (operand, face_sub(index), images)
+            })
+            .collect();
+        let history = OpHistory {
+            modified,
+            generated: Vec::new(),
+        };
+        Ok((OcctShape(shape), history))
     }
 
     fn volume(&self, s: &OcctShape) -> Result<f64, KernelError> {
@@ -1090,6 +1126,184 @@ mod tests {
             assert!(invalid(
                 K.sub_shape_bounding_box(&solid, sub(kind, n)).unwrap_err()
             ));
+        }
+    }
+
+    // ---- M3-04d: tracked booleans ----
+
+    fn face_boxes(s: &OcctShape) -> Vec<BoundingBox> {
+        (0..K.sub_shape_count(s, TopoKind::Face).unwrap())
+            .map(|i| K.sub_shape_bounding_box(s, sub(TopoKind::Face, i)).unwrap())
+            .collect()
+    }
+
+    fn near(a: f64, b: f64) -> bool {
+        (a - b).abs() <= 1e-6
+    }
+
+    /// The one face of `s` lying in the plane `axis` = `value` (axis 0/1/2 = x/y/z).
+    fn face_on(s: &OcctShape, axis: usize, value: f64) -> usize {
+        let hits: Vec<usize> = face_boxes(s)
+            .iter()
+            .enumerate()
+            .filter(|(_, b)| near(b.min[axis], value) && near(b.max[axis], value))
+            .map(|(i, _)| i)
+            .collect();
+        assert_eq!(hits.len(), 1, "faces on axis {axis} = {value}: {hits:?}");
+        hits[0]
+    }
+
+    fn images(h: &OpHistory, operand: Operand, index: usize) -> &[SubShape] {
+        let (_, _, imgs) = h
+            .modified
+            .iter()
+            .find(|(o, f, _)| *o == operand && f.index == index)
+            .unwrap();
+        imgs
+    }
+
+    fn assert_box(b: &BoundingBox, min: Point3, max: Point3) {
+        for k in 0..3 {
+            assert!(
+                near(b.min[k], min[k]) && near(b.max[k], max[k]),
+                "{b:?} != {min:?}..{max:?}"
+            );
+        }
+    }
+
+    /// Runs `op` tracked and untracked and checks what holds for every case:
+    /// same volume and face count, one `modified` entry per input face in
+    /// order, every result face the image of exactly one input face, sorted
+    /// images, and no `generated` entries.
+    fn tracked(op: BooleanOp, a: &OcctShape, b: &OcctShape) -> (OcctShape, OpHistory) {
+        let (r, h) = K.boolean_tracked(op, a, b).unwrap();
+        let plain = match op {
+            BooleanOp::Union => K.union(a, b),
+            BooleanOp::Cut => K.cut(a, b),
+            BooleanOp::Intersect => K.intersect(a, b),
+        }
+        .unwrap();
+        assert_close(K.volume(&r).unwrap(), K.volume(&plain).unwrap());
+        let n = K.face_count(&r).unwrap();
+        assert_eq!(n, K.face_count(&plain).unwrap());
+        let n_a = K.face_count(a).unwrap();
+        let n_b = K.face_count(b).unwrap();
+        let expected: Vec<(Operand, SubShape)> = (0..n_a)
+            .map(|i| (Operand::A, sub(TopoKind::Face, i)))
+            .chain((0..n_b).map(|i| (Operand::B, sub(TopoKind::Face, i))))
+            .collect();
+        let got: Vec<(Operand, SubShape)> = h.modified.iter().map(|(o, f, _)| (*o, *f)).collect();
+        assert_eq!(got, expected);
+        let mut owners = vec![0usize; n];
+        for (_, _, imgs) in &h.modified {
+            assert!(imgs.windows(2).all(|w| w[0].index < w[1].index));
+            for img in imgs {
+                assert_eq!(img.kind, TopoKind::Face);
+                owners[img.index] += 1;
+            }
+        }
+        assert_eq!(owners, vec![1; n], "result faces owned once each");
+        assert!(h.generated.is_empty());
+        (r, h)
+    }
+
+    #[test]
+    fn tracked_cut_splits_the_top_face() {
+        let a = K.make_box([0.0; 3], [40.0, 25.0, 10.0]).unwrap();
+        let b = K.make_box([18.0, -1.0, 6.0], [4.0, 27.0, 5.0]).unwrap();
+        let (r, h) = tracked(BooleanOp::Cut, &a, &b);
+        assert_close(K.volume(&r).unwrap(), 9600.0);
+        assert_eq!(K.face_count(&r).unwrap(), 10);
+        let boxes = face_boxes(&r);
+
+        let top = images(&h, Operand::A, face_on(&a, 2, 10.0));
+        assert_eq!(top.len(), 2);
+        let mut halves: Vec<&BoundingBox> = top.iter().map(|f| &boxes[f.index]).collect();
+        halves.sort_by(|p, q| p.min[0].total_cmp(&q.min[0]));
+        assert_box(halves[0], [0.0, 0.0, 10.0], [18.0, 25.0, 10.0]);
+        assert_box(halves[1], [22.0, 0.0, 10.0], [40.0, 25.0, 10.0]);
+        assert_eq!(images(&h, Operand::A, face_on(&a, 2, 0.0)).len(), 1);
+
+        for (axis, value) in [(2, 11.0), (1, -1.0), (1, 26.0)] {
+            assert!(images(&h, Operand::B, face_on(&b, axis, value)).is_empty());
+        }
+        for (axis, value) in [(2, 6.0), (0, 18.0), (0, 22.0)] {
+            assert_eq!(images(&h, Operand::B, face_on(&b, axis, value)).len(), 1);
+        }
+    }
+
+    #[test]
+    fn tracked_union_absorbs_an_inner_boss() {
+        let a = K.make_box([0.0; 3], [40.0, 25.0, 20.0]).unwrap();
+        let b = K.make_cylinder([20.0, 12.5, 10.0], 5.0, 5.0).unwrap();
+        let (r, h) = tracked(BooleanOp::Union, &a, &b);
+        assert_close(K.volume(&r).unwrap(), 20000.0);
+        assert_eq!(K.face_count(&r).unwrap(), 6);
+        for (o, _, imgs) in &h.modified {
+            match o {
+                Operand::A => assert_eq!(imgs.len(), 1),
+                Operand::B => assert!(imgs.is_empty()),
+            }
+        }
+    }
+
+    #[test]
+    fn tracked_union_with_an_embedded_boss() {
+        let a = K.make_box([0.0; 3], [40.0, 25.0, 10.0]).unwrap();
+        let b = K.make_cylinder([20.0, 12.5, 5.0], 5.0, 10.0).unwrap();
+        let (r, h) = tracked(BooleanOp::Union, &a, &b);
+        assert_close(K.volume(&r).unwrap(), 10000.0 + 125.0 * PI);
+        assert_eq!(K.face_count(&r).unwrap(), 8);
+        assert!(images(&h, Operand::B, face_on(&b, 2, 5.0)).is_empty());
+        assert_eq!(images(&h, Operand::B, face_on(&b, 2, 15.0)).len(), 1);
+        let n_b = K.face_count(&b).unwrap();
+        let side = (0..n_b)
+            .find(|&i| i != face_on(&b, 2, 5.0) && i != face_on(&b, 2, 15.0))
+            .unwrap();
+        assert_eq!(images(&h, Operand::B, side).len(), 1);
+        assert_eq!(images(&h, Operand::A, face_on(&a, 2, 10.0)).len(), 1);
+    }
+
+    #[test]
+    fn tracked_intersect_keeps_three_faces_of_each() {
+        let a = K.make_box([0.0; 3], [40.0, 25.0, 10.0]).unwrap();
+        let b = K.make_box([30.0, 15.0, 5.0], [20.0, 20.0, 20.0]).unwrap();
+        let (r, h) = tracked(BooleanOp::Intersect, &a, &b);
+        assert_close(K.volume(&r).unwrap(), 500.0);
+        assert_eq!(K.face_count(&r).unwrap(), 6);
+        for operand in [Operand::A, Operand::B] {
+            let counts: Vec<usize> = h
+                .modified
+                .iter()
+                .filter(|(o, _, _)| *o == operand)
+                .map(|(_, _, imgs)| imgs.len())
+                .collect();
+            assert_eq!(counts.iter().filter(|&&n| n == 1).count(), 3, "{operand:?}");
+            assert_eq!(counts.iter().filter(|&&n| n == 0).count(), 3, "{operand:?}");
+        }
+        for (axis, value) in [(0, 40.0), (1, 25.0), (2, 10.0)] {
+            assert_eq!(images(&h, Operand::A, face_on(&a, axis, value)).len(), 1);
+        }
+        for (axis, value) in [(0, 30.0), (1, 15.0), (2, 5.0)] {
+            assert_eq!(images(&h, Operand::B, face_on(&b, axis, value)).len(), 1);
+        }
+    }
+
+    #[test]
+    fn tracked_empty_result_matches_the_untracked_call() {
+        let a = K.make_box([1.0; 3], [2.0, 2.0, 2.0]).unwrap();
+        let b = K.make_box([0.0; 3], [5.0, 5.0, 5.0]).unwrap();
+        let plain = K.cut(&a, &b);
+        let tracked = K.boolean_tracked(BooleanOp::Cut, &a, &b);
+        match (plain, tracked) {
+            (Err(p), Err(t)) => assert_eq!(p, t),
+            (Ok(p), Ok((t, h))) => {
+                assert_eq!(K.face_count(&t).unwrap(), K.face_count(&p).unwrap());
+                assert_eq!(K.face_count(&t).unwrap(), 0);
+                assert_eq!(h.modified.len(), 12);
+                assert!(h.modified.iter().all(|(_, _, imgs)| imgs.is_empty()));
+            }
+            (p, t) => panic!("untracked {p:?} vs tracked {:?}", t.map(|(_, h)| h)),
         }
     }
 }
