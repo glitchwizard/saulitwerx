@@ -13,7 +13,7 @@
     ("CAD", [Computer-aided design: using a computer to design physical objects.]),
     ("Between faces", [An extrude extent that runs from one flat face of the target body to another.]),
     ("Cap", [One of the two flat faces at the ends of an extrude: where the push starts and where it ends.]),
-    ("Chamfer", [A flat, angled face cut along an edge in place of the sharp edge, set back the same distance on both faces.]),
+    ("Chamfer", [A flat, angled face cut along an edge in place of the sharp edge. It is set back the same distance on both faces, or by two distances, or by a distance and an angle.]),
     ("Coincident", [A constraint that puts two points at the same place.]),
     ("Conflicting", [Said of a sketch whose rules contradict each other, so no shape can meet them all.]),
     ("Constraint", [A rule about a sketch's shape, such as "horizontal" or "these points touch".]),
@@ -56,12 +56,14 @@
     ("Pre-alpha", [Early, unfinished software: the parts work, but it isn't ready for real use.]),
     ("Profile", [The regions of a sketch: the areas a feature can turn into a solid.]),
     ("Redundant", [Said of a rule that repeats what other rules already say.]),
+    ("Reference face", [For an uneven chamfer, the one of an edge's two faces that its first distance, or its distance and angle, is measured on.]),
     ("Region", [A flat area enclosed by an outer loop, minus any holes inside it.]),
     ("Revolve", [Turning a flat outline around an axis into a round solid.]),
     ("Revolve angle", [How far a revolve turns: a full turn (2π radians, 360°) or part of one.]),
     ("Seam", [An edge where a closed round face, such as the wall of a hole, meets itself.]),
     ("Side face", [A face of an extrude swept by one edge of its outline: a flat wall from a line, a round one from an arc or circle.]),
     ("Sketch", [A 2D drawing on a plane, made of points, lines, circles and arcs.]),
+    ("Split face", [A face that an operation cut into several faces of the result, such as a top divided by a groove.]),
     ("Solid", [A closed 3D shape with an inside and an outside.]),
     ("Solver", [The calculation that moves sketch geometry until every constraint holds.]),
     ("Sub-shape", [One face, edge or vertex of a solid.]),
@@ -87,6 +89,13 @@
 }
 
 = What's new
+
+== 2026-11-06: uneven chamfers, and faces through a Boolean
+
+- *New:* chamfer an edge by two different distances, or by a distance and an angle, measured from a face you choose (@sec-chamfer-sizes).
+- *New:* combine two solids with history, and find out which faces of the result each input face became: kept, split or deleted (@sec-boolean-history).
+- *Pictures:* one edge chamfered four ways; a grooved block with its faces named.
+- Help: four new error messages, four new common mistakes, and the known limitations updated. Glossary: reference face, split face.
 
 == 2026-11-05: up to a face, fillets and chamfers
 
@@ -250,6 +259,8 @@ Later milestones add assemblies, 2D drawings and exploded views. The full plan i
         [`extrude_feature`], [extrude and combine],
         [`revolve_feature`], [revolve and combine],
         [`fillet` · `chamfer`], [round / bevel edges],
+        [`chamfer_asymmetric`], [bevel by 2 sizes],
+        [`boolean_tracked`], [Boolean + face history],
         [`export_step` · `import_step`], [STEP file out / in],
       )
       #text(font: sans, weight: "bold", fill: accent, "UNITS")

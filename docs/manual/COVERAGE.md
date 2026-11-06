@@ -1,4 +1,4 @@
-manual-synced-to: 2c03b5e388a2193ad48fc15efaf7560a3dc11b26
+manual-synced-to: 5c7abad180caf8e37e78e2252efae1da78e86489
 
 # Manual coverage
 
@@ -15,16 +15,18 @@ Everything a user can do or set on `main`, found from the code, `docs/ROADMAP.md
 | `swx_qa::sketch::plot` (developers) | 10.5 |
 | Kernel: `make_box`, `make_cylinder`, `make_sphere` | 6.1, 12.4 |
 | Kernel: `union`, `cut`, `intersect` | 4.9, 6.2, 12.4 |
+| Kernel: `boolean_tracked`, `BooleanOp` (Union, Cut, Intersect), `OpHistory` (modified, generated), `Operand` (A, B); faces only, `generated` empty | 6.4, 12.4 |
 | Kernel: `volume`, `surface_area`, `bounding_box`, `face_count` | 3.2, 6.1, 12.4 |
 | Kernel: `sub_shape_count`, `adjacent`, `TopoKind` (Face, Edge, Vertex), `SubShape` (kind, index); index rules and both `adjacent` errors; seam edge | 4.1, 6.3, 12.4, 13.2, 13.4 |
 | Kernel: `tessellate` (deflection) | 10.1, 12.4 |
-| Kernel: `export_step`, `import_step` (mm) | 3.2, 6.1, 6.4, 12.4, 12.13 |
+| Kernel: `export_step`, `import_step` (mm) | 3.2, 6.1, 6.5, 12.4, 12.13 |
 | Kernel: `make_face`, `extrude`; `Workplane` (`XY`, `XZ`, `YZ`, custom), `Segment2` (Line, Arc, Circle), `ProfileLoop`, `Extent` (Distance, Symmetric), `LOOP_GAP_TOLERANCE`, `PERPENDICULAR_TOLERANCE` | 4.7, 4.9, 7, 12.5 |
 | Kernel: `make_face_tracked` (segment → edge, caller's order), `extrude_tracked`, `ExtrudeHistory` (start_cap, end_cap, sides); through-all refused | 7.5, 7.7, 12.5, 13.2 |
 | Kernel: `sub_shape_bounding_box` | 7.5, 12.4 |
 | Kernel: `face_plane` (point and unit outward normal of a planar face; kind, range and not-planar errors) | 7.6, 12.4, 13.2 |
 | Kernel: `Extent::ToFace`, `Extent::BetweenFaces` (planar faces parallel to the workplane, either side; join, cut and intersect only; refused by `extrude` and `extrude_tracked`), `Extent::FromTo`, `PARALLEL_FACE_TOLERANCE`, `FACE_DISTANCE_TOLERANCE`; every message | 7.6, 7.7, 12.5, 13.2, 13.4 |
 | Kernel: `fillet` (constant radius), `chamfer` (equal distance); edge-list checks (empty, not an edge, out of range), duplicates once, too-large size fails and keeps the input; every message | 9, 12.4, 13.2, 13.4 |
+| Kernel: `chamfer_asymmetric`, `EdgeOnFace` (edge, reference face), `ChamferSize` (TwoDistances d1/d2, DistanceAngle distance/angle in radians, (0, π/2)); face-bounds-edge and one-face-per-edge checks; every message | 9.2, 9.3, 12.4, 13.2 |
 | Kernel: `extrude_feature`, `ExtrudeMode` (NewSolid, Join, Cut, Intersect), `EMPTY_VOLUME_TOLERANCE` | 7.3, 12.5 |
 | Kernel: `Extent::ThroughAll`, `ThroughDirection` (Normal, Reversed, Both); through-all only with `extrude_feature` and `Cut`; miss check | 7.4, 7.7, 12.5, 13.2 |
 | Kernel: `revolve`, `revolve_feature`, `Axis` (origin, dir); angle in radians, (0, 2π]; right-hand rule; modes as extrude; axis-in-plane and profile-crossing checks, `REVOLVE_AXIS_TOLERANCE` | 8, 12.5, 12.13, 13.2, 13.4 |
@@ -75,13 +77,15 @@ Everything a user can do or set on `main`, found from the code, `docs/ROADMAP.md
 | `swx-kernel` `revolve_bushing` (occt) | 8 |
 | `swx-kernel` `part_topology` (occt) | 6.3 |
 | `swx-kernel` `extrude_to_face` (occt) | 7.6 |
-| `swx-kernel` `fillet_chamfer` (occt) | 9 |
+| `swx-kernel` `fillet_chamfer` (occt) | 9.1 |
+| `swx-kernel` `chamfer_sizes` (occt) | 9.2 |
+| `swx-kernel` `boolean_history` (occt) | 6.4 |
 
 ## Not user-facing yet
 
-- `swx_core::topo` (M3-04e, #103): `EntityRef`, `Role`, `FaceName`, `EdgeName`, `TopoRef`, `ResolveError`. Plain data with no way to resolve a name to a face or an edge yet, so nothing a user can do changes. M3-04b (#116) added the sub-shape queries it will resolve to (documented in 6.3), but not the resolving itself. Document it, with its `describe()` wording, when references can be resolved (M3-04c..d); *Coming next* lists it as *Lasting references*.
+- `swx_core::topo` (M3-04e, #103): `EntityRef`, `Role`, `FaceName`, `EdgeName`, `TopoRef`, `ResolveError`. Plain data with no way to resolve a name to a face or an edge yet, so nothing a user can do changes. M3-04b (#116) added the sub-shape queries it will resolve to (documented in 6.3), and M3-04c/d the face histories of extrudes and Booleans (7.5, 6.4), but not the resolving itself. Document it, with its `describe()` wording, when references can be resolved (later M3-04 slices); *Coming next* lists it as *Lasting references*.
 
 ## Backlog
 
-- Nothing built is undocumented. Next: when sketch regions reach the extrude and the revolve (M3-01c, #106), rewrite chapters 7 and 8 so their tasks start from a sketch, and update the known limitations. When fillets and chamfers take lasting edge references or join the history (M3-05b on), rewrite chapter 9's task around them.
+- Nothing built is undocumented. Next: when sketch regions reach the extrude and the revolve (M3-01c, #106), rewrite chapters 7 and 8 so their tasks start from a sketch, and update the known limitations. When fillets and chamfers take lasting edge references or join the history (later M3-05 slices), rewrite chapter 9's tasks around them. When extrudes and revolves with join, cut or intersect report a face history built on `boolean_tracked`, add it to 7.5 and 6.4.
 - Possible addition: a rounded-corner task (arc ends joined to two lines, M2-04a), now that an extrude can use arcs: a plate with rounded corners.
