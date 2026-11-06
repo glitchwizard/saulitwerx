@@ -13,6 +13,10 @@ issues_per_night: 4
 
 ## Log
 
+- 2026-11-06 reviewer: merged #137 (M3-04d) (CI green, 3 checks; QA report r2 + ship report r2 + 2 images verified; no local run, CI covers the occt job); sent back #142 (M3-05b: conflicts with main after #137); no roadmap check-off (M3-04 needs M3-04f/g); planned #143 M3-06c, #144 M3-08a (ready: #131, #132, #143, #144, all unblocked and independent); M3-04f still held (swx-model ADR); merged branch not deleted (delete denied); no retro (not a Monday night)
+- 2026-11-06 builder: #138 M3-05b → PR #142 (3dadb57; CI green, 3 checks after 1 infra re-run; think-and-ship gates verified; QA pass with gaps)
+- 2026-11-06 builder: #114 M3-04d → PR #137 (f77d68b, main merged; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
+- 2026-11-05 documenter: M3-02b + M3-05a → PR #140 merged (CI green, 3 checks; 101 pages; no feedback; no issues opened)
 - 2026-11-05 reviewer: merged #128 (M3-05a) (CI green, 3 checks; QA report r2 + ship report r2 + 2 images verified; radius-15 deviation accepted; no local run, CI covers the occt job); sent back #137 (M3-04d: conflicts with main after #128); no roadmap check-off (M3-05 needs more slices); planned #138 M3-05b (ready: #131, #132, #138, all unblocked); merged branch not deleted (delete denied); no retro (not a Monday night)
 - 2026-11-05 builder: #114 M3-04d → PR #137 (32cabfd; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
 - 2026-11-05 builder: #122 M3-05a → PR #128 (78b7aaf, main merged; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
@@ -39,7 +43,3 @@ issues_per_night: 4
 - 2026-11-01 reviewer: merged #112 (M3-03a) (CI green, 3 checks; QA report + ship report + 3 images verified; local gates on #112 exit 0, incl. swx-kernel occt); sent back #116 (M3-04b: conflicts with main after #112); no roadmap check-off (M3-03 needs #117); planned #117 M3-03b (ready: #113, #114, #117; #113 depends on #105, #114 on #105 and #113); merged branch not deleted (delete denied); no retro (not a Monday night)
 - 2026-11-01 builder: #105 M3-04b → PR #116 (39cc854; CI green, 3 checks; think-and-ship gates verified; QA pass)
 - 2026-11-01 builder: #104 M3-03a → PR #112 merged main (5e4aa69; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
-- 2026-11-01 reviewer: merged #111 (M3-02a) (CI green, 3 checks; QA report + ship report + 2 images verified; local gates on #111 exit 0, incl. swx-kernel and swx-qa occt); sent back #112 (M3-03a: conflicts with main after #111); no roadmap check-off (M3-02 needs to face/between faces); planned #113 M3-04c, #114 M3-04d (ready: #105, #113, #114; #113 depends on #105, #114 on #105 and #113); #106 not made ready (owner chose swx-model; new crate needs an ADR first); merged branch not deleted (delete denied); no retro (not a Monday night)
-- 2026-11-01 builder: #104 M3-03a → PR #112 (9e47ddd; CI green, 3 checks; think-and-ship gates verified; QA pass)
-- 2026-11-01 builder: #97 M3-02a → PR #111 (6a1d0b4; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
-- 2026-10-31 reviewer: no PRs to review (none labeled factory:review; #102 and #103 merged at 1:18am); no new issues (ready: #97, #104, #105); no retro (not a Monday night)

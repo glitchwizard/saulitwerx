@@ -62,6 +62,45 @@ pub struct ExtrudeHistory {
     pub sides: Vec<(SubShape, SubShape)>,
 }
 
+/// A boolean operation between two solids, for
+/// [`Kernel::boolean_tracked`](crate::Kernel::boolean_tracked).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BooleanOp {
+    /// Material of either solid (`Kernel::union`).
+    Union = 0,
+    /// Material of `a` not in `b` (`Kernel::cut`).
+    Cut = 1,
+    /// Material of both solids (`Kernel::intersect`).
+    Intersect = 2,
+}
+
+/// Which input of an operation a sub-shape belongs to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Operand {
+    /// The target, or the only input.
+    A,
+    /// The tool body.
+    B,
+}
+
+/// Per-input images and generated sub-shapes of one operation, as returned
+/// by [`Kernel::boolean_tracked`](crate::Kernel::boolean_tracked).
+///
+/// The first [`SubShape`] of each entry belongs to the input named by its
+/// [`Operand`]; the listed ones are sub-shapes of the result, sorted by index.
+/// Version 1 tracks faces only (edges are named by their faces,
+/// `docs/specs/M3-04.md`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OpHistory {
+    /// Input sub-shape → its images in the result: itself if unchanged,
+    /// several if it was split, none if it was deleted.
+    pub modified: Vec<(Operand, SubShape, Vec<SubShape>)>,
+    /// Input sub-shape → result sub-shapes generated from it. A boolean
+    /// generates no faces (only section edges), so it is empty for booleans
+    /// while only faces are tracked.
+    pub generated: Vec<(Operand, SubShape, Vec<SubShape>)>,
+}
+
 /// Checks an adjacency query before it reaches the backend: `kind` must
 /// differ from `of.kind`, and `of.index` must be below `count`, the number
 /// of sub-shapes of `of.kind` in the shape.
