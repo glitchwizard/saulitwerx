@@ -13,6 +13,10 @@ issues_per_night: 4
 
 ## Log
 
+- 2026-11-07 reviewer: merged #146 (M3-06a) (CI green, 3 checks; QA report r2 + ship report r2 + 2 images verified; no local run, CI covers the occt job); sent back #150 (M3-05c: conflicts with main after #146); no roadmap check-off (M3-06 needs #132, #143); planned #151 M3-09a (ready: #132, #143, #144, #151, all unblocked and independent); merged branch not deleted (not retried); no retro (not a Monday night)
+- 2026-11-07 builder: #147 M3-05c → PR #150 (0125bf8; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
+- 2026-11-07 builder: #131 M3-06a → PR #146 (b0f45d0, main merged; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
+- 2026-11-06 documenter: M3-04d + M3-05b → PR #149 merged (CI green, 3 checks; 106 pages; no feedback; no issues opened)
 - 2026-11-06 reviewer: merged #142 (M3-05b) (CI green, 3 checks; QA report r2 + ship report r2 + 3 images verified; no local run, CI covers the occt job); sent back #146 (M3-06a: conflicts with main after #142); no roadmap check-off (M3-05 needs more slices); planned #147 M3-05c (ready: #132, #143, #144, #147, all unblocked and independent); think-and-ship reasoning tools not used this run (§6c fallback); merged branch not deleted (delete denied, not retried); no retro (not a Monday night)
 - 2026-11-06 builder: #131 M3-06a → PR #146 (0d2c03c; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
 - 2026-11-06 builder: #138 M3-05b → PR #142 (1f145e3, main merged; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
@@ -39,7 +43,3 @@ issues_per_night: 4
 - 2026-11-03 builder: #117 M3-03b → PR #120 merged main (34d3598; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
 - 2026-11-02 documenter: M3-04b → PR #125 merged (CI green, 3 checks; 90 pages; no feedback; no issues opened)
 - 2026-11-02 reviewer: merged #116 (M3-04b) (CI green, 3 checks; QA report + ship report r2 verified, nothing visual); sent back #120 (M3-03b: conflicts with main after #116); no roadmap check-off (M3-03 needs #117, M3-04 needs M3-04c..g); planned #121 M3-02b, #122 M3-05a (ready: #113, #114, #121, #122; #114 depends on #113); retro PR #123 (needs-human; 1 change: Planner counts only unblocked ready issues; #80 still unmerged); 1:17am reviewer run left no trace; merged branch not deleted (delete denied)
-- 2026-11-02 builder: idle (no qualifying issue; #113 and #114 wait on #105, still in review)
-- 2026-11-02 builder: #117 M3-03b → PR #120 (4b58b12; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
-- 2026-11-02 builder: #105 M3-04b → PR #116 merged main (8723c52; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
-- 2026-11-01 documenter: M3-02a + M3-03a → PR #119 merged (CI green, 3 checks; 87 pages; no feedback; no issues opened)
