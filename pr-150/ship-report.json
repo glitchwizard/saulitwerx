@@ -1,0 +1,110 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(kernel): variable-radius fillet on one edge (M3-05c)",
+      "ref": "0125bf8",
+      "task_id": "pr150-gates",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt --all --check",
+      "passed": true,
+      "required": true,
+      "task_id": "pr150-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy --workspace --all-targets -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "pr150-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test --workspace",
+      "passed": true,
+      "required": true,
+      "task_id": "pr150-gates",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-kernel --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "pr150-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-kernel --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "pr150-gates",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-qa --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "pr150-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-qa --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "pr150-gates",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`Kernel::fillet_variable(&self, s: &Self::Shape, edge: SubShape, start: SubShape, r_start: f64, r_end: f64) -> Result<Self::Shape, KernelError>`, documented: `start` is a vertex of `edge`; the radius is `r_start` there and `r_end` at the edge's other vertex. The doc comment states the radius law between the ends, as given by OCCT's reference documentation. Implemented for `OcctKernel`; new shim code is `noexcept`, catches C++ exceptions and rejects a result `BRepCheck_Analyzer` finds invalid. Every new `unsafe` call is in `ffi` with a SAFETY comment.",
+      "Box tests (behind `occt`) on `make_box((0,0,0),(10,20,30))` (volume 6000), on the vertical edge where the planes x = 10 and y = 20 meet, with `start` its vertex at z = 0. Points within 1e-6, volumes within 1e-6 relative: `r_start` 2, `r_end` 4: the result has a vertex at (8, 20, 0) and one at (10, 18, 0), and one at (6, 20, 30) and one at (10, 16, 30); 7 faces, 15 edges, 10 vertices; bounding box unchanged. Its removed volume is strictly between that of `fillet(…, 2.0)` (≈ 25.7522) and `fillet(…, 4.0)` (≈ 103.0089) on the same edge. The same with `start` the vertex at z = 30: the vertices at z = 0 and z = 30 swap radii ((6, 20, 0) and (8, 20, 30)). `r_start` = `r_end` = 3 removes the same volume as `fillet(…, 3.0)`. The input solid is unchanged (volume 6000, 6 faces).",
+      "Errors, each with a test and never a panic, all `InvalidInput` and checked before the backend: `r_start` or `r_end` ≤ 0 or not finite; `edge` not an `Edge` or `start` not a `Vertex`; an index out of range; a `start` vertex that is not on `edge`.",
+      "A radius OCCT can't build (`r_start` 2, `r_end` 25 on that edge) returns an `Err`, not `Ok` or a panic, and the input is still usable afterwards (volume 6000).",
+      "No new dependencies. `swx-kernel` still has no workspace dependencies.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and so do the CI `swx-kernel (occt)` job commands.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-07T08:30:12.129217651+00:00",
+    "constraints": [],
+    "created_at": "2026-11-07T08:29:45.373941099+00:00",
+    "description": "M3-05c: Kernel variable-radius fillet (one edge by index, radius from a start vertex to the other end)",
+    "project_id": "saulitwerx",
+    "scope": "swx-kernel; PR #150 head 0125bf8",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 7,
+      "estimate": "small",
+      "id": "pr150-gates",
+      "status": "completed",
+      "title": "Gates for PR #150 (0125bf8)",
+      "type": "test"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
