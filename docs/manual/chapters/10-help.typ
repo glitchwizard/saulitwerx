@@ -69,6 +69,10 @@ Every message starts with `swx-qa: `. No picture is written when there is an err
   [`invalid input: face index 7 is out of range: the shape has 7 faces`], [The index is past the last sub-shape of its kind. Indices start at 0, so the last is the count minus 1. An index from another shape, or from before a change, can also be out of range (@sec-topology).],
   [`kernel failure: <operation> failed`], [OpenCascade couldn't complete the operation. For a cut, check that the tool solid overlaps the part (@ch-solids). For a `fillet` or a `chamfer`, the size is too large for the faces next to the edges: make it smaller (@sec-fillet-mistakes).],
   [`invalid input: the edge list is empty`], [A fillet or a chamfer was given no edges. Give at least one (@ch-fillet).],
+  [`invalid input: chamfer angle must be finite and strictly between 0 and π/2, got <v>`], [An uneven chamfer's angle is 0, 90° or more, not a number, or given in degrees. Give radians: `30f64.to_radians()` (@sec-chamfer-sizes).],
+  [`invalid input: face 4 does not bound edge 11`], [An uneven chamfer's reference face isn't one of the two faces that meet at its edge. Ask `adjacent` for the edge's faces and pick one (@sec-fillet-mistakes).],
+  [`invalid input: edge 11 is listed with two different faces (3 and 5)`], [An uneven chamfer lists the same edge twice, with different reference faces. Keep one.],
+  [`invalid input: expected a face, got edge 0` (or `vertex`)], [An uneven chamfer's reference face is an edge or a vertex. Give a face.],
   [`invalid input: expected an edge, got face 0` (or `vertex`)], [A fillet's or a chamfer's list holds something that isn't an edge. Give edges only (@sec-fillet-mistakes).],
   [`invalid input: edge index 12 is out of range: the shape has 12 edges`], [As for faces: the edge number is past the last edge, or comes from another solid. Find the edges in the solid you are softening.],
   [`invalid input: face index 14 is out of range (the shape has 14 faces)`], [`face_plane`, or a face extent, was given a face number past the last face of the target.],
@@ -191,9 +195,9 @@ For an unknown entity, `infer` and `add_inferred` give the sketch messages above
 - No desktop app, 3D view, mouse or keyboard controls yet.
 - A sketch's regions can't be extruded or revolved directly yet: type the outline's pieces into a program (@ch-extrude, @ch-revolve). There is no hole or shell feature yet.
 - An extrude can end on a face (@sec-extrude-to-face) only when the face is flat and parallel to the workplane, and it ends on the face's whole plane: it doesn't stop at the face's edges, or follow a curved face.
-- A fillet has one radius for all its edges, and a chamfer one distance, the same on both faces (@ch-fillet). There is no fillet whose radius changes along the edge, and no chamfer by two distances or by a distance and an angle.
+- A fillet has one radius for all its edges, and a chamfer one size for all its edges: one distance, two distances, or a distance and an angle (@ch-fillet). There is no fillet whose radius changes along the edge.
 - A revolve turns one way from the outline's plane by an angle; it can't yet turn both ways or symmetrically.
-- An extrude's or a revolve's target is a solid you hold in your program. Faces and edges can be counted and numbered (@sec-topology), and a plain extrude says which face each piece of the outline became (@sec-extrude-history), but they can't be picked, and their numbers don't last through a change; so the outline's workplane is given by its numbers (@sec-extrude-modes).
+- An extrude's or a revolve's target is a solid you hold in your program. Faces and edges can be counted and numbered (@sec-topology), a plain extrude says which face each piece of the outline became (@sec-extrude-history), and a Boolean what became of each face (@sec-boolean-history), but they can't be picked, and their numbers don't last through a change; so the outline's workplane is given by its numbers (@sec-extrude-modes).
 - Extrudes, revolves, fillets and chamfers aren't recorded in a part's history, so they don't rebuild when a parameter changes.
 - No native part files; work can't be saved with its history.
 - `swx-qa sketch` draws only its two built-in sketches. Your own sketches need a short program (@sec-picture-sketch). Sketch pictures show no dimension arrows and no marks for constraints such as horizontal.

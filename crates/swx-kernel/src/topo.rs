@@ -191,6 +191,113 @@ fn validate_list(
     Ok(indices)
 }
 
+/// An edge of a shape together with one of the two faces it bounds: the
+/// face an asymmetric chamfer measures its first setback on
+/// ([`Kernel::chamfer_asymmetric`](crate::Kernel::chamfer_asymmetric)).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct EdgeOnFace {
+    /// The edge to bevel.
+    pub edge: SubShape,
+    /// The reference face: one of the two faces that meet at `edge`.
+    pub face: SubShape,
+}
+
+/// The size of an asymmetric chamfer, measured from the edge.
+///
+/// Convention: `d1` and `distance` are the setback measured on the
+/// **reference face** ([`EdgeOnFace::face`]); `d2` is the setback on the
+/// other face of the edge. `angle` (radians) is the angle between the new
+/// chamfer face and the reference face, so where the two faces meet at a
+/// right angle the setback on the other face is `distance · tan(angle)`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ChamferSize {
+    /// Setback `d1` on the reference face and `d2` on the other face.
+    TwoDistances {
+        /// Setback on the reference face; finite and > 0.
+        d1: f64,
+        /// Setback on the other face; finite and > 0.
+        d2: f64,
+    },
+    /// Setback `distance` on the reference face, and the chamfer face at
+    /// `angle` to the reference face.
+    DistanceAngle {
+        /// Setback on the reference face; finite and > 0.
+        distance: f64,
+        /// Radians, strictly between 0 and π/2.
+        angle: f64,
+    },
+}
+
+impl ChamferSize {
+    /// Rejects a distance that is not finite or ≤ 0, and an angle that is
+    /// not finite or not strictly between 0 and π/2.
+    #[cfg_attr(not(feature = "occt"), allow(dead_code))]
+    pub(crate) fn validate(self) -> Result<(), KernelError> {
+        match self {
+            ChamferSize::TwoDistances { d1, d2 } => {
+                crate::validate_size("chamfer d1", d1)?;
+                crate::validate_size("chamfer d2", d2)
+            }
+            ChamferSize::DistanceAngle { distance, angle } => {
+                crate::validate_size("chamfer distance", distance)?;
+                if !angle.is_finite() || angle <= 0.0 || angle >= std::f64::consts::FRAC_PI_2 {
+                    return Err(KernelError::InvalidInput(format!(
+                        "chamfer angle must be finite and strictly between 0 and π/2, got {angle}"
+                    )));
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
+/// Checks an edge/face list for an asymmetric chamfer before it reaches the
+/// backend: it must not be empty; every `edge` must be an edge below
+/// `edge_count` and every `face` a face below `face_count`; an identical
+/// entry listed twice counts once, but the same edge with two different
+/// faces is an error. Returns `(edge, face)` index pairs sorted by edge.
+/// Whether each face actually bounds its edge is checked by the caller.
+#[cfg_attr(not(feature = "occt"), allow(dead_code))]
+pub(crate) fn validate_edges_on_faces(
+    list: &[EdgeOnFace],
+    edge_count: usize,
+    face_count: usize,
+) -> Result<Vec<(usize, usize)>, KernelError> {
+    if list.is_empty() {
+        return Err(KernelError::InvalidInput(
+            "the edge list is empty".to_string(),
+        ));
+    }
+    let mut pairs = Vec::with_capacity(list.len());
+    for p in list {
+        for (s, kind, count) in [
+            (p.edge, TopoKind::Edge, edge_count),
+            (p.face, TopoKind::Face, face_count),
+        ] {
+            if s.kind != kind {
+                return Err(KernelError::InvalidInput(format!(
+                    "expected {} {}, got {} {}",
+                    if kind == TopoKind::Edge { "an" } else { "a" },
+                    kind.name(),
+                    s.kind.name(),
+                    s.index
+                )));
+            }
+            validate_index(s, count)?;
+        }
+        pairs.push((p.edge.index, p.face.index));
+    }
+    pairs.sort_unstable();
+    pairs.dedup();
+    if let Some(w) = pairs.windows(2).find(|w| w[0].0 == w[1].0) {
+        return Err(KernelError::InvalidInput(format!(
+            "edge {} is listed with two different faces ({} and {})",
+            w[0].0, w[0].1, w[1].1
+        )));
+    }
+    Ok(pairs)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -248,6 +355,62 @@ mod tests {
             index: 0,
         };
         assert!(invalid(validate_faces(&[f(0), edge], 6)));
+    }
+
+    #[test]
+    fn chamfer_sizes_are_checked() {
+        use std::f64::consts::FRAC_PI_2;
+        let two = |d1, d2| ChamferSize::TwoDistances { d1, d2 }.validate();
+        let da = |distance, angle| ChamferSize::DistanceAngle { distance, angle }.validate();
+        assert!(two(2.0, 4.0).is_ok());
+        assert!(da(2.0, FRAC_PI_2 / 3.0).is_ok());
+        let invalid = |r: Result<(), KernelError>| matches!(r, Err(KernelError::InvalidInput(_)));
+        for bad in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+            assert!(invalid(two(bad, 4.0)), "d1 {bad}");
+            assert!(invalid(two(2.0, bad)), "d2 {bad}");
+            assert!(invalid(da(bad, 0.5)), "distance {bad}");
+        }
+        for bad in [0.0, -0.1, FRAC_PI_2, 2.0, f64::NAN, f64::INFINITY] {
+            assert!(invalid(da(2.0, bad)), "angle {bad}");
+        }
+    }
+
+    #[test]
+    fn edge_face_lists_are_checked_and_deduplicated() {
+        let sub = |kind, index| SubShape { kind, index };
+        let p = |e, f| EdgeOnFace {
+            edge: sub(TopoKind::Edge, e),
+            face: sub(TopoKind::Face, f),
+        };
+        assert_eq!(
+            validate_edges_on_faces(&[p(3, 1), p(1, 0), p(3, 1)], 12, 6).unwrap(),
+            vec![(1, 0), (3, 1)]
+        );
+        let invalid = |r: Result<Vec<(usize, usize)>, KernelError>| {
+            matches!(r, Err(KernelError::InvalidInput(_)))
+        };
+        assert!(invalid(validate_edges_on_faces(&[], 12, 6)));
+        assert!(invalid(validate_edges_on_faces(&[p(12, 0)], 12, 6)));
+        assert!(invalid(validate_edges_on_faces(&[p(0, 6)], 12, 6)));
+        let err = validate_edges_on_faces(&[p(3, 1), p(3, 2)], 12, 6).unwrap_err();
+        assert!(
+            matches!(&err, KernelError::InvalidInput(m) if m.contains("two different faces")),
+            "{err}"
+        );
+        for wrong in [sub(TopoKind::Face, 0), sub(TopoKind::Vertex, 0)] {
+            let e = EdgeOnFace {
+                edge: wrong,
+                face: sub(TopoKind::Face, 0),
+            };
+            assert!(invalid(validate_edges_on_faces(&[e], 12, 6)));
+        }
+        for wrong in [sub(TopoKind::Edge, 0), sub(TopoKind::Vertex, 0)] {
+            let e = EdgeOnFace {
+                edge: sub(TopoKind::Edge, 0),
+                face: wrong,
+            };
+            assert!(invalid(validate_edges_on_faces(&[e], 12, 6)));
+        }
     }
 
     #[test]
