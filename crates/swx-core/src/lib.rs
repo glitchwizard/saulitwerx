@@ -87,6 +87,12 @@ pub enum ModelError {
         expected: Dim,
         found: Dim,
     },
+    /// [`Document::set_end_of_part`] got a position past the end of the
+    /// history (`len` features).
+    MarkerOutOfRange {
+        pos: usize,
+        len: usize,
+    },
 }
 
 impl fmt::Display for ModelError {
@@ -125,6 +131,10 @@ impl fmt::Display for ModelError {
             } => write!(
                 f,
                 "expression for `{param}` gives {found}, but its unit expects {expected}"
+            ),
+            ModelError::MarkerOutOfRange { pos, len } => write!(
+                f,
+                "end-of-part position {pos} is past the end of the history ({len} features)"
             ),
         }
     }
@@ -176,6 +186,9 @@ pub struct Document {
     next_model_index: u64,
     history: Vec<Feature>,
     next_id: u32,
+    /// Position of the end-of-part marker: the number of features above it
+    /// (`0..=history.len()`). Features below it are rolled back.
+    end_of_part: usize,
 }
 
 impl Document {
@@ -343,15 +356,53 @@ impl Document {
         });
     }
 
+    /// Every feature, in history order, whether active or rolled back.
     pub fn history(&self) -> &[Feature] {
         &self.history
     }
 
-    /// Append a feature to the end of the history after validating its inputs.
+    /// The position of the end-of-part marker: the number of features above
+    /// it, in `0..=history().len()`. A new document has 0, and while the
+    /// marker is at the end, [`Document::add_feature`] keeps it there.
+    pub fn end_of_part(&self) -> usize {
+        self.end_of_part
+    }
+
+    /// The features above the end-of-part marker, `history()[..end_of_part()]`.
+    pub fn active_features(&self) -> &[Feature] {
+        &self.history[..self.end_of_part]
+    }
+
+    /// Move the end-of-part marker so that `pos` features are above it, and
+    /// return the features that became active (they must be rebuilt), in
+    /// history order. Moving the marker up (rolling back) or keeping it in
+    /// place returns an empty list. `pos > history().len()` is
+    /// [`ModelError::MarkerOutOfRange`], and the marker doesn't move.
+    pub fn set_end_of_part(&mut self, pos: usize) -> Result<Vec<FeatureId>, ModelError> {
+        let len = self.history.len();
+        if pos > len {
+            return Err(ModelError::MarkerOutOfRange { pos, len });
+        }
+        let old = std::mem::replace(&mut self.end_of_part, pos);
+        Ok(self
+            .history
+            .get(old..pos)
+            .unwrap_or_default()
+            .iter()
+            .map(|f| f.id)
+            .collect())
+    }
+
+    /// Insert a feature at the end-of-part marker, after validating its
+    /// inputs, and move the marker down by one. Every input must be an active
+    /// feature; one that is rolled back is a
+    /// [`ModelError::ForwardReference`]. On any error the history and the
+    /// marker don't change. Ids keep increasing, so history order can differ
+    /// from id order once a feature is inserted above others.
     pub fn add_feature(&mut self, name: &str, kind: FeatureKind) -> Result<FeatureId, ModelError> {
         let id = FeatureId(self.next_id);
         for input in kind.inputs() {
-            if !self.history.iter().any(|f| f.id == input) {
+            if !self.active_features().iter().any(|f| f.id == input) {
                 return Err(ModelError::ForwardReference { feature: id, input });
             }
         }
@@ -361,17 +412,22 @@ impl Document {
             }
         }
         self.next_id += 1;
-        self.history.push(Feature {
-            id,
-            name: name.to_owned(),
-            kind,
-        });
+        self.history.insert(
+            self.end_of_part,
+            Feature {
+                id,
+                name: name.to_owned(),
+                kind,
+            },
+        );
+        self.end_of_part += 1;
         Ok(id)
     }
 
-    /// Features that must be rebuilt, in history order, after `param` changes.
-    /// Features reading a parameter whose expression depends on `param`,
-    /// directly or through other expressions, count too.
+    /// Active features that must be rebuilt, in history order, after `param`
+    /// changes. Features reading a parameter whose expression depends on
+    /// `param`, directly or through other expressions, count too. Rolled-back
+    /// features (below the end-of-part marker) are never listed.
     pub fn dirty_after_param_change(&self, param: &str) -> Vec<FeatureId> {
         let mut changed = vec![param.to_owned()];
         // Parameters in dependency order, so one pass reaches every dependent.
@@ -387,7 +443,7 @@ impl Document {
             }
         }
         let seeds = self
-            .history
+            .active_features()
             .iter()
             .filter(|f| {
                 f.kind
@@ -399,7 +455,8 @@ impl Document {
         self.propagate(seeds)
     }
 
-    /// Features that must be rebuilt, in history order, after `feature` is edited.
+    /// Active features that must be rebuilt, in history order, after
+    /// `feature` is edited. Editing a rolled-back feature rebuilds nothing.
     pub fn dirty_after_feature_edit(
         &self,
         feature: FeatureId,
@@ -407,14 +464,19 @@ impl Document {
         if !self.history.iter().any(|f| f.id == feature) {
             return Err(ModelError::UnknownFeature(feature));
         }
+        if !self.active_features().iter().any(|f| f.id == feature) {
+            return Ok(Vec::new());
+        }
         Ok(self.propagate(std::iter::once(feature)))
     }
 
     fn propagate(&self, seeds: impl Iterator<Item = FeatureId>) -> Vec<FeatureId> {
         let mut dirty: BTreeSet<FeatureId> = seeds.collect();
-        // History is topologically ordered by construction, so one forward pass suffices.
+        // History is topologically ordered by construction (inputs must be
+        // active, so above the insertion point), so one forward pass over the
+        // active features suffices.
         let mut out = Vec::new();
-        for f in &self.history {
+        for f in self.active_features() {
             if dirty.contains(&f.id) || f.kind.inputs().iter().any(|i| dirty.contains(i)) {
                 dirty.insert(f.id);
                 out.push(f.id);
@@ -983,5 +1045,106 @@ mod tests {
             .to_string(),
             "expression for `d1` gives angle, but its unit expects length"
         );
+    }
+
+    /// S0 = Sketch, E1 = Extrude { profile: S0, depth: "d" }, S2 = Sketch.
+    fn s0_e1_s2() -> (Document, FeatureId, FeatureId, FeatureId) {
+        let mut d = Document::new();
+        d.set_param("d", 10.0);
+        let s0 = d.add_feature("S0", FeatureKind::Sketch).unwrap();
+        let e1 = d
+            .add_feature(
+                "E1",
+                FeatureKind::Extrude {
+                    profile: s0,
+                    depth: "d".into(),
+                },
+            )
+            .unwrap();
+        let s2 = d.add_feature("S2", FeatureKind::Sketch).unwrap();
+        (d, s0, e1, s2)
+    }
+
+    fn names(d: &Document) -> Vec<&str> {
+        d.history().iter().map(|f| f.name.as_str()).collect()
+    }
+
+    #[test]
+    fn new_document_marker_is_0_and_follows_appends() {
+        let mut d = Document::new();
+        assert_eq!(d.end_of_part(), 0);
+        assert!(d.active_features().is_empty());
+        d.add_feature("S0", FeatureKind::Sketch).unwrap();
+        assert_eq!(d.end_of_part(), 1);
+    }
+
+    #[test]
+    fn rolling_back_then_inserting_above_the_marker() {
+        let (mut d, s0, e1, s2) = s0_e1_s2();
+        assert_eq!(d.end_of_part(), 3);
+        assert_eq!(d.set_end_of_part(1), Ok(vec![]));
+        let active: Vec<FeatureId> = d.active_features().iter().map(|f| f.id).collect();
+        assert_eq!(active, vec![s0]);
+        assert_eq!(d.history().len(), 3);
+
+        let s3 = d.add_feature("S3", FeatureKind::Sketch).unwrap();
+        assert_eq!(s3, FeatureId(3));
+        assert_eq!(names(&d), ["S0", "S3", "E1", "S2"]);
+        assert_eq!(d.end_of_part(), 2);
+
+        let rolled_back = FeatureKind::Extrude {
+            profile: s2,
+            depth: "d".into(),
+        };
+        assert_eq!(
+            d.add_feature("E4", rolled_back),
+            Err(ModelError::ForwardReference {
+                feature: FeatureId(4),
+                input: s2,
+            })
+        );
+        assert_eq!(d.history().len(), 4);
+        assert_eq!(d.end_of_part(), 2);
+
+        assert_eq!(d.dirty_after_param_change("d"), vec![]);
+        assert_eq!(d.dirty_after_feature_edit(e1), Ok(vec![]));
+        assert_eq!(
+            d.dirty_after_feature_edit(FeatureId(99)),
+            Err(ModelError::UnknownFeature(FeatureId(99)))
+        );
+        assert_eq!(d.set_end_of_part(4), Ok(vec![e1, s2]));
+        assert_eq!(d.dirty_after_param_change("d"), vec![e1]);
+    }
+
+    #[test]
+    fn marker_past_the_end_is_an_error_and_does_not_move() {
+        let (mut d, ..) = s0_e1_s2();
+        d.add_feature("S3", FeatureKind::Sketch).unwrap();
+        d.set_end_of_part(2).unwrap();
+        let err = d.set_end_of_part(5).unwrap_err();
+        assert_eq!(err, ModelError::MarkerOutOfRange { pos: 5, len: 4 });
+        assert_eq!(
+            err.to_string(),
+            "end-of-part position 5 is past the end of the history (4 features)"
+        );
+        assert_eq!(d.end_of_part(), 2);
+        assert_eq!(d.set_end_of_part(2), Ok(vec![]));
+    }
+
+    #[test]
+    fn feature_inserted_above_a_dependent_is_rebuilt_first() {
+        let (mut d, s0, e1, s2) = s0_e1_s2();
+        d.set_end_of_part(1).unwrap();
+        let e = d
+            .add_feature(
+                "E",
+                FeatureKind::Extrude {
+                    profile: s0,
+                    depth: "d".into(),
+                },
+            )
+            .unwrap();
+        assert_eq!(d.set_end_of_part(4), Ok(vec![e1, s2]));
+        assert_eq!(d.dirty_after_feature_edit(s0), Ok(vec![s0, e, e1]));
     }
 }
