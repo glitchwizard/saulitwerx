@@ -24,6 +24,7 @@
 #include <BRepGProp.hxx>
 #include <BRepLProp_SLProps.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
+#include <BRepOffsetAPI_MakeThickSolid.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <BRepPrimAPI_MakeCylinder.hxx>
 #include <BRepPrimAPI_MakePrism.hxx>
@@ -50,6 +51,7 @@
 #include <TopoDS_Wire.hxx>
 #include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
 #include <TopTools_IndexedMapOfShape.hxx>
+#include <TopTools_ListOfShape.hxx>
 #include <TopTools_ListIteratorOfListOfShape.hxx>
 #include <gp_Ax2.hxx>
 #include <gp_Ax3.hxx>
@@ -672,6 +674,46 @@ int swx_occt_fillet_chamfer(int op, const SwxShape* s, const size_t* edges, size
             }
             result = maker.Shape();
         }
+        if (result.IsNull() || !BRepCheck_Analyzer(result).IsValid()) {
+            return -1;
+        }
+        return emit(result, out);
+    } catch (...) {
+        return -1;
+    }
+}
+
+// Hollows `s` into a thick solid (OCCT reference documentation,
+// BRepOffsetAPI_MakeThickSolid::MakeThickSolidByJoin): the `n` faces given by
+// 0-based TopExp::MapShapes indices in `faces` are removed, and the remaining
+// faces are offset by -`thickness` (inward, so the outer size is kept), with
+// arc joins (GeomAbs_Arc) between the offset faces. Fails if an index is out
+// of range, if OCCT can't build the result, or if the result is not a valid
+// shape. `s` itself is never modified.
+int swx_occt_shell(const SwxShape* s, const size_t* faces, size_t n, double thickness,
+                   SwxShape** out) noexcept {
+    if (s == nullptr || faces == nullptr || out == nullptr || n == 0 || !(thickness > 0.0)) {
+        return -1;
+    }
+    try {
+        TopTools_IndexedMapOfShape map;
+        TopExp::MapShapes(s->shape, TopAbs_FACE, map);
+        TopTools_ListOfShape closing;
+        for (size_t i = 0; i < n; ++i) {
+            if (faces[i] >= static_cast<size_t>(map.Extent())) {
+                return -1;
+            }
+            closing.Append(map.FindKey(static_cast<int>(faces[i]) + 1));
+        }
+        constexpr double kTolerance = 1.0e-6;
+        BRepOffsetAPI_MakeThickSolid maker;
+        maker.MakeThickSolidByJoin(s->shape, closing, -thickness, kTolerance, BRepOffset_Skin,
+                                   Standard_False, Standard_False, GeomAbs_Arc);
+        maker.Build();
+        if (!maker.IsDone()) {
+            return -1;
+        }
+        const TopoDS_Shape result = maker.Shape();
         if (result.IsNull() || !BRepCheck_Analyzer(result).IsValid()) {
             return -1;
         }

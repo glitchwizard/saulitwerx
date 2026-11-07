@@ -141,27 +141,50 @@ pub(crate) fn validate_index(of: SubShape, count: usize) -> Result<(), KernelErr
 /// duplicates removed.
 #[cfg_attr(not(feature = "occt"), allow(dead_code))]
 pub(crate) fn validate_edges(edges: &[SubShape], count: usize) -> Result<Vec<usize>, KernelError> {
-    if edges.is_empty() {
-        return Err(KernelError::InvalidInput(
-            "the edge list is empty".to_string(),
-        ));
+    validate_list(edges, TopoKind::Edge, count)
+}
+
+/// Checks a face list (e.g. the open faces of a shell) the same way as
+/// [`validate_edges`]: not empty, every entry a face with an index below
+/// `count` (the shape's face count). Returns the indices sorted, with
+/// duplicates removed.
+#[cfg_attr(not(feature = "occt"), allow(dead_code))]
+pub(crate) fn validate_faces(faces: &[SubShape], count: usize) -> Result<Vec<usize>, KernelError> {
+    validate_list(faces, TopoKind::Face, count)
+}
+
+fn validate_list(
+    items: &[SubShape],
+    kind: TopoKind,
+    count: usize,
+) -> Result<Vec<usize>, KernelError> {
+    let name = kind.name();
+    if items.is_empty() {
+        return Err(KernelError::InvalidInput(format!(
+            "the {name} list is empty"
+        )));
     }
-    let mut indices = Vec::with_capacity(edges.len());
-    for e in edges {
-        if e.kind != TopoKind::Edge {
+    let article = if name.starts_with(['a', 'e', 'i', 'o', 'u']) {
+        "an"
+    } else {
+        "a"
+    };
+    let mut indices = Vec::with_capacity(items.len());
+    for it in items {
+        if it.kind != kind {
             return Err(KernelError::InvalidInput(format!(
-                "expected an edge, got {} {}",
-                e.kind.name(),
-                e.index
+                "expected {article} {name}, got {} {}",
+                it.kind.name(),
+                it.index
             )));
         }
-        if e.index >= count {
+        if it.index >= count {
             return Err(KernelError::InvalidInput(format!(
-                "edge index {} is out of range: the shape has {count} edges",
-                e.index
+                "{name} index {} is out of range: the shape has {count} {name}s",
+                it.index
             )));
         }
-        indices.push(e.index);
+        indices.push(it.index);
     }
     indices.sort_unstable();
     indices.dedup();
@@ -314,6 +337,24 @@ mod tests {
             index: 0,
         };
         assert!(invalid(validate_edges(&[e(0), face], 12)));
+    }
+
+    #[test]
+    fn face_lists_are_checked_and_deduplicated() {
+        let f = |index| SubShape {
+            kind: TopoKind::Face,
+            index,
+        };
+        assert_eq!(validate_faces(&[f(5), f(2), f(5)], 6).unwrap(), vec![2, 5]);
+        let invalid =
+            |r: Result<Vec<usize>, KernelError>| matches!(r, Err(KernelError::InvalidInput(_)));
+        assert!(invalid(validate_faces(&[], 6)));
+        assert!(invalid(validate_faces(&[f(6)], 6)));
+        let edge = SubShape {
+            kind: TopoKind::Edge,
+            index: 0,
+        };
+        assert!(invalid(validate_faces(&[f(0), edge], 6)));
     }
 
     #[test]
