@@ -138,6 +138,13 @@ extern "C" {
         r_end: c_double,
         out: *mut *mut RawShape,
     ) -> c_int;
+    fn swx_occt_shell(
+        s: *const RawShape,
+        faces: *const usize,
+        n: usize,
+        thickness: c_double,
+        out: *mut *mut RawShape,
+    ) -> c_int;
     fn swx_occt_chamfer_asymmetric(
         mode: c_int,
         s: *const RawShape,
@@ -476,6 +483,27 @@ pub(crate) fn fillet_variable(
     // that receives a new, independently owned handle.
     let status =
         unsafe { swx_occt_fillet_variable(s.0.as_ptr(), edge, start, r_start, r_end, &mut raw) };
+    take(status, raw)
+}
+
+/// Hollows `s` inward by `thickness`, removing the faces at the 0-based
+/// `faces` indices. `None` on any failure, including an empty list, an index
+/// out of range or a result the shim finds invalid.
+pub(crate) fn shell(s: &ShapeHandle, faces: &[usize], thickness: f64) -> Option<ShapeHandle> {
+    let mut raw = ptr::null_mut();
+    // SAFETY: `s` is a live handle read-only for the call and not retained;
+    // `faces` points to `faces.len()` readable `usize`s (`size_t` layout) that
+    // the shim only reads during the call; `raw` is a valid out-pointer that
+    // receives a new, independently owned handle.
+    let status = unsafe {
+        swx_occt_shell(
+            s.0.as_ptr(),
+            faces.as_ptr(),
+            faces.len(),
+            thickness,
+            &mut raw,
+        )
+    };
     take(status, raw)
 }
 
