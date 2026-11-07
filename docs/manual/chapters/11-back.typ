@@ -33,6 +33,10 @@
     ("Expression", [A small formula with units that works out a value, such as `d1 / 2 + 5 mm`.]),
     ("Feature", [One step in building a part, such as a sketch or a cut. Features are kept in the history.]),
     ("Feature tree", [Another name for a part's history.]),
+    ("End-of-part marker", [The point in a part's history after which features are set aside (rolled back). New features go in at the marker.]),
+    ("Open face", [A face that a shell removes, leaving an opening in the hollowed part.]),
+    ("Rolling back", [Moving the end-of-part marker up the history, so the features below it are kept but not used.]),
+    ("Shell", [A feature that hollows a solid, leaving walls of one thickness and openings where its open faces were.]),
     ("Fillet", [A rounded face along an edge in place of the sharp edge, with a set radius.]),
     ("Fixed", [A constraint that keeps a point at exact coordinates.]),
     ("Fully constrained", [A sketch whose constraints and dimensions leave nothing free to move.]),
@@ -89,6 +93,13 @@
 }
 
 = What's new
+
+== 2026-11-07: shells, and rolling back the history
+
+- *New:* hollow a solid into walls of one thickness, open at the faces you choose: a tray, a frame or a cup in one call (@ch-shell).
+- *New:* move the history's end-of-part marker to roll a part back, insert features in the middle of its history, and roll forward again (@sec-roll-back). A new reference section lists the history calls (@sec-ref-history).
+- *Pictures:* a block shelled into a tray and a frame, and a cylinder into a cup.
+- Help: three new error messages, seven new common mistakes, and the known limitations updated. Glossary: end-of-part marker, open face, rolling back, shell.
 
 == 2026-11-06: uneven chamfers, and faces through a Boolean
 
@@ -201,7 +212,7 @@ These are the next items on the public roadmap. None of them works yet. When one
   columns: (auto, 1fr),
   header: ("Soon", "What you'll be able to do"),
   [Extrude from a sketch], [Hand a sketch's region straight to the extrude and the revolve.],
-  [More part features], [Shell, hole and draft; fillets and chamfers kept in a part's history.],
+  [More part features], [Hole and draft; shells with walls of different thicknesses; fillets, chamfers and shells kept in a part's history.],
   [Lasting references], [A feature built on a face or an edge keeps finding it when earlier features change.],
   [Part files], [Save a part with its full history, and open it again.],
   [Desktop app], [A window with a 3D view, a model browser, sketch mode and property panels.],
@@ -225,7 +236,7 @@ Later milestones add assemblies, 2D drawings and exploded views. The full plan i
       #text(font: sans, weight: "bold", fill: accent, "DRAW A SKETCH")
       #term-block("swx-qa sketch --fixture rectangle -o r.png\n  (or triangle-345)")
       #text(font: sans, weight: "bold", fill: accent, "SAMPLES")
-      #term-block("cargo run -p swx-sketch \\\n  --example plate_sketch\ncargo run -p swx-sketch \\\n  --example sketch_dof\ncargo run -p swx-sketch \\\n  --example centered_plate -- 60 25\ncargo run -p swx-sketch \\\n  --example slot_sketch\ncargo run -p swx-kernel --features occt \\\n  --example plate_with_hole -- plate.step\ncargo run -p swx-kernel --features occt \\\n  --example extrude_plate\ncargo run -p swx-kernel --features occt \\\n  --example revolve_bushing -- revolve\ncargo run -p swx-core \\\n  --example feature_history\ncargo run -p swx-core \\\n  --example parameter_table\ncargo run -p swx-sketch \\\n  --example driven_plate\ncargo run -p swx-core \\\n  --example expressions\ncargo run -p swx-core \\\n  --example parameter_formulas\ncargo run -p swx-sketch \\\n  --example inferred_sketch")
+      #term-block("cargo run -p swx-sketch \\\n  --example plate_sketch\ncargo run -p swx-sketch \\\n  --example sketch_dof\ncargo run -p swx-sketch \\\n  --example centered_plate -- 60 25\ncargo run -p swx-sketch \\\n  --example slot_sketch\ncargo run -p swx-kernel --features occt \\\n  --example plate_with_hole -- plate.step\ncargo run -p swx-kernel --features occt \\\n  --example extrude_plate\ncargo run -p swx-kernel --features occt \\\n  --example revolve_bushing -- revolve\ncargo run -p swx-core \\\n  --example feature_history\ncargo run -p swx-core \\\n  --example roll_back\ncargo run -p swx-core \\\n  --example parameter_table\ncargo run -p swx-sketch \\\n  --example driven_plate\ncargo run -p swx-core \\\n  --example expressions\ncargo run -p swx-core \\\n  --example parameter_formulas\ncargo run -p swx-sketch \\\n  --example inferred_sketch")
     ],
     [
       #text(font: sans, weight: "bold", fill: accent, "SKETCH CONSTRAINTS")
@@ -260,6 +271,7 @@ Later milestones add assemblies, 2D drawings and exploded views. The full plan i
         [`revolve_feature`], [revolve and combine],
         [`fillet` · `chamfer`], [round / bevel edges],
         [`chamfer_asymmetric`], [bevel by 2 sizes],
+        [`shell`], [hollow, open at faces],
         [`boolean_tracked`], [Boolean + face history],
         [`export_step` · `import_step`], [STEP file out / in],
       )

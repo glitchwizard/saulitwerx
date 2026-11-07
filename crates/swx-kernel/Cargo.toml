@@ -71,3 +71,7 @@ required-features = ["occt"]
 [[example]]
 name = "boolean_history"
 required-features = ["occt"]
+
+[[example]]
+name = "shell_parts"
+required-features = ["occt"]

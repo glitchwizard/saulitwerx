@@ -49,6 +49,53 @@ doc.dirty_after_feature_edit(pin_sketch)?;    // [Sketch2, Revolve1]
 #idx("rebuild")
 The features that need rebuilding are called #term[dirty]. Today's feature kinds are `Sketch`, `Extrude` (with a depth parameter) and `Revolve` (with an angle parameter, in degrees). They are records in the history only; making their geometry comes with the part features on the roadmap.
 
+== Roll back and insert a feature <sec-roll-back>
+
+#idx("end-of-part marker")
+New features go at the end of the history. Sometimes a new feature belongs earlier: a boss that later features should build on, say, or a cut that should happen before the edges are rounded. Instead of rebuilding the part, you move the history's #term[end-of-part marker] up, above the features that should come after the new one. This is called #term[rolling back]. The features below the marker are kept but not used: the part is built as if they weren't there. While the history is rolled back, new features go in at the marker, and the marker moves down past each one. Move the marker back to the end, and the rolled-back features return, built on top of what you inserted.
+
+The marker's position is a number: how many features are above it. In a history of four features, 4 means the end (nothing rolled back), and 2 means the last two are rolled back.
+
+#task-intro(
+  goal: [Roll a four-feature history back, insert two features above the rolled-back ones, and roll forward again.],
+  needs: [Saulitwerx built (@ch-install). OpenCascade is not needed.],
+  time: [5 minutes.],
+)
+
+#steps(
+  [#block(breakable: false)[Run the sample:
+  #term-block("cargo run -p swx-core --example roll_back")
+  #term-block(label: "Output", "history:\n  0  Sketch1\n  1  Extrude1\n  2  Sketch2\n  3  Revolve1\n  -- end of part --\nroll back to 2 -> rebuild nothing\nrolled back:\n  0  Sketch1\n  1  Extrude1\n  -- end of part --\n  2  Sketch2\n  3  Revolve1\nchange sweep -> rebuild nothing\nafter inserting Sketch3 and Extrude2:\n  0  Sketch1\n  1  Extrude1\n  2  Sketch3\n  3  Extrude2\n  -- end of part --\n  4  Sketch2\n  5  Revolve1\nadd Extrude3 from Sketch2 -> error: feature 6 references\n    feature 2 which is not earlier in the history\nroll forward to 6 -> rebuild Sketch2, Revolve1\nedit Sketch1 -> rebuild Sketch1, Extrude1\nroll forward to 9 -> error: end-of-part position 9 is past the end of the history (6 features)")
+  One long error line is wrapped here to fit the page.]],
+  [Read the first history. It is the four features of @sec-history, with the marker at the end.],
+  [Read `roll back to 2`. The marker now sits after Extrude1, and Sketch2 and Revolve1 are rolled back. Rolling back rebuilds nothing: the part simply stops at Extrude1.],
+  [Read `change sweep`. Revolve1 uses `sweep`, but while it is rolled back, changing `sweep` rebuilds nothing.],
+  [Read the third history. Sketch3 and Extrude2 went in at the marker, above Sketch2 and Revolve1, and the marker moved down past them.],
+  [Read the `Extrude3` line. A new feature can use only features above the marker, so an extrude of the rolled-back Sketch2 is refused, and the history is unchanged. The numbers in the message are the features' numbers, given when they were made (@sec-ref-history), not their places in the list: Sketch2 is feature 2, now in place 4.],
+  [Read `roll forward to 6`. With the marker back at the end, Sketch2 and Revolve1 return, and they must be rebuilt, now on top of Extrude2.],
+  [Read the last line. The history has six features, so the marker can't go to 9. It stays where it was.],
+)
+
+#result[Two features inserted in the middle of a history, without touching the features after them.]
+
+=== How the sample is built
+
+#block(breakable: false)[
+The program is `crates/swx-core/examples/roll_back.rs`. Two calls move the marker and read it:
+
+```rust
+doc.set_end_of_part(2)?;        // roll back: 2 features above the marker
+doc.end_of_part();              // 2
+doc.active_features();          // the features above the marker
+let back = doc.history().len();
+let rebuild = doc.set_end_of_part(back)?;   // [Sketch2, Revolve1]
+```
+]
+
+`add_feature` needs no change: it always inserts at the marker. `history()` still lists every feature, rolled back or not; `active_features()` lists only those above the marker. `set_end_of_part` returns the features that came back and must be rebuilt, which is nothing when you roll back.
+
+#caution(title: [Places and numbers])[A feature's number never changes, but its place in the history does when a feature is inserted above it. To find a feature by its number, search the history for it, as the sample's `names` helper does; don't use the number as a place in the list.]
+
 == Name and rename parameters <sec-param-table>
 
 Every part keeps its parameters in one #idx("parameter table")parameter table. Each row has a name, a value, a unit and an optional comment, and says where the parameter came from. A #term[model parameter] belongs to a dimension and gets the next free name in the series `d0`, `d1`, `d2`, … A #term[user parameter] is one you create yourself, with a name you choose, for a value you want to reuse or change in one place.
@@ -235,4 +282,6 @@ Each `Parameter` has an `expr` field holding the formula as typed, or `None` for
 - *Forgetting to apply and solve.* Changing a parameter changes the table only. Call `apply_params`, then `solve`, to move the sketch.
 - *A formula that loops.* A parameter can't depend on itself, directly or through others. Break the loop by making one of them a plain number.
 - *Replacing a formula by accident.* `set_param` drops the formula (@sec-param-formulas).
-- *Using a feature that comes later.* A feature may use only features already in the history. Otherwise `add_feature` fails with `feature N references feature M which is not earlier in the history`.
+- *Using a feature that comes later.* A feature may use only features already in the history and above the end-of-part marker. Otherwise `add_feature` fails with `feature N references feature M which is not earlier in the history`. If `M` is rolled back, roll forward first, or insert the new feature after it.
+- *Using a feature's number as its place.* Once a feature has been inserted above others, numbers and places differ (@sec-roll-back). Search `history()` for the number.
+- *Moving the marker past the end.* `end-of-part position 9 is past the end of the history (6 features)`. The end is `history().len()`.

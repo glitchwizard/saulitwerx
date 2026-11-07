@@ -22,9 +22,9 @@ The rules that keep the Saulitwerx user manual reading as one book, however many
 1. Front matter: cover (commit, build date, status), *How to use this manual*, contents.
 2. Part I Getting started: 1 Welcome, 2 Installing, 3 Your first part (the ~15-minute tutorial).
 3. Part II Concepts: 4 How parametric CAD works (solids, units, sketches, constraints, dimensions, degrees of freedom, parameters, features, history).
-4. Part III Tasks: 5 Sketching, 6 Solids and STEP files, 7 Extruding a profile (`chapters/06a-extrude.typ`), 8 Revolving a profile (`chapters/06b-revolve.typ`), 9 Rounding and bevelling edges (`chapters/06c-fillet.typ`), 10 Pictures of parts and sketches, 11 Parameters and history. Later: more part features, files, assemblies, drawings.
-5. Part IV Reference: 12 Reference (commands, build options, kernel operations, sketch entities and constraints, solver, degree-of-freedom report, formats and units, keyboard and mouse).
-6. Part V Help: 13 Help (troubleshooting by symptom, every error message, questions, known limitations).
+4. Part III Tasks: 5 Sketching, 6 Solids and STEP files, 7 Extruding a profile (`chapters/06a-extrude.typ`), 8 Revolving a profile (`chapters/06b-revolve.typ`), 9 Rounding and bevelling edges (`chapters/06c-fillet.typ`), 10 Hollowing a part (`chapters/06d-shell.typ`), 11 Pictures of parts and sketches, 12 Parameters and history (including rolling back). Later: more part features, files, assemblies, drawings. A new part feature gets its own chapter, in the order a user would reach for it.
+5. Part IV Reference: 13 Reference (commands, build options, kernel operations, sketch entities and constraints, solver, degree-of-freedom report, history, parameters, formats and units, keyboard and mouse).
+6. Part V Help: 14 Help (troubleshooting by symptom, every error message, questions, known limitations).
 7. Back matter: glossary, What's new (newest first, dated by night), Coming next, quick-reference card, credits and licenses, index.
 
 When the desktop app arrives (M5), Part I's tutorial moves to the app and the command-line tutorial moves into Part III for developers.
@@ -44,4 +44,6 @@ Label chapters `<ch-…>`, sections `<sec-…>`, figures `<fig-…>`. `@label` p
 - Pictures: tool-made only (`swx-qa render` for parts, `swx-qa sketch` or `swx_qa::sketch::plot` for sketches; app screenshots from M5). PNG in `img/`, under 1 MB, at least 200 dpi at printed size (a full-width figure is about 6.5 in, so at least 1300 px wide). The command that made each image sits in a comment next to its use. Annotations (operator signs, markers, labels) are drawn by the template, never painted into the image. Every figure has a caption and alt text. Sketch pictures are 600x420 px, shown at 40 % width alone or two across, so their built-in labels stay legible in print.
 - Picture rows: `#image-equation` for "this and that give this" (operator signs between images); `#image-row` for one start and several outcomes side by side, each with its own label and alt text.
 - Task intros (`#task-intro`) never break across pages.
+- A "How the sample is built" heading never ends a page: when it would, wrap the heading with what follows it in `#block(breakable: false)`.
+- A program-output line too long for the page is wrapped by hand, indented four spaces, and the step says so.
 - Tables use `#ref-table`; status uses `#now` / `#later` pills.
