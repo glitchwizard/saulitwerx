@@ -1,0 +1,118 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "Merge main into feat/147-variable-fillet",
+      "ref": "8415f7d",
+      "task_id": "pr150-r2-gates",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "pr150-r2-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "passed": true,
+      "required": true,
+      "task_id": "pr150-r2-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "required": true,
+      "task_id": "pr150-r2-gates",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "pr150-r2-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test swx-kernel occt",
+      "passed": false,
+      "required": true,
+      "task_id": "pr150-r2-gates",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo test swx-kernel occt (re-run)",
+      "passed": true,
+      "required": true,
+      "task_id": "pr150-r2-gates",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "pr150-r2-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "pr150-r2-gates",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "completed_at": "2026-11-07T10:24:15.175646443+00:00",
+    "created_at": "2026-11-07T10:22:38.730268999+00:00",
+    "description": "M3-05c: Kernel variable-radius fillet (one edge by index, radius from a start vertex to the other end) — r2: main merged (8415f7d)",
+    "project_id": "saulitwerx",
+    "scope": "swx-kernel; PR #150",
+    "status": "completed",
+    "acceptance_criteria": [
+      "`Kernel::fillet_variable(&self, s: &Self::Shape, edge: SubShape, start: SubShape, r_start: f64, r_end: f64) -> Result<Self::Shape, KernelError>`, documented: `start` is a vertex of `edge`; the radius is `r_start` there and `r_end` at the edge's other vertex. The doc comment states the radius law between the ends, as given by OCCT's reference documentation. Implemented for `OcctKernel`; new shim code is `noexcept`, catches C++ exceptions and rejects a result `BRepCheck_Analyzer` finds invalid. Every new `unsafe` call is in `ffi` with a SAFETY comment.",
+      "Box tests (behind `occt`) on `make_box((0,0,0),(10,20,30))` (volume 6000), on the vertical edge where the planes x = 10 and y = 20 meet, with `start` its vertex at z = 0 (2→4 vertices, counts, bbox, removed volume bounds; swapped start; equal radii; input unchanged).",
+      "Errors, each with a test and never a panic, all `InvalidInput` and checked before the backend: `r_start` or `r_end` ≤ 0 or not finite; `edge` not an `Edge` or `start` not a `Vertex`; an index out of range; a `start` vertex that is not on `edge`.",
+      "A radius OCCT can't build (`r_start` 2, `r_end` 25 on that edge) returns an `Err`, not `Ok` or a panic, and the input is still usable afterwards (volume 6000).",
+      "No new dependencies. `swx-kernel` still has no workspace dependencies.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and so do the CI `swx-kernel (occt)` job commands.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "constraints": []
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 8,
+      "estimate": "small",
+      "id": "pr150-r2-gates",
+      "status": "completed",
+      "title": "Merge main into PR #150 and run the gates on 8415f7d",
+      "type": "test"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
