@@ -89,7 +89,11 @@ Success and errors work as for `render`. `--step` and `--crease` belong to `rend
   [`cargo run -p swx-kernel --features occt --example extrude_to_face -- <dir>`], [Extrudes up to and between the faces of a stepped block (@sec-extrude-to-face). STEP files in `<dir>`.],
   [`cargo run -p swx-kernel --features occt --example revolve_bushing -- <dir>`], [Revolves a bushing and cuts a groove in it (@ch-revolve). STEP files in `<dir>`.],
   [`cargo run -p swx-kernel --features occt --example fillet_chamfer -- <dir>`], [Fillets and chamfers the edges of a block (@ch-fillet). STEP files in `<dir>`.],
+  [`cargo run -p swx-kernel --features occt --example chamfer_sizes -- <dir>`], [Chamfers one edge of a block four ways (@sec-chamfer-sizes). STEP files in `<dir>`.],
+  [`cargo run -p swx-kernel --features occt --example boolean_history -- <out.step>`], [Cuts a groove with history and prints what became of each face (@sec-boolean-history).],
+  [`cargo run -p swx-kernel --features occt --example shell_parts -- <dir>`], [Shells a block into a tray and a frame, and a cylinder into a cup (@ch-shell). STEP files in `<dir>`.],
   [`cargo run -p swx-core --example feature_history`], [Runs the history sample (@ch-history).],
+  [`cargo run -p swx-core --example roll_back`], [Runs the roll-back sample (@sec-roll-back).],
   [`cargo run -p swx-core --example parameter_table`], [Runs the parameter-table sample (@sec-param-table).],
   [`cargo run -p swx-sketch --example driven_plate`], [Runs the bound-dimension sample (@sec-drive-sketch).],
   [`cargo run -p swx-core --example expressions`], [Runs the expression sample (@sec-expressions).],
@@ -121,6 +125,7 @@ The `occt` feature switches on OpenCascade. It is off by default, so a plain bui
   [`fillet(s, edges, radius)`], [Rounds every edge in `edges` with one radius (@ch-fillet). Radius > 0; the list not empty, edges only, each in range; an edge listed twice counts once. A radius that doesn't fit fails, and `s` is unchanged.],
   [`chamfer(s, edges, distance)`], [Bevels every edge in `edges`, set back `distance` along both of its faces. Same rules as `fillet`.],
   [`chamfer_asymmetric(s, edges, size)`], [Bevels every edge in `edges`, a list of `EdgeOnFace`, by one `ChamferSize` measured from each edge's reference face (@sec-chamfer-sizes). The list not empty; each edge an edge and each face a face, in range; each face one of the two that bound its edge; an edge listed once, or twice with the same face. A size that doesn't fit fails, and `s` is unchanged.],
+  [`shell(s, open, thickness)`], [Hollows `s` into walls of one `thickness` (mm, > 0), grown inward so the outside size is unchanged, with the faces in `open` removed as openings (@ch-shell). The list not empty, faces only, each in range; a face listed twice counts once. A thickness that doesn't fit fails, and `s` is unchanged.],
   [`tessellate(s, deflection)`], [Breaks the surface into triangles, no farther than `deflection` (mm, > 0) from the true surface.],
   [`export_step(s, path)`], [Writes a STEP file in millimeters, replacing any existing file.],
   [`import_step(path)`], [Reads everything in a STEP file as one shape.],
@@ -392,6 +397,31 @@ A constraint the sketch already holds, in either order, is never suggested, so i
   [`NotConverged`], [The constraints were added, but the solve did not finish; the geometry is the solver's best attempt.],
 )
 
+== History <sec-ref-history>
+
+#idx("end-of-part marker")
+A `swx_core::Document` keeps its features in history order, with the end-of-part marker between the active features and the rolled-back ones (@sec-history, @sec-roll-back). Each feature has a `FeatureId`, a number given when it is made: 0, 1, 2, … in the order of making, never reused or changed. Once a feature is inserted above others, a feature's number and its place in the history differ.
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("Call", "What it does"),
+  [`add_feature(name, kind)`], [Inserts a feature at the end-of-part marker, moves the marker down past it, and returns its `FeatureId`. Fails if a parameter it uses doesn't exist, or a feature it uses isn't above the marker; then nothing changes.],
+  [`history()`], [Every feature in history order, active or rolled back.],
+  [`end_of_part()`], [The marker's position: how many features are above it, from 0 to the number of features. A new document has 0; while the marker is at the end, `add_feature` keeps it there.],
+  [`active_features()`], [The features above the marker: the first `end_of_part()` features of `history()`.],
+  [`set_end_of_part(pos)`], [Moves the marker so that `pos` features are above it, and returns the features that became active, in history order; they must be rebuilt. Rolling back, or staying in place, returns none. A `pos` past the number of features fails, and the marker stays.],
+  [`dirty_after_feature_edit(id)`], [The active features to rebuild after feature `id` is edited, in history order: itself and every feature that uses it, directly or not. A rolled-back feature rebuilds nothing. Fails for an unknown `id`.],
+  [`dirty_after_param_change(name)`], [See @sec-ref-params. Rolled-back features are never listed.],
+)
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("Feature kind", "Uses"),
+  [`FeatureKind::Sketch`], [nothing],
+  [`FeatureKind::Extrude { profile, depth }`], [the sketch `profile`, and the parameter named `depth`],
+  [`FeatureKind::Revolve { profile, angle_deg }`], [the sketch `profile`, and the parameter named `angle_deg`, in degrees],
+)
+
 == Parameters <sec-ref-params>
 
 #idx("Document")
@@ -407,7 +437,7 @@ A `swx_core::Document` keeps its parameters in creation order (@sec-param-table)
   [`set_param(name, value)`], [Sets the value and drops the parameter's formula, if it had one, then works out every formula that depends on it. If one of those fails, they keep their old values, with no error. An unknown name makes a user parameter with an empty unit; this name is not checked.],
   [`set_param_expr(name, text)`], [Gives the parameter a formula (@sec-ref-expr) and works out the whole table. The result is stored in the parameter's unit; a unitless result is taken in that unit. Fails if the parameter or a name in the formula is unknown, the formula doesn't parse or can't be worked out, its result is the wrong kind of quantity for the unit, or formulas would form a loop.],
   [`evaluation_order()`], [Every parameter name, each after the parameters its formula names; ties keep creation order.],
-  [`dirty_after_param_change(name)`], [The features to rebuild when `name` changes, including those that use a parameter whose formula depends on it, directly or through other formulas.],
+  [`dirty_after_param_change(name)`], [The active features to rebuild when `name` changes, including those that use a parameter whose formula depends on it, directly or through other formulas.],
   [`param(name)`], [The value, or `None`.],
   [`parameters()`], [Every parameter, in creation order.],
   [`is_valid_param_name(name)`], [Whether a name is allowed.],
