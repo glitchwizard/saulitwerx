@@ -181,6 +181,43 @@ impl Kernel for OcctKernel {
             .ok_or_else(|| backend("fillet"))
     }
 
+    fn fillet_variable(
+        &self,
+        s: &OcctShape,
+        edge: SubShape,
+        start: SubShape,
+        r_start: f64,
+        r_end: f64,
+    ) -> Result<OcctShape, KernelError> {
+        validate_size("fillet start radius", r_start)?;
+        validate_size("fillet end radius", r_end)?;
+        if edge.kind != TopoKind::Edge || start.kind != TopoKind::Vertex {
+            return Err(KernelError::InvalidInput(format!(
+                "a variable fillet needs an edge and a vertex, got {:?} {} and {:?} {}",
+                edge.kind, edge.index, start.kind, start.index
+            )));
+        }
+        validate_index(edge, self.sub_shape_count(s, TopoKind::Edge)?)?;
+        validate_index(start, self.sub_shape_count(s, TopoKind::Vertex)?)?;
+        if !self.adjacent(s, edge, TopoKind::Vertex)?.contains(&start) {
+            return Err(KernelError::InvalidInput(format!(
+                "vertex {} is not on edge {}",
+                start.index, edge.index
+            )));
+        }
+        // OCCT's variable-radius builder can return a shape that passes
+        // `BRepCheck_Analyzer` although its larger radius does not fit the
+        // faces next to the edge (seen with 2 → 25 on a 10 mm face). At the
+        // end with the larger radius the cross-section is that of a constant
+        // fillet of the same radius, so if that one can't be built, neither
+        // can the variable one.
+        self.fillet(s, &[edge], r_start.max(r_end))
+            .map_err(|_| backend("fillet"))?;
+        ffi::fillet_variable(&s.0, edge.index, start.index, r_start, r_end)
+            .map(OcctShape)
+            .ok_or_else(|| backend("fillet"))
+    }
+
     fn chamfer(
         &self,
         s: &OcctShape,
@@ -926,6 +963,129 @@ mod tests {
     #[test]
     fn fillet_each_box_edge_radius_2() {
         assert_each_edge_removes(|s, e| K.fillet(s, e, 2.0), 4.0 * (1.0 - PI / 4.0));
+    }
+
+    /// The one sub-shape of `kind` in `s` whose bounding box is `min`–`max`
+    /// (within 1e-6), if any.
+    fn find_by_box(s: &OcctShape, kind: TopoKind, min: Point3, max: Point3) -> Option<SubShape> {
+        let near = |a: Point3, b: Point3| (0..3).all(|i| (a[i] - b[i]).abs() < 1e-6);
+        (0..K.sub_shape_count(s, kind).unwrap())
+            .map(|index| sub(kind, index))
+            .find(|&x| {
+                let b = K.sub_shape_bounding_box(s, x).unwrap();
+                near(b.min, min) && near(b.max, max)
+            })
+    }
+
+    fn has_vertex(s: &OcctShape, p: Point3) -> bool {
+        find_by_box(s, TopoKind::Vertex, p, p).is_some()
+    }
+
+    /// The box's vertical edge where x = 10 and y = 20 meet, and its vertices
+    /// at z = 0 and z = 30.
+    fn variable_fillet_inputs(b: &OcctShape) -> (SubShape, SubShape, SubShape) {
+        let e = find_by_box(b, TopoKind::Edge, [10.0, 20.0, 0.0], [10.0, 20.0, 30.0]).unwrap();
+        let low = find_by_box(b, TopoKind::Vertex, [10.0, 20.0, 0.0], [10.0, 20.0, 0.0]).unwrap();
+        let high =
+            find_by_box(b, TopoKind::Vertex, [10.0, 20.0, 30.0], [10.0, 20.0, 30.0]).unwrap();
+        (e, low, high)
+    }
+
+    #[test]
+    fn fillet_variable_2_to_4_from_the_bottom() {
+        let b = box_10x20x30();
+        let (e, low, _) = variable_fillet_inputs(&b);
+        let r = K.fillet_variable(&b, e, low, 2.0, 4.0).unwrap();
+        for p in [
+            [8.0, 20.0, 0.0],
+            [10.0, 18.0, 0.0],
+            [6.0, 20.0, 30.0],
+            [10.0, 16.0, 30.0],
+        ] {
+            assert!(has_vertex(&r, p), "no vertex at {p:?}");
+        }
+        let counts = KINDS.map(|k| K.sub_shape_count(&r, k).unwrap());
+        assert_eq!(counts, [7, 15, 10]);
+        assert_bbox(&r, [0.0; 3], [10.0, 20.0, 30.0]);
+        let removed = 6000.0 - K.volume(&r).unwrap();
+        let removed_at = |radius| 6000.0 - K.volume(&K.fillet(&b, &[e], radius).unwrap()).unwrap();
+        let (lo, hi) = (removed_at(2.0), removed_at(4.0));
+        assert_close(lo, 30.0 * 4.0 * (1.0 - PI / 4.0));
+        assert_close(hi, 30.0 * 16.0 * (1.0 - PI / 4.0));
+        assert!(lo < removed && removed < hi, "{lo} < {removed} < {hi}");
+        assert_close(K.volume(&b).unwrap(), 6000.0);
+        assert_eq!(K.sub_shape_count(&b, TopoKind::Face).unwrap(), 6);
+    }
+
+    #[test]
+    fn fillet_variable_start_at_the_top_swaps_the_radii() {
+        let b = box_10x20x30();
+        let (e, low, high) = variable_fillet_inputs(&b);
+        let r = K.fillet_variable(&b, e, high, 2.0, 4.0).unwrap();
+        assert!(has_vertex(&r, [6.0, 20.0, 0.0]));
+        assert!(has_vertex(&r, [10.0, 16.0, 0.0]));
+        assert!(has_vertex(&r, [8.0, 20.0, 30.0]));
+        assert!(has_vertex(&r, [10.0, 18.0, 30.0]));
+        // Mirror image of the bottom-start fillet: the same volume.
+        let other = K.fillet_variable(&b, e, low, 2.0, 4.0).unwrap();
+        assert_close(K.volume(&r).unwrap(), K.volume(&other).unwrap());
+    }
+
+    #[test]
+    fn fillet_variable_with_equal_radii_matches_the_constant_fillet() {
+        let b = box_10x20x30();
+        let (e, low, _) = variable_fillet_inputs(&b);
+        let r = K.fillet_variable(&b, e, low, 3.0, 3.0).unwrap();
+        let c = K.fillet(&b, &[e], 3.0).unwrap();
+        assert_close(K.volume(&r).unwrap(), K.volume(&c).unwrap());
+    }
+
+    #[test]
+    fn fillet_variable_rejects_bad_inputs() {
+        let b = box_10x20x30();
+        let (e, low, _) = variable_fillet_inputs(&b);
+        let invalid =
+            |r: Result<OcctShape, KernelError>| matches!(r, Err(KernelError::InvalidInput(_)));
+        for bad in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+            assert!(
+                invalid(K.fillet_variable(&b, e, low, bad, 4.0)),
+                "r_start {bad}"
+            );
+            assert!(
+                invalid(K.fillet_variable(&b, e, low, 2.0, bad)),
+                "r_end {bad}"
+            );
+        }
+        let face = sub(TopoKind::Face, 0);
+        assert!(invalid(K.fillet_variable(&b, face, low, 2.0, 4.0)));
+        assert!(invalid(K.fillet_variable(&b, e, edge(0), 2.0, 4.0)));
+        assert!(invalid(K.fillet_variable(&b, edge(12), low, 2.0, 4.0)));
+        assert!(invalid(K.fillet_variable(
+            &b,
+            e,
+            sub(TopoKind::Vertex, 8),
+            2.0,
+            4.0
+        )));
+        let off_edge = find_by_box(&b, TopoKind::Vertex, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]).unwrap();
+        let err = K.fillet_variable(&b, e, off_edge, 2.0, 4.0).unwrap_err();
+        assert!(
+            matches!(&err, KernelError::InvalidInput(m) if m.contains("not on edge")),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn fillet_variable_too_large_is_an_error_and_keeps_the_input() {
+        let b = box_10x20x30();
+        let (e, low, _) = variable_fillet_inputs(&b);
+        assert!(K.fillet_variable(&b, e, low, 2.0, 25.0).is_err());
+        // Wider than the 10 mm face: OCCT's variable builder alone returns a
+        // shape here; the constant-radius check must reject it.
+        assert!(K.fillet_variable(&b, e, low, 12.0, 2.0).is_err());
+        assert_close(K.volume(&b).unwrap(), 6000.0);
+        let r = K.fillet_variable(&b, e, low, 2.0, 4.0).unwrap();
+        assert_eq!(K.sub_shape_count(&r, TopoKind::Face).unwrap(), 7);
     }
 
     #[test]

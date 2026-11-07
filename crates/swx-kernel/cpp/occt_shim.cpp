@@ -681,6 +681,59 @@ int swx_occt_fillet_chamfer(int op, const SwxShape* s, const size_t* edges, size
     }
 }
 
+// Rounds edge `edge` of `s` (0-based TopExp::MapShapes edge index) with a
+// variable-radius fillet (OCCT reference documentation,
+// BRepFilletAPI_MakeFillet::Add(E) and SetRadius(R1, R2, IC, IinC)): the
+// radius evolves linearly from R1 at the contour's FirstVertex to R2 at its
+// LastVertex. `start` (a 0-based vertex index) is matched against those two
+// vertices, so `r_start` lands on it whatever the edge's orientation. Fails
+// if an index is out of range, if `start` is not an end of the contour, if
+// the contour has more than this one edge (a tangent chain), if OCCT can't
+// build the result, or if the result is not a valid shape. `s` is never
+// modified.
+int swx_occt_fillet_variable(const SwxShape* s, size_t edge, size_t start, double r_start,
+                             double r_end, SwxShape** out) noexcept {
+    if (s == nullptr || out == nullptr || !(r_start > 0.0) || !(r_end > 0.0)) {
+        return -1;
+    }
+    try {
+        TopTools_IndexedMapOfShape edge_map;
+        TopTools_IndexedMapOfShape vertex_map;
+        TopExp::MapShapes(s->shape, TopAbs_EDGE, edge_map);
+        TopExp::MapShapes(s->shape, TopAbs_VERTEX, vertex_map);
+        if (edge >= static_cast<size_t>(edge_map.Extent()) ||
+            start >= static_cast<size_t>(vertex_map.Extent())) {
+            return -1;
+        }
+        const TopoDS_Edge e = TopoDS::Edge(edge_map.FindKey(static_cast<int>(edge) + 1));
+        const TopoDS_Shape v = vertex_map.FindKey(static_cast<int>(start) + 1);
+        BRepFilletAPI_MakeFillet maker(s->shape);
+        maker.Add(e);
+        const int ic = maker.Contour(e);
+        if (ic == 0 || maker.NbEdges(ic) != 1) {
+            return -1;
+        }
+        if (maker.FirstVertex(ic).IsSame(v)) {
+            maker.SetRadius(r_start, r_end, ic, 1);
+        } else if (maker.LastVertex(ic).IsSame(v)) {
+            maker.SetRadius(r_end, r_start, ic, 1);
+        } else {
+            return -1;
+        }
+        maker.Build();
+        if (!maker.IsDone()) {
+            return -1;
+        }
+        const TopoDS_Shape result = maker.Shape();
+        if (result.IsNull() || !BRepCheck_Analyzer(result).IsValid()) {
+            return -1;
+        }
+        return emit(result, out);
+    } catch (...) {
+        return -1;
+    }
+}
+
 // Bevels the `n` edges of `s` given by 0-based TopExp::MapShapes indices in
 // `edges`, each with its reference face `faces[i]` (a face index), using
 // BRepFilletAPI_MakeChamfer. Mode 0: two distances, `v1` on the reference

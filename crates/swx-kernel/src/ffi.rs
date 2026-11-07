@@ -130,6 +130,14 @@ extern "C" {
         value: c_double,
         out: *mut *mut RawShape,
     ) -> c_int;
+    fn swx_occt_fillet_variable(
+        s: *const RawShape,
+        edge: usize,
+        start: usize,
+        r_start: c_double,
+        r_end: c_double,
+        out: *mut *mut RawShape,
+    ) -> c_int;
     fn swx_occt_chamfer_asymmetric(
         mode: c_int,
         s: *const RawShape,
@@ -447,6 +455,27 @@ pub(crate) fn fillet_chamfer(
             &mut raw,
         )
     };
+    take(status, raw)
+}
+
+/// Fillets the edge at 0-based index `edge` of `s` with a radius that goes
+/// linearly from `r_start` at the vertex with 0-based index `start` to
+/// `r_end` at the edge's other vertex. `None` on any failure, including an
+/// index out of range, a vertex not on the edge, or an edge that is part of
+/// a longer tangent chain.
+pub(crate) fn fillet_variable(
+    s: &ShapeHandle,
+    edge: usize,
+    start: usize,
+    r_start: f64,
+    r_end: f64,
+) -> Option<ShapeHandle> {
+    let mut raw = ptr::null_mut();
+    // SAFETY: `s` is a live handle read-only for the call and not retained;
+    // the indices and radii are plain values; `raw` is a valid out-pointer
+    // that receives a new, independently owned handle.
+    let status =
+        unsafe { swx_occt_fillet_variable(s.0.as_ptr(), edge, start, r_start, r_end, &mut raw) };
     take(status, raw)
 }
 

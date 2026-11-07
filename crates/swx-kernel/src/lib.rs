@@ -165,6 +165,28 @@ pub trait Kernel {
         edges: &[SubShape],
         radius: f64,
     ) -> Result<Self::Shape, KernelError>;
+    /// Rounds one `edge` of `s` with a variable-radius fillet: the radius is
+    /// `r_start` at `start`, a vertex of `edge`, and `r_end` at the edge's
+    /// other vertex. Between the two ends the radius follows a linear
+    /// evolution law along the edge (OCCT reference documentation,
+    /// `BRepFilletAPI_MakeFillet::SetRadius(R1, R2, IC, IinC)`).
+    ///
+    /// It is [`KernelError::InvalidInput`], checked before the backend, when
+    /// a radius is not finite or ≤ 0, when `edge` is not an edge or `start`
+    /// not a vertex, when an index is out of range, or when `start` is not a
+    /// vertex of `edge`. A radius the backend can't build, or an edge that
+    /// continues tangentially into others (the backend would round the whole
+    /// tangent chain), is an error, and `s` is unchanged either way. The
+    /// larger of the two radii must also build as a constant fillet of
+    /// `edge` ([`Kernel::fillet`]); otherwise it is an error.
+    fn fillet_variable(
+        &self,
+        s: &Self::Shape,
+        edge: SubShape,
+        start: SubShape,
+        r_start: f64,
+        r_end: f64,
+    ) -> Result<Self::Shape, KernelError>;
     /// Bevels `edges` of `s` with an equal-distance chamfer: `distance` is
     /// set back along both faces of each edge. Same checks as
     /// [`Kernel::fillet`].
