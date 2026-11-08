@@ -48,6 +48,9 @@
 #include "chapters/06b-revolve.typ"
 #include "chapters/06c-fillet.typ"
 #include "chapters/06d-shell.typ"
+#include "chapters/06e-hole.typ"
+#include "chapters/06f-draft.typ"
+#include "chapters/06g-work.typ"
 #include "chapters/07-pictures.typ"
 #include "chapters/08-history.typ"
 

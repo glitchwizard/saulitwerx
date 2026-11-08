@@ -75,3 +75,19 @@ required-features = ["occt"]
 [[example]]
 name = "shell_parts"
 required-features = ["occt"]
+
+[[example]]
+name = "fillet_variable"
+required-features = ["occt"]
+
+[[example]]
+name = "draft_block"
+required-features = ["occt"]
+
+[[example]]
+name = "hole_plate"
+required-features = ["occt"]
+
+[[example]]
+name = "tilted_post"
+required-features = ["occt"]

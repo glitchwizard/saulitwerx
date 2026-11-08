@@ -67,9 +67,25 @@ Every message starts with `swx-qa: `. No picture is written when there is an err
   [`invalid input: no such file: f`], [The STEP file to read doesn't exist.],
   [`invalid input: adjacent needs two different kinds, got edge and edge`], [`adjacent` was asked for the same kind it starts from. Ask for another kind: the faces or vertices of an edge (@sec-topology).],
   [`invalid input: face index 7 is out of range: the shape has 7 faces`], [The index is past the last sub-shape of its kind. Indices start at 0, so the last is the count minus 1. An index from another shape, or from before a change, can also be out of range (@sec-topology).],
-  [`kernel failure: <operation> failed`], [OpenCascade couldn't complete the operation. For a cut, check that the tool solid overlaps the part (@ch-solids). For a `fillet` or a `chamfer`, the size is too large for the faces next to the edges: make it smaller (@sec-fillet-mistakes). For a `shell`, the walls are too thick for the part: keep them under half its narrowest width (@sec-shell-mistakes).],
+  [`kernel failure: <operation> failed`], [OpenCascade couldn't complete the operation. For a cut, check that the tool solid overlaps the part (@ch-solids). For a `fillet` or a `chamfer`, the size is too large for the faces next to the edges: make it smaller (@sec-fillet-mistakes). For a `shell`, the walls are too thick for the part: keep them under half its narrowest width (@sec-shell-mistakes). For a `draft`, a face can't be tilted, such as one parallel to the neutral plane (@sec-draft-mistakes).],
   [`invalid input: the edge list is empty`], [A fillet or a chamfer was given no edges. Give at least one (@ch-fillet).],
-  [`invalid input: the face list is empty`], [A shell was given no faces to open. Give at least one (@ch-shell).],
+  [`invalid input: the face list is empty`], [A shell was given no faces to open, or a draft no faces to tilt. Give at least one (@ch-shell, @ch-draft).],
+  [`invalid input: vertex 1 is not on edge 11`], [A variable fillet's start vertex isn't one of its edge's two ends. Ask `adjacent` for the edge's vertices (@sec-fillet-variable).],
+  [`invalid input: a variable fillet needs an edge and a vertex, got Face 0 and Vertex 2`], [The first sub-shape must be an edge, the second a vertex (@sec-fillet-variable).],
+  [`invalid input: counterbore diameter 5 must be larger than the hole diameter 6`], [A counterbore's recess must be wider than its hole (@sec-hole-mistakes).],
+  [`invalid input: hole depth 4 must be larger than the counterbore depth 6`], [A blind hole must go deeper than its recess. Make it deeper, or go through all.],
+  [`invalid input: hole direction must be finite and non-zero, got …`], [The hole's direction is missing or not a number. Point it into the material.],
+  [`invalid input: the hole misses the solid: it removes nothing`], [The hole's line misses the part, or points away from it (@sec-hole-mistakes).],
+  [`kernel failure: hole failed: the result is not a valid solid`], [The geometry engine made the hole, but the result isn't a sound solid. Try a slightly different position or size.],
+  [`empty result: the hole removes the whole solid`], [The hole is so large that nothing is left.],
+  [`invalid input: draft angle must be finite, non-zero and below π/2 in size, got <v>`], [A draft angle is zero, 90° or more, not a number, or given in degrees. Give radians: `5f64.to_radians()` (@sec-draft).],
+  [`invalid input: draft pull direction must be finite and non-zero, got …`], [The neutral plane's direction is missing or not a number.],
+  [`invalid input: the planes are parallel: they have no line in common`], [Two parallel planes have no line where they meet (@sec-work-mistakes).],
+  [`invalid input: the three plane points are collinear`], [Three points in a line don't fix a plane. Move one off the line.],
+  [`invalid input: axis direction (the points coincide) must be non-zero`, `plane points (two coincide) must be non-zero`], [An axis or a plane was given the same point twice.],
+  [`invalid input: the axis is parallel to the plane`], [The axis never crosses the plane, so there is no point (@sec-work-mistakes).],
+  [`invalid input: the axis does not lie in the plane`], [A plane can turn only about an axis on it (@sec-work-mistakes).],
+  [`invalid input: <name> must be finite, got …`, `<name> must be non-zero`], [A work feature was given a number that isn't finite, or a zero direction: for example `plane normal`, `axis direction` or `offset distance`.],
   [`invalid input: shell thickness must be finite and > 0, got <v>`], [A shell's wall thickness is zero, negative or not a number. Give a thickness in mm (@sec-shell).],
   [`invalid input: chamfer angle must be finite and strictly between 0 and π/2, got <v>`], [An uneven chamfer's angle is 0, 90° or more, not a number, or given in degrees. Give radians: `30f64.to_radians()` (@sec-chamfer-sizes).],
   [`invalid input: face 4 does not bound edge 11`], [An uneven chamfer's reference face isn't one of the two faces that meet at its edge. Ask `adjacent` for the edge's faces and pick one (@sec-fillet-mistakes).],
@@ -196,13 +212,16 @@ For an unknown entity, `infer` and `add_inferred` give the sketch messages above
 == Known limitations
 
 - No desktop app, 3D view, mouse or keyboard controls yet.
-- A sketch's regions can't be extruded or revolved directly yet: type the outline's pieces into a program (@ch-extrude, @ch-revolve). There is no hole feature yet.
+- A sketch's regions can't be extruded or revolved directly yet: type the outline's pieces into a program (@ch-extrude, @ch-revolve).
 - An extrude can end on a face (@sec-extrude-to-face) only when the face is flat and parallel to the workplane, and it ends on the face's whole plane: it doesn't stop at the face's edges, or follow a curved face.
-- A fillet has one radius for all its edges, and a chamfer one size for all its edges: one distance, two distances, or a distance and an angle (@ch-fillet). There is no fillet whose radius changes along the edge.
+- A fillet has one radius for all its edges, and a chamfer one size for all its edges: one distance, two distances, or a distance and an angle (@ch-fillet). A fillet whose radius changes along the edge rounds one edge per call, changing evenly from one end to the other (@sec-fillet-variable).
 - A shell has one wall thickness for every wall, and needs at least one open face (@ch-shell). A part hollow inside with no opening, or with walls of different thicknesses, can't be made yet.
 - A revolve turns one way from the outline's plane by an angle; it can't yet turn both ways or symmetrically.
 - An extrude's or a revolve's target is a solid you hold in your program. Faces and edges can be counted and numbered (@sec-topology), a plain extrude says which face each piece of the outline became (@sec-extrude-history), and a Boolean what became of each face (@sec-boolean-history), but they can't be picked, and their numbers don't last through a change; so the outline's workplane is given by its numbers (@sec-extrude-modes).
-- Extrudes, revolves, fillets, chamfers and shells aren't recorded in a part's history, so they don't rebuild when a parameter changes.
+- Holes have flat bottoms and are simple or counterbored: no drill points, countersinks or threads yet (@ch-hole).
+- A draft tilts flat faces by one angle about one neutral plane; it can't split a face or step its neutral line (@ch-draft).
+- Work planes, axes and points are built from numbers and from each other, not picked on a part (@ch-work).
+- Extrudes, revolves, fillets, chamfers, shells, holes, drafts and work features aren't recorded in a part's history, so they don't rebuild when a parameter changes.
 - No native part files; work can't be saved with its history.
 - `swx-qa sketch` draws only its two built-in sketches. Your own sketches need a short program (@sec-picture-sketch). Sketch pictures show no dimension arrows and no marks for constraints such as horizontal.
 - A parameter's unit is free text. Only the seven units of @sec-ref-expr are understood by formulas; any other unit counts as none.

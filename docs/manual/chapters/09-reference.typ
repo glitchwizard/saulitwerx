@@ -92,6 +92,11 @@ Success and errors work as for `render`. `--step` and `--crease` belong to `rend
   [`cargo run -p swx-kernel --features occt --example chamfer_sizes -- <dir>`], [Chamfers one edge of a block four ways (@sec-chamfer-sizes). STEP files in `<dir>`.],
   [`cargo run -p swx-kernel --features occt --example boolean_history -- <out.step>`], [Cuts a groove with history and prints what became of each face (@sec-boolean-history).],
   [`cargo run -p swx-kernel --features occt --example shell_parts -- <dir>`], [Shells a block into a tray and a frame, and a cylinder into a cup (@ch-shell). STEP files in `<dir>`.],
+  [`cargo run -p swx-kernel --features occt --example fillet_variable -- <dir>`], [Rounds one edge of a block from 2 mm to 8 mm (@sec-fillet-variable). STEP files in `<dir>`.],
+  [`cargo run -p swx-kernel --features occt --example hole_plate -- <dir>`], [Drills four holes in a plate (@ch-hole). A STEP file in `<dir>`.],
+  [`cargo run -p swx-kernel --features occt --example draft_block -- <dir>`], [Drafts the sides of a block three ways (@ch-draft). STEP files in `<dir>`.],
+  [`cargo run -p swx-kernel --example work_features`], [Builds work planes, axes and a point, and prints them (@sec-work). Needs no OpenCascade.],
+  [`cargo run -p swx-kernel --features occt --example tilted_post -- <dir>`], [Stands a post at 30° on a plate, from a tilted work plane (@sec-work-use). A STEP file in `<dir>`.],
   [`cargo run -p swx-core --example feature_history`], [Runs the history sample (@ch-history).],
   [`cargo run -p swx-core --example roll_back`], [Runs the roll-back sample (@sec-roll-back).],
   [`cargo run -p swx-core --example parameter_table`], [Runs the parameter-table sample (@sec-param-table).],
@@ -123,9 +128,12 @@ The `occt` feature switches on OpenCascade. It is off by default, so a plain bui
   [`sub_shape_bounding_box(s, of)`], [The smallest axis-aligned box around one face, edge or vertex `of` of `s`, as for `bounding_box`. `of.index` must be in range.],
   [`face_plane(s, face)`], [The plane of the flat face `face` of `s`: a point on it and its unit outward normal, pointing out of the solid (@sec-extrude-to-face). `face` must be a face, in range, and flat.],
   [`fillet(s, edges, radius)`], [Rounds every edge in `edges` with one radius (@ch-fillet). Radius > 0; the list not empty, edges only, each in range; an edge listed twice counts once. A radius that doesn't fit fails, and `s` is unchanged.],
+  [`fillet_variable(s, edge, start, r_start, r_end)`], [Rounds one `edge` with a radius that changes evenly from `r_start` at the vertex `start` to `r_end` at the edge's other end (@sec-fillet-variable). Both radii > 0; `edge` an edge and `start` a vertex, each in range; `start` one of the edge's two vertices. The larger radius must fit as a constant fillet would, and the edge must not run smoothly into another; otherwise it fails, and `s` is unchanged.],
   [`chamfer(s, edges, distance)`], [Bevels every edge in `edges`, set back `distance` along both of its faces. Same rules as `fillet`.],
   [`chamfer_asymmetric(s, edges, size)`], [Bevels every edge in `edges`, a list of `EdgeOnFace`, by one `ChamferSize` measured from each edge's reference face (@sec-chamfer-sizes). The list not empty; each edge an edge and each face a face, in range; each face one of the two that bound its edge; an edge listed once, or twice with the same face. A size that doesn't fit fails, and `s` is unchanged.],
   [`shell(s, open, thickness)`], [Hollows `s` into walls of one `thickness` (mm, > 0), grown inward so the outside size is unchanged, with the faces in `open` removed as openings (@ch-shell). The list not empty, faces only, each in range; a face listed twice counts once. A thickness that doesn't fit fails, and `s` is unchanged.],
+  [`hole(s, at, kind, depth)`], [Drills a hole of `kind` and `depth` into `s` (@ch-hole). `at` is an `Axis`: its `origin` the hole's center on the start face, its `dir` pointing into the material. Depths are measured from `at.origin` along `dir`, to a flat bottom. A hole that removes nothing is refused; one that removes everything is `EmptyResult`. `s` is unchanged.],
+  [`draft(s, faces, neutral, angle)`], [Tilts every face in `faces` by `angle` radians about the line where it crosses the neutral plane (@ch-draft). `neutral` is an `Axis`: a point on the neutral plane, and the pull direction, which is the plane's normal. A positive angle makes the solid smaller along the pull direction. The angle not zero and less than π/2 either way; the list not empty, faces only, each in range; a face listed twice counts once. A face the engine can't draft, such as one parallel to the neutral plane, fails, and `s` is unchanged.],
   [`tessellate(s, deflection)`], [Breaks the surface into triangles, no farther than `deflection` (mm, > 0) from the true surface.],
   [`export_step(s, path)`], [Writes a STEP file in millimeters, replacing any existing file.],
   [`import_step(path)`], [Reads everything in a STEP file as one shape.],
@@ -141,6 +149,10 @@ All positions must be finite numbers; all sizes finite and greater than zero.
   [`EdgeOnFace { edge, face }`], [An edge, and the reference face an uneven chamfer measures its first size on: one of the two faces that meet at the edge.],
   [`ChamferSize::TwoDistances { d1, d2 }`], [`d1` on the reference face, `d2` on the other face. Both finite and > 0, in mm.],
   [`ChamferSize::DistanceAngle { distance, angle }`], [`distance` on the reference face, finite and > 0, in mm. `angle` between the reference face and the new face, in radians, strictly between 0 and π/2.],
+  [`HoleKind::Simple { diameter }`], [A plain round hole. Diameter > 0, in mm.],
+  [`HoleKind::Counterbore { diameter, cb_diameter, cb_depth }`], [A hole with a wider, flat-bottomed recess at its mouth. All > 0, in mm; `cb_diameter` larger than `diameter`.],
+  [`HoleDepth::Blind(depth)`], [Stops `depth` mm from the start point, with a flat bottom. Depth > 0, and larger than a counterbore's `cb_depth`.],
+  [`HoleDepth::ThroughAll`], [Through the whole solid, along the direction from the start point.],
   [`BooleanOp`], [`Union`, `Cut` or `Intersect`.],
   [`OpHistory { modified, generated }`], [`modified`: one entry `(operand, face, images)` for each face of `a` (`Operand::A`), then of `b` (`Operand::B`), in index order. `images` are the result's faces it became, sorted: one if it lives on (perhaps trimmed), several if split, none if deleted. `generated` is empty for a Boolean. Faces only.],
 )
@@ -210,6 +222,26 @@ A through-all extent with any mode but cut, a face extent with the new-solid mod
 )
 
 The axis and the angle are checked before any geometry is made. Then `revolve` checks the face against the axis: the face must be one flat face, the axis must lie in its plane, and the face must not have points on both sides of the axis. Each check allows `REVOLVE_AXIS_TOLERANCE`, 1e-7 mm; a face that touches the axis passes (@sec-revolve-mistakes).
+
+== Work features <sec-ref-work>
+
+Work planes are `Workplane` values and work axes `Axis` values (@sec-ref-extrude), so they go wherever those do. Work points are `Point3` values, `[x, y, z]` in mm. None of these calls needs OpenCascade (@ch-work).
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("Call or value", "What it gives and what it accepts"),
+  [`ORIGIN`], [The part origin, (0, 0, 0).],
+  [`Axis::X`, `::Y`, `::Z`], [The origin axes: through the origin along +X, +Y and +Z.],
+  [`plane.offset(distance)`], [The plane moved `distance` mm along its normal, keeping its directions. Any finite distance, negative included.],
+  [`Workplane::through_points(p0, p1, p2)`], [The plane through three points: origin `p0`, `x_dir` towards `p1`, normal along (p1 − p0) × (p2 − p0). The points different and not in a line.],
+  [`Workplane::from_point_normal(p, n)`], [The plane through `p` with normal `n`. Its `x_dir` is +X laid flat on the plane, or +Y if `n` is along X. `n` non-zero.],
+  [`plane.angled(axis, angle)`], [The plane turned `angle` radians about `axis` (right-hand rule), origin included. The axis must lie in the plane. Any finite angle.],
+  [`Axis::through_points(p, q)`], [The axis through `p` pointing towards `q`. The points different.],
+  [`Axis::plane_intersection(a, b)`], [The line where two planes meet, along a.normal × b.normal, through its point nearest the origin. The planes not parallel.],
+  [`plane_axis_intersection(plane, axis)`], [The point where the axis crosses the plane. The axis not parallel to the plane.],
+)
+
+Every input must be finite, and every refusal is `InvalidInput` (@sec-errors). The checks use `DATUM_TOLERANCE`, 1e-9: directions this close count as parallel, points this close (in mm) as the same, and an axis this close to a plane as lying in it.
 
 == Sketch entities and constraints <sec-ref-sketch>
 
