@@ -1,0 +1,118 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "fix(kernel): serialize OCCT variable-radius fillet calls",
+      "ref": "a4b3b83",
+      "task_id": "pr150-r3-gates",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt --all --check",
+      "passed": true,
+      "required": true,
+      "task_id": "pr150-r3-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy --workspace --all-targets -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "pr150-r3-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test --workspace",
+      "passed": true,
+      "required": true,
+      "task_id": "pr150-r3-gates",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-kernel --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "pr150-r3-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-kernel --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "pr150-r3-gates",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-kernel --features occt (unpiped)",
+      "passed": true,
+      "required": true,
+      "task_id": "pr150-r3-gates",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-qa --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "pr150-r3-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-qa --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "pr150-r3-gates",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "completed_at": "2026-11-08T08:29:02.949962647+00:00",
+    "created_at": "2026-11-08T08:28:12.984041967+00:00",
+    "description": "M3-05c: Kernel variable-radius fillet (one edge by index, radius from a start vertex to the other end)",
+    "project_id": "saulitwerx",
+    "status": "completed",
+    "acceptance_criteria": [
+      "`Kernel::fillet_variable(&self, s: &Self::Shape, edge: SubShape, start: SubShape, r_start: f64, r_end: f64) -> Result<Self::Shape, KernelError>`, documented: `start` is a vertex of `edge`; the radius is `r_start` there and `r_end` at the edge's other vertex. The doc comment states the radius law between the ends, as given by OCCT's reference documentation. Implemented for `OcctKernel`; new shim code is `noexcept`, catches C++ exceptions and rejects a result `BRepCheck_Analyzer` finds invalid. Every new `unsafe` call is in `ffi` with a SAFETY comment.",
+      "Box tests (behind `occt`) on `make_box((0,0,0),(10,20,30))` (volume 6000), on the vertical edge where the planes x = 10 and y = 20 meet, with `start` its vertex at z = 0. Points within 1e-6, volumes within 1e-6 relative: r_start 2, r_end 4 vertices/counts/bbox/removed volume; start at z = 30 swaps radii; r_start = r_end = 3 matches fillet(3.0); input unchanged.",
+      "Errors, each with a test and never a panic, all `InvalidInput` and checked before the backend: `r_start` or `r_end` <= 0 or not finite; `edge` not an `Edge` or `start` not a `Vertex`; an index out of range; a `start` vertex that is not on `edge`.",
+      "A radius OCCT can't build (`r_start` 2, `r_end` 25 on that edge) returns an `Err`, not `Ok` or a panic, and the input is still usable afterwards (volume 6000).",
+      "No new dependencies. `swx-kernel` still has no workspace dependencies.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and so do the CI `swx-kernel (occt)` job commands.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "constraints": [],
+    "scope": ""
+  },
+  "project_id": "saulitwerx",
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 8,
+      "estimate": "small",
+      "id": "pr150-r3-gates",
+      "status": "completed",
+      "title": "Gates for PR #150 head a4b3b83 (serialized variable fillet)",
+      "type": "test"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": [],
+  "recent_actions": []
+}
