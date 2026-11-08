@@ -4,14 +4,16 @@ use std::f64::consts::FRAC_PI_2;
 use std::path::Path;
 
 use crate::ffi::{self, ChamferMode, EdgeOp, FacePlane, ShapeHandle};
+use crate::hole::{perpendicular, prepare_hole, HoleCylinder};
 use crate::profile::{check_revolve_profile, prepare_face, prepare_revolve};
 use crate::topo::{
     validate_adjacent, validate_edges, validate_edges_on_faces, validate_faces, validate_index,
 };
 use crate::{
     input_file_cstring, path_to_cstring, validate_point, validate_size, Axis, BooleanOp,
-    BoundingBox, ChamferSize, EdgeOnFace, Extent, ExtrudeHistory, Kernel, KernelError, Mesh,
-    OpHistory, Operand, Point3, ProfileLoop, SubShape, TopoKind, Workplane,
+    BoundingBox, ChamferSize, EdgeOnFace, Extent, ExtrudeHistory, HoleDepth, HoleKind, Kernel,
+    KernelError, Mesh, OpHistory, Operand, Point3, ProfileLoop, Segment2, SubShape, TopoKind,
+    Workplane, EMPTY_VOLUME_TOLERANCE,
 };
 
 /// [`Kernel`] backed by the system OpenCascade libraries.
@@ -273,6 +275,82 @@ impl Kernel for OcctKernel {
         ffi::draft(&s.0, &indices, neutral.origin, dir, angle)
             .map(OcctShape)
             .ok_or_else(|| backend("draft"))
+    }
+
+    /// Cuts one cylinder per [`HoleCylinder`] from `s`: a circle on the
+    /// plane through the start point normal to the drill direction, extruded
+    /// along it ([`Kernel::make_face`], [`Kernel::extrude`], [`Kernel::cut`]).
+    /// A through hole's cylinder runs past the far side of the solid's
+    /// bounding box. The result is checked with OCCT's shape checker
+    /// (`BRepCheck_Analyzer`, via [`ffi::is_valid`]).
+    fn hole(
+        &self,
+        s: &OcctShape,
+        at: Axis,
+        kind: HoleKind,
+        depth: HoleDepth,
+    ) -> Result<OcctShape, KernelError> {
+        let plan = prepare_hole(at, kind, depth)?;
+        let misses = || {
+            KernelError::InvalidInput("the hole misses the solid: it removes nothing".to_string())
+        };
+        // Farthest reach of the solid along the drill direction from the start point.
+        let b = self.bounding_box(s)?;
+        let mut reach = f64::NEG_INFINITY;
+        for i in 0..8 {
+            let corner = [
+                if i & 1 == 0 { b.min[0] } else { b.max[0] },
+                if i & 2 == 0 { b.min[1] } else { b.max[1] },
+                if i & 4 == 0 { b.min[2] } else { b.max[2] },
+            ];
+            let along = (0..3)
+                .map(|k| (corner[k] - plan.origin[k]) * plan.dir[k])
+                .sum::<f64>();
+            reach = reach.max(along);
+        }
+        if reach <= 0.0 {
+            return Err(misses());
+        }
+        let through = reach + (0.01 * reach).max(1.0);
+        let plane = Workplane {
+            origin: plan.origin,
+            x_dir: perpendicular(plan.dir),
+            normal: plan.dir,
+        };
+        let tool = |c: &HoleCylinder| {
+            let circle = ProfileLoop {
+                segments: vec![Segment2::Circle {
+                    center: [0.0, 0.0],
+                    radius: c.radius,
+                }],
+            };
+            let face = self.make_face(&plane, &circle, &[])?;
+            self.extrude(&face, Extent::Distance(c.length.unwrap_or(through)))
+        };
+        let (first, rest) = plan
+            .cylinders
+            .split_first()
+            .ok_or_else(|| KernelError::InvalidInput("a hole needs a cylinder".to_string()))?;
+        let mut result = self.cut(s, &tool(first)?)?;
+        for c in rest {
+            result = self.cut(&result, &tool(c)?)?;
+        }
+        if !ffi::is_valid(&result.0) {
+            return Err(KernelError::Backend(
+                "hole failed: the result is not a valid solid".to_string(),
+            ));
+        }
+        let before = self.volume(s)?;
+        let after = self.volume(&result)?;
+        if after <= EMPTY_VOLUME_TOLERANCE {
+            return Err(KernelError::EmptyResult(
+                "the hole removes the whole solid".to_string(),
+            ));
+        }
+        if before - after <= 1e-9 * before.abs() {
+            return Err(misses());
+        }
+        Ok(result)
     }
 
     fn chamfer_asymmetric(
@@ -2008,5 +2086,134 @@ mod tests {
             "drafting the top face should fail"
         );
         assert_close(K.volume(&b).unwrap(), 6000.0);
+    }
+
+    fn hole_box() -> OcctShape {
+        K.make_box([0.0; 3], [40.0, 30.0, 20.0]).unwrap()
+    }
+
+    const HOLE_DOWN: Axis = Axis {
+        origin: [20.0, 15.0, 20.0],
+        dir: [0.0, 0.0, -1.0],
+    };
+
+    const CBORE: HoleKind = HoleKind::Counterbore {
+        diameter: 6.0,
+        cb_diameter: 11.0,
+        cb_depth: 6.0,
+    };
+
+    fn assert_hole(s: &OcctShape, volume: f64, faces: usize) {
+        assert_close(K.volume(s).unwrap(), volume);
+        assert_eq!(K.face_count(s).unwrap(), faces);
+        assert_bbox(s, [0.0; 3], [40.0, 30.0, 20.0]);
+    }
+
+    #[test]
+    fn hole_simple_blind_and_through() {
+        let b = hole_box();
+        let simple = HoleKind::Simple { diameter: 6.0 };
+        let blind = K
+            .hole(&b, HOLE_DOWN, simple, HoleDepth::Blind(10.0))
+            .unwrap();
+        assert_hole(&blind, 24000.0 - 90.0 * PI, 8);
+        let through = K
+            .hole(&b, HOLE_DOWN, simple, HoleDepth::ThroughAll)
+            .unwrap();
+        assert_hole(&through, 24000.0 - 180.0 * PI, 7);
+        // The input solid is unchanged.
+        assert_close(K.volume(&b).unwrap(), 24000.0);
+        assert_eq!(K.face_count(&b).unwrap(), 6);
+    }
+
+    #[test]
+    fn hole_counterbore_through_and_blind() {
+        let b = hole_box();
+        let through = K.hole(&b, HOLE_DOWN, CBORE, HoleDepth::ThroughAll).unwrap();
+        assert_hole(&through, 24000.0 - (181.5 + 126.0) * PI, 9);
+        let blind = K
+            .hole(&b, HOLE_DOWN, CBORE, HoleDepth::Blind(10.0))
+            .unwrap();
+        assert_hole(&blind, 24000.0 - (181.5 + 36.0) * PI, 10);
+        assert_close(K.volume(&b).unwrap(), 24000.0);
+        assert_eq!(K.face_count(&b).unwrap(), 6);
+    }
+
+    #[test]
+    fn hole_on_a_side_face() {
+        let b = hole_box();
+        let at = Axis {
+            origin: [0.0, 15.0, 10.0],
+            dir: [1.0, 0.0, 0.0],
+        };
+        let h = K
+            .hole(
+                &b,
+                at,
+                HoleKind::Simple { diameter: 6.0 },
+                HoleDepth::Blind(10.0),
+            )
+            .unwrap();
+        assert_hole(&h, 24000.0 - 90.0 * PI, 8);
+        assert!(
+            find_by_box(&h, TopoKind::Face, [10.0, 12.0, 7.0], [10.0, 18.0, 13.0]).is_some(),
+            "the hole bottom should be the disk at x = 10"
+        );
+    }
+
+    #[test]
+    fn hole_rejects_bad_inputs_and_misses() {
+        let b = hole_box();
+        let blind = HoleDepth::Blind(10.0);
+        let invalid = |r: Result<OcctShape, KernelError>| {
+            assert!(matches!(r, Err(KernelError::InvalidInput(_))), "{r:?}");
+        };
+        invalid(K.hole(&b, HOLE_DOWN, HoleKind::Simple { diameter: 0.0 }, blind));
+        invalid(K.hole(
+            &b,
+            HOLE_DOWN,
+            HoleKind::Simple { diameter: 6.0 },
+            HoleDepth::Blind(-1.0),
+        ));
+        let narrow = HoleKind::Counterbore {
+            diameter: 6.0,
+            cb_diameter: 5.0,
+            cb_depth: 6.0,
+        };
+        invalid(K.hole(&b, HOLE_DOWN, narrow, HoleDepth::ThroughAll));
+        invalid(K.hole(&b, HOLE_DOWN, CBORE, HoleDepth::Blind(6.0)));
+        let zero_dir = Axis {
+            dir: [0.0; 3],
+            ..HOLE_DOWN
+        };
+        invalid(K.hole(&b, zero_dir, CBORE, HoleDepth::ThroughAll));
+        let nan_origin = Axis {
+            origin: [f64::NAN, 15.0, 20.0],
+            ..HOLE_DOWN
+        };
+        invalid(K.hole(&b, nan_origin, CBORE, HoleDepth::ThroughAll));
+        let outside = Axis {
+            origin: [100.0, 15.0, 20.0],
+            ..HOLE_DOWN
+        };
+        for depth in [blind, HoleDepth::ThroughAll] {
+            let r = K.hole(&b, outside, HoleKind::Simple { diameter: 6.0 }, depth);
+            assert!(
+                matches!(
+                    r,
+                    Err(KernelError::InvalidInput(_)
+                        | KernelError::Backend(_)
+                        | KernelError::EmptyResult(_))
+                ),
+                "a hole that misses should be an error, got {r:?}"
+            );
+        }
+        // Pointing away from the solid also misses.
+        let away = Axis {
+            dir: [0.0, 0.0, 1.0],
+            ..HOLE_DOWN
+        };
+        invalid(K.hole(&b, away, CBORE, HoleDepth::ThroughAll));
+        assert_close(K.volume(&b).unwrap(), 24000.0);
     }
 }

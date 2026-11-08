@@ -14,6 +14,7 @@ use std::fmt;
 use std::path::Path;
 
 mod feature;
+mod hole;
 mod mesh;
 mod profile;
 mod topo;
@@ -27,6 +28,7 @@ pub use feature::{
     extrude_feature, revolve_feature, ExtrudeMode, EMPTY_VOLUME_TOLERANCE, FACE_DISTANCE_TOLERANCE,
     PARALLEL_FACE_TOLERANCE,
 };
+pub use hole::{HoleDepth, HoleKind};
 pub use mesh::Mesh;
 #[cfg(feature = "occt")]
 pub use occt::{OcctKernel, OcctShape};
@@ -255,6 +257,29 @@ pub trait Kernel {
         faces: &[SubShape],
         neutral: Axis,
         angle: f64,
+    ) -> Result<Self::Shape, KernelError>;
+
+    /// Removes a hole of `kind` and `depth` from `s`.
+    ///
+    /// `at.origin` is the hole's center on the start face and `at.dir`
+    /// (normalized first) points into the material. A blind depth, and a
+    /// counterbore's depth, are measured from `at.origin` along the drill
+    /// direction to a flat bottom (no drill point). [`HoleDepth::ThroughAll`]
+    /// cuts through the whole solid along the direction from `at.origin`.
+    ///
+    /// It is [`KernelError::InvalidInput`], checked before the backend, when
+    /// a diameter, blind depth, `cb_diameter` or `cb_depth` is not finite or
+    /// ≤ 0, when `cb_diameter` ≤ `diameter`, when a blind depth ≤ `cb_depth`,
+    /// when `at.dir` is zero-length or not finite, or when `at.origin` is not
+    /// finite. A hole that removes nothing (its axis misses the solid) is
+    /// `InvalidInput` too, and a result the backend finds invalid is an
+    /// error. `s` is unchanged either way.
+    fn hole(
+        &self,
+        s: &Self::Shape,
+        at: Axis,
+        kind: HoleKind,
+        depth: HoleDepth,
     ) -> Result<Self::Shape, KernelError>;
 
     /// Boolean union `a ∪ b`.
