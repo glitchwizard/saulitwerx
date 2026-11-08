@@ -137,6 +137,20 @@ extern "C" {
         thickness: c_double,
         out: *mut *mut RawShape,
     ) -> c_int;
+    #[allow(clippy::too_many_arguments)]
+    fn swx_occt_draft(
+        s: *const RawShape,
+        faces: *const usize,
+        n: usize,
+        ox: c_double,
+        oy: c_double,
+        oz: c_double,
+        dx: c_double,
+        dy: c_double,
+        dz: c_double,
+        angle: c_double,
+        out: *mut *mut RawShape,
+    ) -> c_int;
     fn swx_occt_chamfer_asymmetric(
         mode: c_int,
         s: *const RawShape,
@@ -472,6 +486,41 @@ pub(crate) fn shell(s: &ShapeHandle, faces: &[usize], thickness: f64) -> Option<
             faces.as_ptr(),
             faces.len(),
             thickness,
+            &mut raw,
+        )
+    };
+    take(status, raw)
+}
+
+/// Tilts the faces at the 0-based `faces` indices of `s` by `angle` radians
+/// (positive: smaller along `dir`) about their lines on the plane through `origin`
+/// normal to `dir`. `None` on any failure, including an empty list, an index
+/// out of range, a zero `dir` or a result the shim finds invalid.
+pub(crate) fn draft(
+    s: &ShapeHandle,
+    faces: &[usize],
+    origin: [f64; 3],
+    dir: [f64; 3],
+    angle: f64,
+) -> Option<ShapeHandle> {
+    let mut raw = ptr::null_mut();
+    // SAFETY: `s` is a live handle read-only for the call and not retained;
+    // `faces` points to `faces.len()` readable `usize`s (`size_t` layout) that
+    // the shim only reads during the call; the coordinates and angle are plain
+    // values; `raw` is a valid out-pointer that receives a new, independently
+    // owned handle.
+    let status = unsafe {
+        swx_occt_draft(
+            s.0.as_ptr(),
+            faces.as_ptr(),
+            faces.len(),
+            origin[0],
+            origin[1],
+            origin[2],
+            dir[0],
+            dir[1],
+            dir[2],
+            angle,
             &mut raw,
         )
     };

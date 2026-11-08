@@ -24,6 +24,7 @@
 #include <BRepGProp.hxx>
 #include <BRepLProp_SLProps.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
+#include <BRepOffsetAPI_DraftAngle.hxx>
 #include <BRepOffsetAPI_MakeThickSolid.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <BRepPrimAPI_MakeCylinder.hxx>
@@ -709,6 +710,56 @@ int swx_occt_shell(const SwxShape* s, const size_t* faces, size_t n, double thic
         BRepOffsetAPI_MakeThickSolid maker;
         maker.MakeThickSolidByJoin(s->shape, closing, -thickness, kTolerance, BRepOffset_Skin,
                                    Standard_False, Standard_False, GeomAbs_Arc);
+        maker.Build();
+        if (!maker.IsDone()) {
+            return -1;
+        }
+        const TopoDS_Shape result = maker.Shape();
+        if (result.IsNull() || !BRepCheck_Analyzer(result).IsValid()) {
+            return -1;
+        }
+        return emit(result, out);
+    } catch (...) {
+        return -1;
+    }
+}
+
+// Tilts the `n` faces of `s` given by 0-based TopExp::MapShapes indices in
+// `faces` by `angle` radians (OCCT reference documentation,
+// BRepOffsetAPI_DraftAngle::Add(F, Direction, Angle, NeutralPlane)): each
+// face turns about its intersection with the neutral plane through
+// (ox, oy, oz) normal to the pull direction (dx, dy, dz). A positive angle
+// makes the solid smaller moving along the pull direction (checked by the
+// box tests in occt.rs), which is the convention Kernel::draft documents. Fails
+// if an index is out of range, if the direction is zero, if OCCT can't build
+// the result (e.g. a face parallel to the neutral plane), or if the result is
+// not a valid shape. `s` is never modified.
+int swx_occt_draft(const SwxShape* s, const size_t* faces, size_t n, double ox, double oy,
+                   double oz, double dx, double dy, double dz, double angle,
+                   SwxShape** out) noexcept {
+    if (s == nullptr || faces == nullptr || out == nullptr || n == 0) {
+        return -1;
+    }
+    try {
+        const gp_Vec v(dx, dy, dz);
+        if (!(v.Magnitude() > 0.0)) {
+            return -1;
+        }
+        const gp_Dir pull(v);
+        const gp_Pln neutral(gp_Pnt(ox, oy, oz), pull);
+        TopTools_IndexedMapOfShape map;
+        TopExp::MapShapes(s->shape, TopAbs_FACE, map);
+        BRepOffsetAPI_DraftAngle maker(s->shape);
+        for (size_t i = 0; i < n; ++i) {
+            if (faces[i] >= static_cast<size_t>(map.Extent())) {
+                return -1;
+            }
+            const TopoDS_Face f = TopoDS::Face(map.FindKey(static_cast<int>(faces[i]) + 1));
+            maker.Add(f, pull, angle, neutral);
+            if (!maker.AddDone()) {
+                return -1;
+            }
+        }
         maker.Build();
         if (!maker.IsDone()) {
             return -1;

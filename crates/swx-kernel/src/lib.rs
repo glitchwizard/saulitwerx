@@ -213,6 +213,28 @@ pub trait Kernel {
         thickness: f64,
     ) -> Result<Self::Shape, KernelError>;
 
+    /// Drafts (tilts) the `faces` of `s` by a constant `angle` in radians.
+    ///
+    /// The neutral plane passes through `neutral.origin` and is normal to
+    /// `neutral.dir` (normalized first), which is the pull direction. Each
+    /// face turns about its line on the neutral plane, which stays where it
+    /// is. A positive `angle` tilts each face so the solid gets smaller
+    /// moving along the pull direction; a negative one makes it larger.
+    /// Duplicate faces count once. It is [`KernelError::InvalidInput`],
+    /// checked before the backend, when `faces` is empty, an entry is not a
+    /// face or its index is out of range, `neutral.dir` is zero-length or not
+    /// finite, `neutral.origin` is not finite, or `angle` is zero, not finite
+    /// or has |angle| ≥ π/2. A face the backend can't draft (e.g. one
+    /// parallel to the neutral plane) is an error, and `s` is unchanged
+    /// either way.
+    fn draft(
+        &self,
+        s: &Self::Shape,
+        faces: &[SubShape],
+        neutral: Axis,
+        angle: f64,
+    ) -> Result<Self::Shape, KernelError>;
+
     /// Boolean union `a ∪ b`.
     fn union(&self, a: &Self::Shape, b: &Self::Shape) -> Result<Self::Shape, KernelError>;
     /// Boolean difference `a − b`.
