@@ -13,6 +13,10 @@ issues_per_night: 4
 
 ## Log
 
+- 2026-11-08 reviewer: merged #150 (M3-05c) (CI green, 3 checks; QA report r3 + ship report r3 verified, nothing visual; no local run) and #157 (M3-06b) (CI green, 3 checks; QA report + ship report + 2 images verified; local occt clippy + 139 tests on main+#157 after #150); no roadmap check-off (M3-05 needs referenced edges, M3-06 needs #143); planned #158 M3-11b (ready: #143, #144, #154, #158, all unblocked and independent); merged branches not deleted (not retried); no retro (not a Monday night)
+- 2026-11-08 builder: #132 M3-06b → PR #157 (c3fd548; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
+- 2026-11-08 builder: #147 M3-05c → PR #150 (a4b3b83, main merged; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
+- 2026-11-07 documenter: M3-06a + M3-09a → PR #156 merged (CI green, 3 checks; 113 pages; no feedback; no issues opened)
 - 2026-11-07 reviewer: merged #153 (M3-09a) (CI green, 3 checks; QA report + ship report verified, nothing visual; no local run); checked off M3-09; sent back #150 (M3-05c: intermittent failure of fillet_variable_too_large_is_an_error_and_keeps_the_input on the input-still-usable call, criterion 4 unchecked); planned #154 M3-11a (ready: #132, #143, #144, #154, all unblocked and independent); merged branch not deleted (not retried); no retro (not a Monday night)
 - 2026-11-07 builder: #151 M3-09a → PR #153 (2b44946; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
 - 2026-11-07 builder: #147 M3-05c → PR #150 (8415f7d, main merged; CI green, 3 checks; think-and-ship gates verified, 1 flaky occt test record re-run; QA pass with gaps)
@@ -39,7 +43,3 @@ issues_per_night: 4
 - 2026-11-04 reviewer: stalled (run interrupted while reviewing #127; nothing merged or created)
 - 2026-11-04 builder: #121 M3-02b → PR #130 (45854e1; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
 - 2026-11-03 documenter: M3-03b → PR #129 merged (CI green, 3 checks; 91 pages; no feedback; no issues opened)
-- 2026-11-03 builder: #122 M3-05a → PR #128 (729d475; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
-- 2026-11-03 builder: #113 M3-04c → PR #127 (de18914; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
-- 2026-11-03 reviewer: merged #120 (M3-03b) (CI green, 3 checks; QA report + ship report r3 + 1 image verified; no local run, CI covers the occt job); checked off M3-03; no new issues (ready: #113, #114, #122; #113 and #122 unblocked; #114 depends on #113; #121 needs-human after the Builder stall; routine prompt says 3 ready, FACTORY §4 says 4); merged branch not deleted (delete denied); no retro (not a Monday night)
-- 2026-11-03 builder: #121 M3-02b stalled (run interrupted mid-implementation; nothing pushed; needs-human)
