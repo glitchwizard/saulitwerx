@@ -170,6 +170,7 @@ extern "C" {
         out: *mut *mut RawShape,
     ) -> c_int;
     fn swx_occt_volume(s: *const RawShape, out: *mut c_double) -> c_int;
+    fn swx_occt_is_valid(s: *const RawShape) -> c_int;
     fn swx_occt_surface_area(s: *const RawShape, out: *mut c_double) -> c_int;
     fn swx_occt_bounding_box(s: *const RawShape, out: *mut c_double) -> c_int;
     fn swx_occt_sub_shape_bounding_box(
@@ -613,6 +614,16 @@ pub(crate) fn volume(s: &ShapeHandle) -> Option<f64> {
     // writable `f64` on our stack that outlives the call.
     let status = unsafe { swx_occt_volume(s.0.as_ptr(), &mut out) };
     (status == 0).then_some(out)
+}
+
+/// Whether `s` is a valid shape according to OCCT's shape checker
+/// (OCCT reference documentation: `BRepCheck_Analyzer::IsValid`). A failure
+/// inside the check counts as invalid.
+pub(crate) fn is_valid(s: &ShapeHandle) -> bool {
+    // SAFETY: `s` is a live handle read-only for the call and not retained;
+    // the shim takes no other arguments and returns a plain status.
+    let status = unsafe { swx_occt_is_valid(s.0.as_ptr()) };
+    status == 1
 }
 
 pub(crate) fn surface_area(s: &ShapeHandle) -> Option<f64> {

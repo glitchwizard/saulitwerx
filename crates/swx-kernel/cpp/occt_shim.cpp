@@ -902,6 +902,19 @@ int swx_occt_volume(const SwxShape* s, double* out) noexcept {
     }
 }
 
+// Shape validity (OCCT reference documentation: BRepCheck_Analyzer::IsValid).
+// Returns 1 when valid, 0 when invalid, -1 on a null input or any exception.
+int swx_occt_is_valid(const SwxShape* s) noexcept {
+    if (s == nullptr) {
+        return -1;
+    }
+    try {
+        return BRepCheck_Analyzer(s->shape).IsValid() ? 1 : 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
 // Total face area by OCCT mass-properties integration.
 int swx_occt_surface_area(const SwxShape* s, double* out) noexcept {
     if (s == nullptr || out == nullptr) {
