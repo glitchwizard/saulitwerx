@@ -67,12 +67,14 @@ Every message starts with `swx-qa: `. No picture is written when there is an err
   [`invalid input: no such file: f`], [The STEP file to read doesn't exist.],
   [`invalid input: adjacent needs two different kinds, got edge and edge`], [`adjacent` was asked for the same kind it starts from. Ask for another kind: the faces or vertices of an edge (@sec-topology).],
   [`invalid input: face index 7 is out of range: the shape has 7 faces`], [The index is past the last sub-shape of its kind. Indices start at 0, so the last is the count minus 1. An index from another shape, or from before a change, can also be out of range (@sec-topology).],
-  [`kernel failure: <operation> failed`], [OpenCascade couldn't complete the operation. For a cut, check that the tool solid overlaps the part (@ch-solids). For a `fillet` or a `chamfer`, the size is too large for the faces next to the edges: make it smaller (@sec-fillet-mistakes).],
+  [`kernel failure: <operation> failed`], [OpenCascade couldn't complete the operation. For a cut, check that the tool solid overlaps the part (@ch-solids). For a `fillet` or a `chamfer`, the size is too large for the faces next to the edges: make it smaller (@sec-fillet-mistakes). For a `shell`, the walls are too thick for the part: keep them under half its narrowest width (@sec-shell-mistakes).],
   [`invalid input: the edge list is empty`], [A fillet or a chamfer was given no edges. Give at least one (@ch-fillet).],
+  [`invalid input: the face list is empty`], [A shell was given no faces to open. Give at least one (@ch-shell).],
+  [`invalid input: shell thickness must be finite and > 0, got <v>`], [A shell's wall thickness is zero, negative or not a number. Give a thickness in mm (@sec-shell).],
   [`invalid input: chamfer angle must be finite and strictly between 0 and π/2, got <v>`], [An uneven chamfer's angle is 0, 90° or more, not a number, or given in degrees. Give radians: `30f64.to_radians()` (@sec-chamfer-sizes).],
   [`invalid input: face 4 does not bound edge 11`], [An uneven chamfer's reference face isn't one of the two faces that meet at its edge. Ask `adjacent` for the edge's faces and pick one (@sec-fillet-mistakes).],
   [`invalid input: edge 11 is listed with two different faces (3 and 5)`], [An uneven chamfer lists the same edge twice, with different reference faces. Keep one.],
-  [`invalid input: expected a face, got edge 0` (or `vertex`)], [An uneven chamfer's reference face is an edge or a vertex. Give a face.],
+  [`invalid input: expected a face, got edge 0` (or `vertex`)], [An uneven chamfer's reference face, or one of a shell's open faces, is an edge or a vertex. Give a face (@sec-shell-mistakes).],
   [`invalid input: expected an edge, got face 0` (or `vertex`)], [A fillet's or a chamfer's list holds something that isn't an edge. Give edges only (@sec-fillet-mistakes).],
   [`invalid input: edge index 12 is out of range: the shape has 12 edges`], [As for faces: the edge number is past the last edge, or comes from another solid. Find the edges in the solid you are softening.],
   [`invalid input: face index 14 is out of range (the shape has 14 faces)`], [`face_plane`, or a face extent, was given a face number past the last face of the target.],
@@ -144,7 +146,8 @@ Any sketch message above can also come from profiles, when the sketch itself is 
   [#raw("a parameter named `p` already exists")], [Every parameter needs its own name. Pick another, or rename the other parameter first (@sec-param-table).],
   [#raw("invalid parameter name `p`: must start with a letter or `_` and contain only letters, digits and `_`")], [Use a name like `hole_2`: no leading digit, no spaces, dashes, dots or accents.],
   [`unknown feature N`], [No feature with that number is in the history.],
-  [`feature N references feature M which is not earlier in the history`], [A feature can use only features made before it.],
+  [`feature N references feature M which is not earlier in the history`], [A feature can use only features above the end-of-part marker. `M` is a feature number, not a place in the history: it may be rolled back (@sec-roll-back), or not made yet.],
+  [`end-of-part position P is past the end of the history (N features)`], [The marker can go anywhere from 0 to the number of features, `N`. It stayed where it was (@sec-roll-back).],
   [#raw("expression for `p`: …")], [The formula for `p` doesn't parse, names an unknown parameter, or can't be worked out. The rest is an expression message, below.],
   [#raw("parameter expressions form a cycle: a -> b -> a")], [The formulas would depend on each other in a loop, traced in the message. Make one of them a plain number (@sec-param-formulas).],
   [#raw("expression for `p` gives length^2, but its unit expects length")], [The formula's result is the wrong kind of quantity for the parameter's unit, here an area for a length. A parameter with no unit, or a unit outside the seven, expects `unitless`.],
@@ -193,12 +196,13 @@ For an unknown entity, `infer` and `add_inferred` give the sketch messages above
 == Known limitations
 
 - No desktop app, 3D view, mouse or keyboard controls yet.
-- A sketch's regions can't be extruded or revolved directly yet: type the outline's pieces into a program (@ch-extrude, @ch-revolve). There is no hole or shell feature yet.
+- A sketch's regions can't be extruded or revolved directly yet: type the outline's pieces into a program (@ch-extrude, @ch-revolve). There is no hole feature yet.
 - An extrude can end on a face (@sec-extrude-to-face) only when the face is flat and parallel to the workplane, and it ends on the face's whole plane: it doesn't stop at the face's edges, or follow a curved face.
 - A fillet has one radius for all its edges, and a chamfer one size for all its edges: one distance, two distances, or a distance and an angle (@ch-fillet). There is no fillet whose radius changes along the edge.
+- A shell has one wall thickness for every wall, and needs at least one open face (@ch-shell). A part hollow inside with no opening, or with walls of different thicknesses, can't be made yet.
 - A revolve turns one way from the outline's plane by an angle; it can't yet turn both ways or symmetrically.
 - An extrude's or a revolve's target is a solid you hold in your program. Faces and edges can be counted and numbered (@sec-topology), a plain extrude says which face each piece of the outline became (@sec-extrude-history), and a Boolean what became of each face (@sec-boolean-history), but they can't be picked, and their numbers don't last through a change; so the outline's workplane is given by its numbers (@sec-extrude-modes).
-- Extrudes, revolves, fillets and chamfers aren't recorded in a part's history, so they don't rebuild when a parameter changes.
+- Extrudes, revolves, fillets, chamfers and shells aren't recorded in a part's history, so they don't rebuild when a parameter changes.
 - No native part files; work can't be saved with its history.
 - `swx-qa sketch` draws only its two built-in sketches. Your own sketches need a short program (@sec-picture-sketch). Sketch pictures show no dimension arrows and no marks for constraints such as horizontal.
 - A parameter's unit is free text. Only the seven units of @sec-ref-expr are understood by formulas; any other unit counts as none.

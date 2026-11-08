@@ -194,7 +194,9 @@ A part's #term[history], also called its #term[feature tree], is its list of fea
 
 Because the history remembers how each feature was made, Saulitwerx can *rebuild* a part after a change. It doesn't rebuild everything. It works out which features depend on what changed, and redoes only those. Change `thickness`, and only Extrude1 rebuilds; edit Sketch2, and Sketch2 and Revolve1 rebuild.
 
-*In Saulitwerx today:* the history and the "what needs rebuilding" logic exist (@ch-history), using the exact example in the table above. Running the rebuild on real geometry comes with the part features.
+A history also has an *end-of-part marker*, normally after the last feature. Move it up, and the features below it are set aside, as if the part stopped there; new features then go in at the marker, in the middle of the history (@sec-roll-back).
+
+*In Saulitwerx today:* the history, the end-of-part marker and the "what needs rebuilding" logic exist (@ch-history), using the exact example in the table above. Running the rebuild on real geometry comes with the part features.
 
 == Putting it together
 
