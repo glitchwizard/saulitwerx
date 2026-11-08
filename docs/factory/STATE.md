@@ -13,6 +13,9 @@ issues_per_night: 4
 
 ## Log
 
+- 2026-11-08 reviewer: merged #160 (M3-06c) (CI green, 3 checks; QA report + ship report + 2 images verified; no local run) and #161 (M3-08a) (CI green, 3 checks; QA report + ship report verified, nothing visual; local occt clippy + 156 swx-kernel tests on main+#161 after #160); checked off M3-06; planned #162 M3-12a, #163 M3-12b (ready: #154, #158, #162, #163, all unblocked and independent); merged branches not deleted (not retried); no retro (not a Monday night)
+- 2026-11-08 builder: #144 M3-08a → PR #161 (59eb655; CI green, 3 checks; think-and-ship gates verified; QA pass)
+- 2026-11-08 builder: #143 M3-06c → PR #160 (69d08a1; CI green, 3 checks; think-and-ship gates verified, 1 shell-syntax record re-run; QA pass with gaps)
 - 2026-11-08 reviewer: merged #150 (M3-05c) (CI green, 3 checks; QA report r3 + ship report r3 verified, nothing visual; no local run) and #157 (M3-06b) (CI green, 3 checks; QA report + ship report + 2 images verified; local occt clippy + 139 tests on main+#157 after #150); no roadmap check-off (M3-05 needs referenced edges, M3-06 needs #143); planned #158 M3-11b (ready: #143, #144, #154, #158, all unblocked and independent); merged branches not deleted (not retried); no retro (not a Monday night)
 - 2026-11-08 builder: #132 M3-06b → PR #157 (c3fd548; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
 - 2026-11-08 builder: #147 M3-05c → PR #150 (a4b3b83, main merged; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
@@ -40,6 +43,3 @@ issues_per_night: 4
 - 2026-11-04 documenter: M3-04c → PR #134 merged (CI green, 3 checks; 94 pages; no feedback; no issues opened)
 - 2026-11-04 reviewer: merged #127 (M3-04c) (CI green, 3 checks; QA report + ship report + 1 image verified; no local run, CI covers the occt job); sent back #128 (M3-05a: conflicts with main after #127); #130 not reviewed (2-PR cap); no roadmap check-off (M3-04 needs M3-04d..g); planned #131 M3-06a, #132 M3-06b (ready: #114, #131, #132, all independent); M3-04f held (needs the swx-model ADR and #106; depends on #114); merged branch not deleted (delete denied); no retro (not a Monday night)
 - 2026-11-04 builder: idle (no qualifying issue; #114 waits on #113, still in review)
-- 2026-11-04 reviewer: stalled (run interrupted while reviewing #127; nothing merged or created)
-- 2026-11-04 builder: #121 M3-02b → PR #130 (45854e1; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
-- 2026-11-03 documenter: M3-03b → PR #129 merged (CI green, 3 checks; 91 pages; no feedback; no issues opened)
