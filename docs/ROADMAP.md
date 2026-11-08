@@ -43,7 +43,7 @@ Tools the Builder uses for the visuals in its QA reports (FACTORY §6b).
 - [x] M3-03 Revolve and revolve cut.
 - [ ] M3-04 Topological naming v1: persistent face/edge references across rebuilds. Write a design doc first in `docs/specs/`.
 - [ ] M3-05 Fillet and chamfer on referenced edges.
-- [ ] M3-06 Shell, draft, and hole (simple, counterbore).
+- [x] M3-06 Shell, draft, and hole (simple, counterbore).
 - [ ] M3-07 Full rebuild pipeline: parameter edit → dirty features → regenerate → regression test.
 - [ ] M3-08 Part origin (3 planes, 3 axes, center point) and work features: work planes, axes, points.
 - [x] M3-09 End-of-part marker: roll back and insert features above it.
