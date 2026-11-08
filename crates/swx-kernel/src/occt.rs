@@ -1104,6 +1104,25 @@ mod tests {
     }
 
     #[test]
+    fn fillet_variable_is_reliable_on_several_threads_at_once() {
+        // Each thread has its own box; without the lock in `ffi`, OCCT's
+        // variable-radius builder failed intermittently here.
+        let handles: Vec<_> = (0..8)
+            .map(|_| {
+                std::thread::spawn(|| {
+                    let b = box_10x20x30();
+                    let (e, low, _) = variable_fillet_inputs(&b);
+                    (0..5)
+                        .filter(|_| K.fillet_variable(&b, e, low, 2.0, 4.0).is_err())
+                        .count()
+                })
+            })
+            .collect();
+        let failures: usize = handles.into_iter().map(|h| h.join().unwrap()).sum();
+        assert_eq!(failures, 0, "{failures} of 40 concurrent calls failed");
+    }
+
+    #[test]
     fn chamfer_each_box_edge_distance_2() {
         assert_each_edge_removes(|s, e| K.chamfer(s, e, 2.0), 2.0);
     }
