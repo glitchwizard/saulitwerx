@@ -13,6 +13,7 @@ use std::ffi::CString;
 use std::fmt;
 use std::path::Path;
 
+mod datum;
 mod feature;
 mod mesh;
 mod profile;
@@ -23,6 +24,7 @@ mod ffi;
 #[cfg(feature = "occt")]
 mod occt;
 
+pub use datum::{plane_axis_intersection, DATUM_TOLERANCE, ORIGIN};
 pub use feature::{
     extrude_feature, revolve_feature, ExtrudeMode, EMPTY_VOLUME_TOLERANCE, FACE_DISTANCE_TOLERANCE,
     PARALLEL_FACE_TOLERANCE,
