@@ -1,5 +1,6 @@
 //! OpenCascade-backed [`Kernel`] implementation (feature `occt`).
 
+use std::f64::consts::FRAC_PI_2;
 use std::path::Path;
 
 use crate::ffi::{self, ChamferMode, EdgeOp, FacePlane, ShapeHandle};
@@ -244,6 +245,34 @@ impl Kernel for OcctKernel {
         ffi::shell(&s.0, &indices, thickness)
             .map(OcctShape)
             .ok_or_else(|| backend("shell"))
+    }
+
+    fn draft(
+        &self,
+        s: &OcctShape,
+        faces: &[SubShape],
+        neutral: Axis,
+        angle: f64,
+    ) -> Result<OcctShape, KernelError> {
+        if !angle.is_finite() || angle == 0.0 || angle.abs() >= FRAC_PI_2 {
+            return Err(KernelError::InvalidInput(format!(
+                "draft angle must be finite, non-zero and below π/2 in size, got {angle}"
+            )));
+        }
+        validate_point("draft neutral origin", neutral.origin)?;
+        let [x, y, z] = neutral.dir;
+        let len = (x * x + y * y + z * z).sqrt();
+        if !len.is_finite() || len == 0.0 {
+            return Err(KernelError::InvalidInput(format!(
+                "draft pull direction must be finite and non-zero, got {:?}",
+                neutral.dir
+            )));
+        }
+        let indices = validate_faces(faces, self.sub_shape_count(s, TopoKind::Face)?)?;
+        let dir = [x / len, y / len, z / len];
+        ffi::draft(&s.0, &indices, neutral.origin, dir, angle)
+            .map(OcctShape)
+            .ok_or_else(|| backend("draft"))
     }
 
     fn chamfer_asymmetric(
@@ -1853,5 +1882,131 @@ mod tests {
         );
         assert_close(K.volume(&b).unwrap(), 6000.0);
         assert!(K.shell(&b, &[top], 1.0).is_ok());
+    }
+
+    /// Neutral plane z = 0, pull +Z.
+    const PULL_Z: Axis = Axis {
+        origin: [0.0; 3],
+        dir: [0.0, 0.0, 1.0],
+    };
+
+    /// 30 · tan 5°: how far a 5° draft moves the top edge of a 30 mm face.
+    fn draft_offset() -> f64 {
+        30.0 * 5f64.to_radians().tan()
+    }
+
+    fn assert_face_box(s: &OcctShape, f: SubShape, min: Point3, max: Point3) {
+        let b = K.sub_shape_bounding_box(s, f).unwrap();
+        for axis in 0..3 {
+            assert_close(b.min[axis], min[axis]);
+            assert_close(b.max[axis], max[axis]);
+        }
+    }
+
+    #[test]
+    fn draft_one_side_face_by_5_degrees() {
+        let b = box_10x20x30();
+        let side = planar_face(&b, 0, 10.0);
+        let r = K.draft(&b, &[side], PULL_Z, 5f64.to_radians()).unwrap();
+        let d = draft_offset();
+        assert_close(K.volume(&r).unwrap(), 6000.0 - 15.0 * d * 20.0);
+        assert_close(K.volume(&r).unwrap(), 5212.6020);
+        assert_face_box(
+            &r,
+            planar_face(&r, 2, 30.0),
+            [0.0, 0.0, 30.0],
+            [10.0 - d, 20.0, 30.0],
+        );
+        assert_face_box(
+            &r,
+            planar_face(&r, 2, 0.0),
+            [0.0, 0.0, 0.0],
+            [10.0, 20.0, 0.0],
+        );
+        assert_eq!(K.sub_shape_count(&r, TopoKind::Face).unwrap(), 6);
+        assert_close(K.volume(&b).unwrap(), 6000.0);
+    }
+
+    #[test]
+    fn draft_four_side_faces_by_5_degrees() {
+        let b = box_10x20x30();
+        let sides = [
+            planar_face(&b, 0, 0.0),
+            planar_face(&b, 0, 10.0),
+            planar_face(&b, 1, 0.0),
+            planar_face(&b, 1, 20.0),
+        ];
+        let r = K.draft(&b, &sides, PULL_Z, 5f64.to_radians()).unwrap();
+        let (d, t) = (draft_offset(), 5f64.to_radians().tan());
+        // ∫₀³⁰ (10 − 2zt)(20 − 2zt) dz = 6000 − 27000t + 36000t².
+        assert_close(
+            K.volume(&r).unwrap(),
+            6000.0 - 27000.0 * t + 36000.0 * t * t,
+        );
+        assert_close(K.volume(&r).unwrap(), 3913.3597);
+        assert_face_box(
+            &r,
+            planar_face(&r, 2, 30.0),
+            [d, d, 30.0],
+            [10.0 - d, 20.0 - d, 30.0],
+        );
+        assert_eq!(K.sub_shape_count(&r, TopoKind::Face).unwrap(), 6);
+        // Listing a face twice drafts it once.
+        let twice = K
+            .draft(&b, &[sides[1], sides[1]], PULL_Z, 5f64.to_radians())
+            .unwrap();
+        assert_close(K.volume(&twice).unwrap(), 6000.0 - 15.0 * d * 20.0);
+    }
+
+    #[test]
+    fn draft_negative_angle_grows_the_solid() {
+        let b = box_10x20x30();
+        let side = planar_face(&b, 0, 10.0);
+        let r = K.draft(&b, &[side], PULL_Z, -(5f64.to_radians())).unwrap();
+        assert_close(K.volume(&r).unwrap(), 6000.0 + 15.0 * draft_offset() * 20.0);
+        assert_close(K.volume(&r).unwrap(), 6787.3980);
+        assert_close(K.volume(&b).unwrap(), 6000.0);
+    }
+
+    #[test]
+    fn draft_rejects_bad_inputs() {
+        let b = box_10x20x30();
+        let side = planar_face(&b, 0, 10.0);
+        let a = 5f64.to_radians();
+        let invalid =
+            |r: Result<OcctShape, KernelError>| matches!(r, Err(KernelError::InvalidInput(_)));
+        assert!(invalid(K.draft(&b, &[], PULL_Z, a)));
+        assert!(invalid(K.draft(&b, &[side, edge(0)], PULL_Z, a)));
+        assert!(invalid(K.draft(&b, &[sub(TopoKind::Face, 6)], PULL_Z, a)));
+        for dir in [[0.0; 3], [f64::NAN, 0.0, 1.0], [0.0, f64::INFINITY, 1.0]] {
+            let neutral = Axis {
+                origin: [0.0; 3],
+                dir,
+            };
+            assert!(invalid(K.draft(&b, &[side], neutral, a)), "dir {dir:?}");
+        }
+        let neutral = Axis {
+            origin: [f64::NAN, 0.0, 0.0],
+            dir: [0.0, 0.0, 1.0],
+        };
+        assert!(invalid(K.draft(&b, &[side], neutral, a)));
+        for bad in [0.0, f64::NAN, f64::INFINITY, FRAC_PI_2, -FRAC_PI_2, 2.0] {
+            assert!(invalid(K.draft(&b, &[side], PULL_Z, bad)), "angle {bad}");
+        }
+    }
+
+    #[test]
+    fn draft_face_parallel_to_the_neutral_plane_is_an_error() {
+        let b = box_10x20x30();
+        let top = planar_face(&b, 2, 30.0);
+        let r = K.draft(&b, &[top], PULL_Z, 5f64.to_radians());
+        assert!(
+            matches!(
+                r,
+                Err(KernelError::Backend(_) | KernelError::InvalidInput(_))
+            ),
+            "drafting the top face should fail"
+        );
+        assert_close(K.volume(&b).unwrap(), 6000.0);
     }
 }
