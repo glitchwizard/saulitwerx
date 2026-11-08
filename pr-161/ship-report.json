@@ -1,0 +1,118 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(kernel): work-feature geometry",
+      "ref": "59eb655",
+      "task_id": "m3-08a-datum",
+      "type": "commit"
+    },
+    {
+      "description": "M3-08a PR",
+      "ref": "https://github.com/glitchwizard/saulitwerx/pull/161",
+      "task_id": "m3-08a-datum",
+      "type": "pr"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt --all --check",
+      "passed": true,
+      "required": true,
+      "task_id": "m3-08a-datum",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy --workspace --all-targets -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "m3-08a-datum",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test --workspace",
+      "passed": true,
+      "required": true,
+      "task_id": "m3-08a-datum",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-kernel --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "m3-08a-datum",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-kernel --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m3-08a-datum",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-qa --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "m3-08a-datum",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-qa --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m3-08a-datum",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "Origin constants, documented: `Axis::X`, `Axis::Y`, `Axis::Z` (through the origin along +X, +Y, +Z) and `pub const ORIGIN: Point3 = [0.0; 3]`.",
+      "Work planes, each a documented function returning `Result<Workplane, KernelError>` with a normalized `x_dir` perpendicular to a normalized `normal`: `Workplane::offset(&self, distance)`: origin moved by `distance` along the normal; `x_dir` and `normal` kept. `Workplane::through_points(p0, p1, p2)`: origin `p0`, `x_dir` along `p1 − p0`, normal along `(p1 − p0) × (p2 − p0)`. `Workplane::from_point_normal(p, n)`: origin `p`, normal `n`; `x_dir` is the projection of +X onto the plane, or of +Y when `n` is within 1e-9 of parallel to X. `Workplane::angled(&self, axis: Axis, angle)`: the plane rotated by `angle` (radians, right-hand rule about `axis.dir`) about `axis`, which must lie in the plane (within 1e-9).",
+      "Work axes, returning `Result<Axis, KernelError>` with a normalized `dir`: `Axis::through_points(p, q)` (origin `p`, along `q − p`) and `Axis::plane_intersection(a: &Workplane, b: &Workplane)` (dir along `a.normal × b.normal`, origin the point of the line closest to the model origin).",
+      "Work point: `plane_axis_intersection(plane: &Workplane, axis: &Axis) -> Result<Point3, KernelError>`.",
+      "Unit tests (no `occt`), points and directions within 1e-9: `Workplane::XY.offset(5.0)` has origin (0, 0, 5) and normal (0, 0, 1); `offset(−2.5)` has origin (0, 0, −2.5). `through_points((0,0,0), (10,0,0), (0,10,0))` equals `Workplane::XY`; `through_points((0,0,3), (1,0,3), (0,0,4))` has normal (0, −1, 0). `from_point_normal((1,2,3), (0,0,2))` has origin (1, 2, 3), normal (0, 0, 1), `x_dir` (1, 0, 0); with normal (5, 0, 0) its `x_dir` is (0, 1, 0). `Workplane::XY.angled(Axis::X, π/2)` has normal (0, −1, 0) and contains the X axis. `Axis::plane_intersection(&Workplane::XY.offset(4.0)?, &Workplane::YZ.offset(3.0)?)` is the line through (3, 0, 4) along ±(0, 1, 0). `plane_axis_intersection(&Workplane::XY.offset(7.0)?, &Axis::through_points((1,1,0), (2,2,1))?)` is (8, 8, 7).",
+      "Errors, each with a test and never a panic, all `InvalidInput`: non-finite inputs; coincident or collinear points (`through_points`, both kinds); a zero normal; an axis not in the plane (`angled`); parallel planes (`plane_intersection`); an axis parallel to the plane (`plane_axis_intersection`). Tolerance for \"parallel\" and \"collinear\" is a documented constant (1e-9 on unit vectors).",
+      "No new dependencies; no `unsafe`; `swx-kernel` still has no workspace dependencies.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and so do the CI `swx-kernel (occt)` job commands.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-08T10:31:33.691856476+00:00",
+    "constraints": [],
+    "created_at": "2026-11-08T10:31:01.299948488+00:00",
+    "description": "M3-08a: Part origin and work-feature geometry (planes, axes, points) without OCCT",
+    "project_id": "saulitwerx",
+    "scope": "crates/swx-kernel only; PR #161",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 2,
+      "checks_count": 7,
+      "estimate": "small",
+      "id": "m3-08a-datum",
+      "status": "completed",
+      "title": "Work-feature geometry (#144, PR #161)",
+      "type": "implement"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
