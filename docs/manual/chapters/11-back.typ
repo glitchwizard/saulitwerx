@@ -8,6 +8,7 @@
     ("Adjacent", [Said of two sub-shapes when one bounds the other, such as a face and one of its edges.]),
     ("Binding", [The link between a sketch dimension and the parameter that drives it.]),
     ("Axis of revolution", [The line a revolve turns its outline around.]),
+    ("Blind hole", [A hole that stops at a set depth, with a flat bottom.]),
     ("Bounding box", [The smallest box, with sides parallel to the axes, that holds a solid.]),
     ("Boolean operation", [Combining two solids by union, cut or intersect.]),
     ("CAD", [Computer-aided design: using a computer to design physical objects.]),
@@ -17,12 +18,14 @@
     ("Coincident", [A constraint that puts two points at the same place.]),
     ("Conflicting", [Said of a sketch whose rules contradict each other, so no shape can meet them all.]),
     ("Constraint", [A rule about a sketch's shape, such as "horizontal" or "these points touch".]),
+    ("Counterbore", [A wider, flat-bottomed recess at the mouth of a hole, so a screw head sits flush or below the surface.]),
     ("Cut", [A Boolean operation that removes one solid from another.]),
     ("Degree of freedom (DOF)", [One way a piece of a sketch can still move. A free point has two.]),
     ("Dependency order", [The order formulas are worked out in: each parameter after the parameters its formula uses.]),
     ("Diameter", [The width of a circle through its center; twice the radius.]),
     ("Dimension", [A constraint with a number: a distance, radius or diameter.]),
     ("Dirty", [Said of a feature that must be rebuilt after a change.]),
+    ("Draft", [A small tilt given to the sides of a molded or cast part so it comes out of the mold.]),
     ("Edge", [A curve where two faces of a solid meet, or where one round face meets itself (a seam).]),
     ("Equal", [A constraint that makes two lines the same length, or two circles or arcs the same size.]),
     ("Entity", [One piece of sketch geometry: a point, line, circle or arc.]),
@@ -34,7 +37,11 @@
     ("Feature", [One step in building a part, such as a sketch or a cut. Features are kept in the history.]),
     ("Feature tree", [Another name for a part's history.]),
     ("End-of-part marker", [The point in a part's history after which features are set aside (rolled back). New features go in at the marker.]),
+    ("Hole", [A feature that drills a round hole into a solid from a start point, in a direction, to a depth or through all.]),
+    ("Neutral plane", [The plane a draft turns faces about. Where a drafted face crosses it, the face stays put.]),
     ("Open face", [A face that a shell removes, leaving an opening in the hollowed part.]),
+    ("Part origin", [The point (0, 0, 0) of a part, where its three origin planes and axes meet.]),
+    ("Pull direction", [The way a part leaves its mold. Draft makes the part smaller along it.]),
     ("Rolling back", [Moving the end-of-part marker up the history, so the features below it are kept but not used.]),
     ("Shell", [A feature that hollows a solid, leaving walls of one thickness and openings where its open faces were.]),
     ("Fillet", [A rounded face along an edge in place of the sharp edge, with a set radius.]),
@@ -66,6 +73,7 @@
     ("Revolve angle", [How far a revolve turns: a full turn (2π radians, 360°) or part of one.]),
     ("Seam", [An edge where a closed round face, such as the wall of a hole, meets itself.]),
     ("Side face", [A face of an extrude swept by one edge of its outline: a flat wall from a line, a round one from an arc or circle.]),
+    ("Simple hole", [A plain round hole of one diameter.]),
     ("Sketch", [A 2D drawing on a plane, made of points, lines, circles and arcs.]),
     ("Split face", [A face that an operation cut into several faces of the result, such as a top divided by a groove.]),
     ("Solid", [A closed 3D shape with an inside and an outside.]),
@@ -76,14 +84,20 @@
     ("Surface area", [The total area of a solid's faces.]),
     ("Tangent", [Touching without cutting in: a line and a circle, or two circles, that meet at one point.]),
     ("Target body", [The solid an extrude or a revolve joins to, cuts from or intersects with.]),
+    ("Through hole", [A hole that goes all the way through a solid.]),
     ("To face", [An extrude extent that ends on the plane of a flat face of the target body.]),
     ("Through all", [An extrude cut with no depth of its own, which goes right through the target body.]),
     ("Under-constrained", [Said of a sketch with at least one degree of freedom left.]),
     ("Union", [A Boolean operation that joins two solids into one.]),
     ("Unit", [What a number measures in, such as millimeters.]),
     ("User parameter", [A parameter you create yourself, with a name you choose.]),
+    ("Variable fillet", [A fillet whose radius changes evenly from one end of its edge to the other.]),
     ("Vertex", [A corner point of a solid, where its edges meet. Plural: vertices.]),
     ("Volume", [How much space a solid fills.]),
+    ("Work axis", [A straight line built to place features, such as an axis to revolve about. It has no material.]),
+    ("Work feature", [Reference geometry built to place other features: a work plane, a work axis or a work point. It adds no material.]),
+    ("Work plane", [A flat plane built to sketch on or place features from, such as one offset from a face or tilted at an angle. Used as a workplane.]),
+    ("Work point", [One point in space, built to place features, such as where an axis crosses a plane.]),
     ("Workplane", [The flat plane an outline is drawn on, with its own directions and a normal pointing straight out of it.]),
   )
   set par(first-line-indent: 0pt, justify: false)
@@ -93,6 +107,15 @@
 }
 
 = What's new
+
+== 2026-11-08: holes, draft, work features, and a fillet that changes size
+
+- *New:* drill simple and counterbored holes, blind or through all, in any direction (@ch-hole).
+- *New:* tilt the sides of a part with draft, so it comes out of a mold (@ch-draft).
+- *New:* build work planes, axes and points from the part origin and from each other, and place features on them (@ch-work).
+- *New:* round one edge with a radius that changes from one end to the other (@sec-fillet-variable).
+- *Pictures:* a plate with four holes; a block drafted three ways; a post leaning on a tilted work plane; a constant and a variable fillet side by side.
+- Reference: the new calls and types, and a work-features section (@sec-ref-work). Help: sixteen new error messages, new common mistakes, and the known limitations updated. Glossary: fourteen new terms, from blind hole to work point.
 
 == 2026-11-07: shells, and rolling back the history
 
@@ -212,7 +235,8 @@ These are the next items on the public roadmap. None of them works yet. When one
   columns: (auto, 1fr),
   header: ("Soon", "What you'll be able to do"),
   [Extrude from a sketch], [Hand a sketch's region straight to the extrude and the revolve.],
-  [More part features], [Hole and draft; shells with walls of different thicknesses; fillets, chamfers and shells kept in a part's history.],
+  [More part features], [Countersunk and threaded holes; shells with walls of different thicknesses; fillets, chamfers, shells, holes and drafts kept in a part's history.],
+  [Work features from the part], [Build a work plane from a face, or a work axis from an edge, by picking them.],
   [Lasting references], [A feature built on a face or an edge keeps finding it when earlier features change.],
   [Part files], [Save a part with its full history, and open it again.],
   [Desktop app], [A window with a 3D view, a model browser, sketch mode and property panels.],
@@ -272,6 +296,10 @@ Later milestones add assemblies, 2D drawings and exploded views. The full plan i
         [`fillet` · `chamfer`], [round / bevel edges],
         [`chamfer_asymmetric`], [bevel by 2 sizes],
         [`shell`], [hollow, open at faces],
+        [`fillet_variable`], [round, 2 radii],
+        [`hole`], [simple or counterbore],
+        [`draft`], [tilt faces for a mold],
+        [`offset` · `angled`], [work planes],
         [`boolean_tracked`], [Boolean + face history],
         [`export_step` · `import_step`], [STEP file out / in],
       )

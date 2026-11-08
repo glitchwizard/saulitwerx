@@ -25,7 +25,7 @@ Both work on edges of a solid you already have. You pick the edges, give one siz
   caption: [One block, three ways to soften its edges. The fillet and the chamfer take the same four upright corner edges and the same size, 5 mm. The last picture rounds every edge at once. Each picture is scaled to fill its frame.],
 ) <fig-edges>
 
-*In Saulitwerx today:* the geometry engine can fillet edges with one radius, and chamfer them with one distance, the same on both faces. A chamfer can also take two different distances, or a distance and an angle (@sec-chamfer-sizes). You give the edges, and for an uneven chamfer the face to measure from, by their numbers in the solid (@sec-topology), so your program finds them first. A fillet or a chamfer isn't recorded in a part's history yet.
+*In Saulitwerx today:* the geometry engine can fillet edges with one radius, and chamfer them with one distance, the same on both faces. A fillet of one edge can also change its radius from one end to the other (@sec-fillet-variable), and a chamfer can take two different distances, or a distance and an angle (@sec-chamfer-sizes). You give the edges, and for an uneven chamfer the face to measure from, by their numbers in the solid (@sec-topology), so your program finds them first. A fillet or a chamfer isn't recorded in a part's history yet.
 
 == Fillet and chamfer edges <sec-fillet>
 
@@ -156,6 +156,71 @@ The program is `crates/swx-kernel/examples/chamfer_sizes.rs`. It does three thin
 
 #caution(title: [Angles are in radians])[The angle must be strictly between 0 and π/2 (90°). Typing `30.0` means 30 radians and is refused; write `30f64.to_radians()`, or 0.5236.]
 
+== Round with a changing radius <sec-fillet-variable>
+
+#idx("fillet")#idx("variable fillet")
+A constant fillet is the same size all along its edge. Sometimes the rounding should grow instead: a handle that is gentle at one end and generous where the hand rests, or a blend that must be small where it meets a narrow part and large where there is room. A #term[variable fillet] does this. You give a radius for each end of the edge, and the radius changes evenly from one to the other along the way (@fig-fillet-variable).
+
+The geometry engine needs to know which end is which. An edge runs between two #term(key: "vertex")[vertices], its end points. You name one of them as the _start_: the first radius belongs there, and the second radius to the other end.
+
+#image-row(
+  (
+    // cargo run -p swx-kernel --features occt --example fillet_variable -- edges
+    // swx-qa render --step edges/fillet-<name>.step --size 900x700 -o docs/manual/img/fillet-<name>.png
+    ("img/fillet-constant.png", "Before: constant 5 mm", "The block with its near top edge rounded evenly, 5 mm all along"),
+    ("img/fillet-variable.png", "After: 2 mm to 8 mm", "The block with its near top edge rounded 8 mm at the end nearest the viewer, narrowing evenly to 2 mm at the far end"),
+  ),
+  caption: [The same edge of the 40 × 25 × 10 mm block, rounded two ways: with one 5 mm radius, and with a radius that grows from 2 mm at the far end (x = 0) to 8 mm at the near end (x = 40). The faint ripples on the curved face come from the picture tool's triangles, not from the part.],
+) <fig-fillet-variable>
+
+#task-intro(
+  goal: [Round one edge of a block from 2 mm at one end to 8 mm at the other, and compare it with a constant fillet.],
+  needs: [Saulitwerx built with OpenCascade, and `swx-qa` built with it too (@ch-install).],
+  time: [5 minutes.],
+)
+
+#steps(
+  [#block(breakable: false)[Run the sample program, and tell it to save its parts in a folder called `edges`:
+  #term-block("cargo run -p swx-kernel --features occt --example fillet_variable -- edges")
+  It prints the block, the edge and its two ends, one line for each fillet, four errors on purpose, then the files it wrote:
+  #term-block(label: "Output", "block                  10000.00 mm³   6 faces\nedge 11: vertex 2 at x = 0, vertex 6 at x = 40\nconstant r 5            9785.40 mm³   7 faces\n2 at x = 0, 8 at 40     9753.28 mm³   7 faces\n2 at x = 40, 8 at 0     9753.28 mm³   7 faces\n2 to 12 -> error: kernel failure: fillet failed\nwrong vertex -> error: invalid input: vertex 1 is not on edge 11\na face -> error: invalid input: a variable fillet needs an edge and a\n    vertex, got Face 0 and Vertex 2\n0 to 8 -> error: invalid input: fillet start radius must be finite and\n    > 0, got 0\n…  (the geometry engine's file reports)\nwrote edges/fillet-constant.step\nwrote edges/fillet-variable.step")
+  Two long error lines are wrapped here to fit the page.]],
+  [Read the second line. The edge is number 11: the top edge of the long side at y = 25, running from vertex 2 at x = 0 to vertex 6 at x = 40.],
+  [Read the `constant r 5` line. A 5 mm fillet along the 40 mm edge takes away 214.60 mm³, as in @sec-fillet, and adds one curved face.],
+  [Read the two variable lines. Starting at vertex 2 puts 2 mm at x = 0 and 8 mm at x = 40; starting at vertex 6 swaps the ends. Both take away the same 246.72 mm³. That is a little more than the constant 5 mm fillet, although 5 mm is the average radius: the material a rounding takes away grows with the square of its radius, so the large end takes more than the small end saves.],
+  [Read the `2 to 12` line. The side of the block is only 10 mm tall, so a 12 mm rounding can't fit on it. The geometry engine says so, and the block is unchanged.],
+  [Draw the variable fillet:
+  #term-block("target/release/swx-qa render --step edges/fillet-variable.step -o fillet-variable.png")
+  Open `fillet-variable.png`. You should see the right-hand block of @fig-fillet-variable, with the 8 mm end (x = 40) nearest you.],
+)
+
+#result[One edge rounded with a radius that changes along it. The block itself is left as it was.]
+
+#block(breakable: false)[
+=== How the sample is built
+
+The program is `crates/swx-kernel/examples/fillet_variable.rs`. It does two things.
+
+#steps(
+  [*Find the edge and its ends.* The sample finds the edge by its bounding box, as @sec-fillet does. `adjacent` lists the edge's two vertices (@sec-topology), and the sample tells them apart by where they are:
+  ```rust
+  for v in k.adjacent(s, edge, TopoKind::Vertex)? {
+      if (k.sub_shape_bounding_box(s, v)?.min[0] - x).abs() < 1e-6 {
+          return Ok(v);
+      }
+  }
+  ```],
+  [*Round it.* `fillet_variable` takes the solid, one edge, the start vertex, the radius at the start and the radius at the other end:
+  ```rust
+  let growing = k.fillet_variable(&block, edge, left, 2.0, 8.0)?;
+  ```],
+)
+]
+
+#tip(title: [Equal radii])[Give the same radius at both ends and you get the constant fillet of @sec-fillet. A variable fillet rounds one edge per call; to round several edges, call it once for each, finding the next edge again in the new solid.]
+
+#caution(title: [Edges that flow on])[If the edge runs smoothly into the next one, as the edges round a filleted corner do, the geometry engine would have to round the whole smooth chain, so it refuses. Use a variable fillet on edges with a sharp corner at each end.]
+
 == Common mistakes <sec-fillet-mistakes>
 
 #set par(justify: false)
@@ -164,8 +229,11 @@ The program is `crates/swx-kernel/examples/chamfer_sizes.rs`. It does three thin
 - *An empty list.* `invalid input: the edge list is empty`. Give at least one edge.
 - *A face or a vertex in the list.* Only edges can be rounded: `invalid input: expected an edge, got face 0`. Ask for edges with `TopoKind::Edge`, or turn a face into its edges with `adjacent` (@sec-topology).
 - *An edge number from another solid.* `invalid input: edge index 12 is out of range: the shape has 12 edges`, or worse, the wrong edge. Find the edges in the solid you are softening.
-- *A size of zero or less.* `invalid input: fillet radius must be finite and > 0, got 0` (or `chamfer distance`, `chamfer d1`, `chamfer d2`).
+- *A size of zero or less.* `invalid input: fillet radius must be finite and > 0, got 0` (or `fillet start radius`, `fillet end radius`, `chamfer distance`, `chamfer d1`, `chamfer d2`).
 - *An uneven chamfer that doesn't fit.* Each setback must fit on its own face: `kernel failure: chamfer failed`. The sample's 30 mm on the 10 mm side is far too much.
 - *An angle of 90° or more, or in degrees.* `invalid input: chamfer angle must be finite and strictly between 0 and π/2, got 1.5707963267948966`. Give radians, between 0 and π/2.
 - *A reference face that doesn't touch the edge.* `invalid input: face 4 does not bound edge 11`. Use one of the two faces that `adjacent` lists for the edge.
 - *The same edge with both faces.* `invalid input: edge 11 is listed with two different faces (3 and 5)`. Each edge gets one reference face; pick the one to measure the first distance on.
+- *A variable fillet's start that isn't on its edge.* `invalid input: vertex 1 is not on edge 11`. Ask `adjacent` for the edge's two vertices and pick one (@sec-fillet-variable).
+- *A face or a vertex where the edge goes.* `invalid input: a variable fillet needs an edge and a vertex, got Face 0 and Vertex 2`. The first is the edge, the second its start vertex.
+- *A variable fillet too large at one end.* The larger radius must fit as a constant fillet would: `kernel failure: fillet failed`.

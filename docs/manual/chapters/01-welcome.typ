@@ -31,11 +31,14 @@ Saulitwerx is built in small, tested steps, in the order of a public plan (the _
   [History], [Keep features in order with named parameters, work out which features a change affects, and roll back to insert features earlier in the history.], [#now],
   [Extrude], [Push a flat outline of lines, arcs and circles, with holes, into a solid, on any plane, one way or both, or cut right through a part; end it at a flat face of the part instead of a distance.], [#now],
   [Revolve], [Turn a flat outline around an axis into a round solid, by a full turn or part of one.], [#now],
-  [Edges], [Round edges of a solid with a fillet, or bevel them with a chamfer.], [#now],
+  [Edges], [Round edges of a solid with a fillet, constant or changing along the edge, or bevel them with a chamfer.], [#now],
   [Shell], [Hollow a solid into walls of one thickness, open at the faces you choose.], [#now],
+  [Holes], [Drill simple or counterbored holes, blind or through all, in any direction.], [#now],
+  [Draft], [Tilt the sides of a part so it comes out of a mold.], [#now],
+  [Work features], [Build work planes, axes and points to place features on.], [#now],
   [Desktop app], [Windows, menus, a 3D view and mouse control.], [#later],
   [Part files], [Saving your design with its full history in a Saulitwerx part file.], [#later],
-  [Features], [Extrude and revolve driven by sketches and recorded in the history; hole, draft and more.], [#later],
+  [Features], [Extrude and revolve driven by sketches and recorded in the history; countersunk and threaded holes, and more.], [#later],
   [Assemblies, drawings], [Putting parts together, and making 2D shop drawings.], [#later],
 )
 
