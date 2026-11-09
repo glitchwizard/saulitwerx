@@ -38,6 +38,12 @@
     ("Feature tree", [Another name for a part's history.]),
     ("End-of-part marker", [The point in a part's history after which features are set aside (rolled back). New features go in at the marker.]),
     ("Hole", [A feature that drills a round hole into a solid from a start point, in a direction, to a depth or through all.]),
+    ("Loft", [A feature that makes a solid through two or more flat sections, joining them in order, ruled or smooth.]),
+    ("Path", [The line a sweep moves its profile along: straight lines and arcs joined end to end.]),
+    ("Ruled", [Said of a loft joined by straight surfaces from each section to the next, with a crease at each middle section.]),
+    ("Section", [One of the flat outlines a loft passes through, like a slice through the finished part.]),
+    ("Smooth loft", [A loft with one curved surface through all its sections, with no creases.]),
+    ("Sweep", [A feature that moves a flat profile along a path, leaving a solid behind it.]),
     ("Neutral plane", [The plane a draft turns faces about. Where a drafted face crosses it, the face stays put.]),
     ("Open face", [A face that a shell removes, leaving an opening in the hollowed part.]),
     ("Part origin", [The point (0, 0, 0) of a part, where its three origin planes and axes meet.]),
@@ -101,12 +107,21 @@
     ("Workplane", [The flat plane an outline is drawn on, with its own directions and a normal pointing straight out of it.]),
   )
   set par(first-line-indent: 0pt, justify: false)
-  columns(2, gutter: 18pt, for (t, d) in g {
+  // Printed in alphabetical order, whatever the order above.
+  columns(2, gutter: 18pt, for (t, d) in g.sorted(key: e => lower(e.at(0))) {
     block(spacing: 0.45em, breakable: false, [#text(font: sans, weight: "semibold", size: 9pt, t) \ #text(size: 9.2pt, d)])
   })
 }
 
 = What's new
+
+== 2026-11-09: loft, sweep, and work features from the part
+
+- *New:* blend a solid through several flat sections, ruled or smooth, such as a square into a circle (@ch-loft).
+- *New:* move a flat outline along a path of lines and arcs, for bent rods, bars and pipes (@ch-sweep).
+- *New:* take a work plane from a flat face, a work axis from a straight edge or a round face, and a work point from a corner of a part (@sec-work-part).
+- *Pictures:* a square-to-round transition and a vase lofted ruled and smooth; a rod and a bar swept along one bent path; a block with a post on a face's plane and a hole down its boss's axis.
+- Reference: the new calls and samples. Help: thirteen new error messages, new common mistakes, and the known limitations updated. Glossary: six new terms, from loft to sweep. Chapters 13 to 19 are renumbered: Work planes, axes and points is now @ch-work.
 
 == 2026-11-08: holes, draft, work features, and a fillet that changes size
 
@@ -235,8 +250,9 @@ These are the next items on the public roadmap. None of them works yet. When one
   columns: (auto, 1fr),
   header: ("Soon", "What you'll be able to do"),
   [Extrude from a sketch], [Hand a sketch's region straight to the extrude and the revolve.],
-  [More part features], [Countersunk and threaded holes; shells with walls of different thicknesses; fillets, chamfers, shells, holes and drafts kept in a part's history.],
-  [Work features from the part], [Build a work plane from a face, or a work axis from an edge, by picking them.],
+  [More part features], [Countersunk and threaded holes; shells with walls of different thicknesses; fillets, chamfers, shells, holes, drafts, lofts, sweeps and work features kept in a part's history.],
+  [Multi-body parts], [Keep several solids in one part, and join, cut or intersect them with each other.],
+  [Threads], [Model real screw threads, outside on a shaft or inside a hole, along a helix.],
   [Lasting references], [A feature built on a face or an edge keeps finding it when earlier features change.],
   [Part files], [Save a part with its full history, and open it again.],
   [Desktop app], [A window with a 3D view, a model browser, sketch mode and property panels.],
@@ -260,7 +276,19 @@ Later milestones add assemblies, 2D drawings and exploded views. The full plan i
       #text(font: sans, weight: "bold", fill: accent, "DRAW A SKETCH")
       #term-block("swx-qa sketch --fixture rectangle -o r.png\n  (or triangle-345)")
       #text(font: sans, weight: "bold", fill: accent, "SAMPLES")
-      #term-block("cargo run -p swx-sketch \\\n  --example plate_sketch\ncargo run -p swx-sketch \\\n  --example sketch_dof\ncargo run -p swx-sketch \\\n  --example centered_plate -- 60 25\ncargo run -p swx-sketch \\\n  --example slot_sketch\ncargo run -p swx-kernel --features occt \\\n  --example plate_with_hole -- plate.step\ncargo run -p swx-kernel --features occt \\\n  --example extrude_plate\ncargo run -p swx-kernel --features occt \\\n  --example revolve_bushing -- revolve\ncargo run -p swx-core \\\n  --example feature_history\ncargo run -p swx-core \\\n  --example roll_back\ncargo run -p swx-core \\\n  --example parameter_table\ncargo run -p swx-sketch \\\n  --example driven_plate\ncargo run -p swx-core \\\n  --example expressions\ncargo run -p swx-core \\\n  --example parameter_formulas\ncargo run -p swx-sketch \\\n  --example inferred_sketch")
+      #term-block("cargo run -p swx-sketch \\\n  --example plate_sketch\ncargo run -p swx-sketch \\\n  --example centered_plate -- 60 25\ncargo run -p swx-kernel --features occt \\\n  --example plate_with_hole -- plate.step\ncargo run -p swx-kernel --features occt \\\n  --example extrude_plate\ncargo run -p swx-kernel --features occt \\\n  --example revolve_bushing -- revolve\ncargo run -p swx-core \\\n  --example feature_history\ncargo run -p swx-core \\\n  --example parameter_table\ncargo run -p swx-sketch \\\n  --example driven_plate\ncargo run -p swx-core \\\n  --example parameter_formulas\ncargo run -p swx-sketch \\\n  --example inferred_sketch")
+      #v(-4pt) Every sample, with what it does: @sec-ref-build.
+
+      #text(font: sans, weight: "bold", fill: accent, "UNITS")
+      \ Millimeters. Angles: degrees in feature parameters; radians in sketch arcs and kernel revolves.
+
+      #text(font: sans, weight: "bold", fill: accent, "SKETCH STATES")
+      #ref-table(columns: (auto, 1fr), header: ("State", "Means"),
+        [Under-constrained], [can still move: add rules],
+        [Fully constrained], [done: 0 DOF left],
+        [Over-constrained], [a rule repeats others],
+        [Conflicting], [rules contradict],
+      )
     ],
     [
       #text(font: sans, weight: "bold", fill: accent, "SKETCH CONSTRAINTS")
@@ -277,13 +305,6 @@ Later milestones add assemblies, 2D drawings and exploded views. The full plan i
         [Symmetric], [two points mirrored],
         [Tangent], [a line touching a curve],
       )
-      #text(font: sans, weight: "bold", fill: accent, "SKETCH STATES")
-      #ref-table(columns: (auto, 1fr), header: ("State", "Means"),
-        [Under-constrained], [can still move: add rules],
-        [Fully constrained], [done: 0 DOF left],
-        [Over-constrained], [a rule repeats others],
-        [Conflicting], [rules contradict],
-      )
       #text(font: sans, weight: "bold", fill: accent, "SOLIDS")
       #ref-table(columns: (auto, 1fr), header: ("Call", "Gives"),
         [`make_box`], [box from corner + sizes],
@@ -299,12 +320,13 @@ Later milestones add assemblies, 2D drawings and exploded views. The full plan i
         [`fillet_variable`], [round, 2 radii],
         [`hole`], [simple or counterbore],
         [`draft`], [tilt faces for a mold],
+        [`loft` · `sweep`], [blend / follow a path],
         [`offset` · `angled`], [work planes],
+        [`work_plane_on_face`], [plane on a flat face],
+        [`work_axis_on`], [axis on edge or round face],
         [`boolean_tracked`], [Boolean + face history],
         [`export_step` · `import_step`], [STEP file out / in],
       )
-      #text(font: sans, weight: "bold", fill: accent, "UNITS")
-      \ Millimeters. Angles: degrees in feature parameters; radians in sketch arcs and kernel revolves.
     ],
   )
 ]

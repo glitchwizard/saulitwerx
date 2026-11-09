@@ -65,7 +65,7 @@ Success and errors work as for `render`. `--step` and `--crease` belong to `rend
   [Values], [Up to 3 decimals, with trailing zeros dropped: `40`, `12.5`, `R2.125`.],
 )
 
-== Build options
+== Build options <sec-ref-build>
 
 #ref-table(
   columns: (auto, 1fr),
@@ -95,8 +95,11 @@ Success and errors work as for `render`. `--step` and `--crease` belong to `rend
   [`cargo run -p swx-kernel --features occt --example fillet_variable -- <dir>`], [Rounds one edge of a block from 2 mm to 8 mm (@sec-fillet-variable). STEP files in `<dir>`.],
   [`cargo run -p swx-kernel --features occt --example hole_plate -- <dir>`], [Drills four holes in a plate (@ch-hole). A STEP file in `<dir>`.],
   [`cargo run -p swx-kernel --features occt --example draft_block -- <dir>`], [Drafts the sides of a block three ways (@ch-draft). STEP files in `<dir>`.],
+  [`cargo run -p swx-kernel --features occt --example loft_sections -- <dir>`], [Lofts a square into a circle, and a vase through three circles, ruled and smooth (@ch-loft). STEP files in `<dir>`.],
+  [`cargo run -p swx-kernel --features occt --example sweep_pipe -- <dir>`], [Sweeps a circle and a rectangle along a bent path (@ch-sweep). STEP files in `<dir>`.],
   [`cargo run -p swx-kernel --example work_features`], [Builds work planes, axes and a point, and prints them (@sec-work). Needs no OpenCascade.],
   [`cargo run -p swx-kernel --features occt --example tilted_post -- <dir>`], [Stands a post at 30° on a plate, from a tilted work plane (@sec-work-use). A STEP file in `<dir>`.],
+  [`cargo run -p swx-kernel --features occt --example work_on_part -- <dir>`], [Takes work features from a block's faces, edges and a corner, then uses two of them (@sec-work-part). A STEP file in `<dir>`.],
   [`cargo run -p swx-core --example feature_history`], [Runs the history sample (@ch-history).],
   [`cargo run -p swx-core --example roll_back`], [Runs the roll-back sample (@sec-roll-back).],
   [`cargo run -p swx-core --example parameter_table`], [Runs the parameter-table sample (@sec-param-table).],
@@ -134,6 +137,8 @@ The `occt` feature switches on OpenCascade. It is off by default, so a plain bui
   [`shell(s, open, thickness)`], [Hollows `s` into walls of one `thickness` (mm, > 0), grown inward so the outside size is unchanged, with the faces in `open` removed as openings (@ch-shell). The list not empty, faces only, each in range; a face listed twice counts once. A thickness that doesn't fit fails, and `s` is unchanged.],
   [`hole(s, at, kind, depth)`], [Drills a hole of `kind` and `depth` into `s` (@ch-hole). `at` is an `Axis`: its `origin` the hole's center on the start face, its `dir` pointing into the material. Depths are measured from `at.origin` along `dir`, to a flat bottom. A hole that removes nothing is refused; one that removes everything is `EmptyResult`. `s` is unchanged.],
   [`draft(s, faces, neutral, angle)`], [Tilts every face in `faces` by `angle` radians about the line where it crosses the neutral plane (@ch-draft). `neutral` is an `Axis`: a point on the neutral plane, and the pull direction, which is the plane's normal. A positive angle makes the solid smaller along the pull direction. The angle not zero and less than π/2 either way; the list not empty, faces only, each in range; a face listed twice counts once. A face the engine can't draft, such as one parallel to the neutral plane, fails, and `s` is unchanged.],
+  [`loft(sections, ruled)`], [A new solid through the flat `sections`, in the order given, capped with the first and last (@ch-loft). Each section a single flat face from `make_face`, without holes, on any plane; at least `MIN_LOFT_SECTIONS` (2). `ruled` true: straight surfaces between neighbors; false: one smooth surface through all. Sections the engine can't loft, such as two in the same place, fail. The sections are unchanged.],
+  [`sweep(profile, plane, path)`], [A new solid made by moving the flat `profile` along the open `path`, a list of `Segment2` lines and arcs drawn on `plane` (@ch-sweep). The path runs from the first piece's start; each next piece must meet the end of the one before within `LOOP_GAP_TOLERANCE`, either way round. The path's start must lie on the profile's plane. The profile a single flat face without holes; no circles in the path. A sweep that encloses nothing is `EmptyResult`. Bends tighter than the profile aren't caught. The profile is unchanged.],
   [`tessellate(s, deflection)`], [Breaks the surface into triangles, no farther than `deflection` (mm, > 0) from the true surface.],
   [`export_step(s, path)`], [Writes a STEP file in millimeters, replacing any existing file.],
   [`import_step(path)`], [Reads everything in a STEP file as one shape.],
@@ -225,7 +230,7 @@ The axis and the angle are checked before any geometry is made. Then `revolve` c
 
 == Work features <sec-ref-work>
 
-Work planes are `Workplane` values and work axes `Axis` values (@sec-ref-extrude), so they go wherever those do. Work points are `Point3` values, `[x, y, z]` in mm. None of these calls needs OpenCascade (@ch-work).
+Work planes are `Workplane` values and work axes `Axis` values (@sec-ref-extrude), so they go wherever those do. Work points are `Point3` values, `[x, y, z]` in mm. The calls in the first table need no OpenCascade (@sec-work); those in the second take work features from a part, and need it (@sec-work-part).
 
 #ref-table(
   columns: (auto, 1fr),
@@ -239,6 +244,14 @@ Work planes are `Workplane` values and work axes `Axis` values (@sec-ref-extrude
   [`Axis::through_points(p, q)`], [The axis through `p` pointing towards `q`. The points different.],
   [`Axis::plane_intersection(a, b)`], [The line where two planes meet, along a.normal × b.normal, through its point nearest the origin. The planes not parallel.],
   [`plane_axis_intersection(plane, axis)`], [The point where the axis crosses the plane. The axis not parallel to the plane.],
+)
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("Kernel call", "What it gives and what it accepts"),
+  [`work_plane_on_face(s, face)`], [The plane of the flat face `face` of `s`: normal the face's outward normal, origin the point of the plane nearest the part origin, `x_dir` as `from_point_normal` gives. `face` a face, in range, flat.],
+  [`work_axis_on(s, of)`], [The line of a straight edge, or the center line of a cylindrical face, of `s`. `dir` a unit vector, either way along the line; origin the line's point nearest the part origin. `of` an edge or a face, in range; not a vertex, a curved edge or a face that isn't cylindrical.],
+  [`vertex_point(s, vertex)`], [Where the vertex `vertex` of `s` is. `vertex` a vertex, in range.],
 )
 
 Every input must be finite, and every refusal is `InvalidInput` (@sec-errors). The checks use `DATUM_TOLERANCE`, 1e-9: directions this close count as parallel, points this close (in mm) as the same, and an axis this close to a plane as lying in it.

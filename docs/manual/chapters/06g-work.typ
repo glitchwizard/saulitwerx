@@ -2,7 +2,7 @@
 
 = Work planes, axes and points <ch-work>
 
-#for-developers[This chapter calls `swx-kernel` from Rust. The work features themselves need no geometry engine, so its first sample runs on a plain build; the second needs OpenCascade and the `occt` build feature (@ch-install).]
+#for-developers[This chapter calls `swx-kernel` from Rust. Work features built from numbers need no geometry engine, so its first sample runs on a plain build; the others need OpenCascade and the `occt` build feature (@ch-install).]
 
 #idx("work feature")
 Every sketch sits on a plane, every revolve turns about an axis, and every hole starts at a point. Often a face of the part gives you what you need: you sketch on the top, or drill into the side. But sometimes the plane, the line or the point you need isn't on the part at all: a plane 10 mm above the top, a plane tilted 30° to hold a sloping post, the line where two faces would meet. So you build it.
@@ -24,7 +24,7 @@ Every part starts with a set of them, all meeting at the #term[part origin], the
   caption: [A post that leans at 30°. Its circle is sketched on a work plane: the plate's top plane, made by offsetting the XY plane 10 mm, then turned 30° about a work axis across the middle of the top.],
 ) <fig-tilted-post>
 
-*In Saulitwerx today:* work planes, axes and points can be built from numbers, from the part origin and its planes and axes, and from each other. A work plane can be used wherever a `Workplane` goes (@sec-ref-extrude), and a work axis wherever an `Axis` goes: a revolve, a draft or a hole. No call builds one straight from a face or an edge of a part yet, though `face_plane` (@sec-extrude-to-face) gives the point and normal that `from_point_normal` takes. Work features aren't recorded in a part's history.
+*In Saulitwerx today:* work planes, axes and points can be built from numbers, from the part origin and its planes and axes, and from each other. A work plane can be used wherever a `Workplane` goes (@sec-ref-extrude), and a work axis wherever an `Axis` goes: a revolve, a draft or a hole. They can also be taken from a part's own geometry: a plane on a flat face, an axis along a straight edge or through a round face, a point at a corner (@sec-work-part). You name that face, edge or corner by its number (@sec-topology); it can't be picked with the mouse yet, and the number doesn't follow the part through later changes. Work features aren't recorded in a part's history.
 
 == Build work features <sec-work>
 
@@ -119,6 +119,72 @@ The program is `crates/swx-kernel/examples/tilted_post.rs`. It does three things
 
 #caution(title: [Leave no gap under a leaning feature])[A circle on a tilted plane rises on one side above the plane it turned from. Started right on the tilted plane, the post's high side would float above the plate, and the join would leave a gap. Start the sketch a little below, as the sample does, so the foot is inside the part.]
 
+== Take work features from a part <sec-work-part>
+
+Often the plane or line you need is already on the part: the face you want to sketch on, the edge you want to turn about, the middle of a round boss you want to drill down. Instead of working out its numbers, ask the geometry engine for it. The sample in this section takes all three kinds from a block with a round boss on top, then uses two of them (@fig-work-on-part).
+
+// cargo run -p swx-kernel --features occt --example work_on_part -- work
+// swx-qa render --step work/work-on-part.step --size 900x700 -o docs/manual/img/work-on-part.png
+#shot(
+  "img/work-on-part.png",
+  width: 65%,
+  alt: "A rectangular block with a round boss on its top, drilled through its middle, and a short round post sticking out of the middle of one side",
+  caption: [A 40 × 30 × 20 mm block with a boss 12 mm across on top. The post on the side is sketched on a work plane taken from that face; the 6 mm hole runs down a work axis taken from the boss's round face.],
+) <fig-work-on-part>
+
+#task-intro(
+  goal: [Take a work plane, two work axes and a work point from a part, then sketch on the plane and drill along an axis.],
+  needs: [Saulitwerx built with OpenCascade, and `swx-qa` built with it too (@ch-install).],
+  time: [5 minutes.],
+)
+
+#steps(
+  [#block(breakable: false)[Run the sample program, and tell it to save its part in a folder called `work`:
+  #term-block("cargo run -p swx-kernel --features occt --example work_on_part -- work")
+  It prints the numbers of the faces, edges and corner it uses, the work features it takes from them, four errors on purpose, and the finished part:
+  #term-block(label: "Output", "side face 5, top edge 8, round face 6, rim edge 13, corner vertex 6\nplane on side face     origin (40, 0, 0)  normal (1, 0, 0)  x_dir (0, 1, 0)\naxis on top edge       through (40, 0, 20)  along (0, 1, 0)\naxis on round face     through (20, 15, 0)  along (0, 0, 1)\npoint at corner        (40, 30, 20)\nplane on edge -> error: invalid input: face_plane needs a face, got a\n    Edge sub-shape\nplane on round face -> error: invalid input: face 6 is not planar\naxis on corner -> error: invalid input: work_axis_on needs an edge or a\n    face, got a vertex\naxis on rim -> error: invalid input: Edge 13 is not a straight edge or a\n    cylindrical face\nwith post and hole: 24911.06 mm³, 11 faces\n…  (the geometry engine's file reports)\nwrote work/work-on-part.step")
+  Three long error lines are wrapped here to fit the page.]],
+  [Read the `plane on side face` line. The plane lies on the block's end at x = 40 and faces out of the part, along +X. Its origin is the point of the plane nearest the part origin, (40, 0, 0), and its u direction runs along +Y.],
+  [Read the two `axis` lines. The first runs along the top edge of that face, in the Y direction. The second is the boss's center line: straight up through (20, 15). Each passes through its point nearest the part origin, which for the boss is down at z = 0, on the bottom of the block.],
+  [Read the `point at corner` line: the top corner at the far end of the block.],
+  [Read the errors. A plane needs a flat face, and an axis needs a straight edge or a round (cylindrical) face. A corner has no line, and the boss's round top edge is a circle, not a line.],
+  [Read the last line. The block (24000 mm³) and the boss (1130.97 mm³) gained a post 10 mm across and 8 mm long (628.32 mm³), and lost a hole 6 mm across through 30 mm (848.23 mm³): 24911.06 mm³.],
+  [#block(breakable: false)[Draw the part:
+  #term-block("target/release/swx-qa render --step work/work-on-part.step -o work-on-part.png")
+  Open `work-on-part.png`. You should see the part of @fig-work-on-part.]],
+)
+
+#result[Work features that sit exactly on the part, with no numbers worked out by hand, and two features placed on them.]
+
+#block(breakable: false)[
+=== How the sample is built
+
+The program is `crates/swx-kernel/examples/work_on_part.rs`. It does three things.
+
+#steps(
+  [*Find the face, edge or corner.* Each one is a `SubShape`: its kind and its number in the part (@sec-topology). The sample finds each by its bounding box, with `sub_shape_bounding_box`.],
+  [*Take the work features.* One call for each kind:
+  ```rust
+  let plane = k.work_plane_on_face(&part, side)?;
+  let along = k.work_axis_on(&part, edge)?;
+  let boss_axis = k.work_axis_on(&part, round)?;
+  let corner_point = k.vertex_point(&part, corner)?;
+  ```],
+  [*Use them.* The post is a circle sketched on `plane` at (u, v) = (15, 10), the middle of the face, extruded 8 mm out and joined (@sec-extrude-modes). The hole is drilled through all along `boss_axis` (@ch-hole):
+  ```rust
+  let face = k.make_face(&plane, &circle, &[])?;
+  let with_post = extrude_feature(&k, &face, Extent::Distance(8.0),
+                                  ExtrudeMode::Join, Some(&part))?;
+  let finished = k.hole(&with_post, boss_axis,
+                        HoleKind::Simple { diameter: 6.0 }, HoleDepth::ThroughAll)?;
+  ```],
+)
+]
+
+#caution(title: [An axis from the part can point either way])[An axis taken from an edge or a round face runs along it, but which of its two directions you get isn't fixed. A hole or a revolve cares which way the axis points, so check it and flip it when needed, as the sample does before drilling: it makes the boss's axis point up, into the part, from its start on the bottom face.]
+
+#tip(title: [A plane on a face faces out])[A plane taken from a face always faces out of the part, like the face itself. Sketch on it and extrude a positive distance to build outward from the face; extrude a negative distance, or cut, to go into the part.]
+
 == Common mistakes <sec-work-mistakes>
 
 #set par(justify: false)
@@ -129,3 +195,7 @@ The program is `crates/swx-kernel/examples/tilted_post.rs`. It does three things
 - *An axis parallel to a plane.* It never crosses it: `invalid input: the axis is parallel to the plane`.
 - *Turning a plane about an axis that isn't in it.* `invalid input: the axis does not lie in the plane`. The axis must lie on the plane: build it from two points on the plane, or where the plane meets another.
 - *An angle in degrees.* `angled` takes radians: write `30f64.to_radians()`.
+- *A plane on something other than a flat face.* An edge or a corner gives `invalid input: face_plane needs a face, got a Edge sub-shape` (or `Vertex`): the call is `work_plane_on_face`, though the message names the `face_plane` check it shares. A curved face gives `invalid input: face 6 is not planar`.
+- *An axis on a corner, a curved edge or a face that isn't round.* `invalid input: work_axis_on needs an edge or a face, got a vertex`, or `Edge 13 is not a straight edge or a cylindrical face`. Pick a straight edge, or a round face such as a boss, a pin or a hole.
+- *A point on something other than a corner.* `invalid input: vertex_point needs a vertex, got a Edge sub-shape` (or `Face`).
+- *A number from another part, or from before a change.* `invalid input: face index 14 is out of range (the shape has 14 faces)`, or a work feature on the wrong face. Find the face, edge or corner again in the part you are building on.

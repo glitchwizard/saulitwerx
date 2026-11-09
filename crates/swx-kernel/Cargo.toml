@@ -91,3 +91,15 @@ required-features = ["occt"]
 [[example]]
 name = "tilted_post"
 required-features = ["occt"]
+
+[[example]]
+name = "loft_sections"
+required-features = ["occt"]
+
+[[example]]
+name = "sweep_pipe"
+required-features = ["occt"]
+
+[[example]]
+name = "work_on_part"
+required-features = ["occt"]
