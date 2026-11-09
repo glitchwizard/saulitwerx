@@ -397,6 +397,30 @@ pub trait Kernel {
     /// and a non-planar face are [`KernelError::InvalidInput`].
     fn face_plane(&self, s: &Self::Shape, face: SubShape) -> Result<(Point3, Point3), KernelError>;
 
+    /// A work plane on the planar face `face` of `s`: `normal` is the face's
+    /// outward normal (as [`Kernel::face_plane`]), `origin` is the projection
+    /// of the model origin onto the plane, and `x_dir` follows
+    /// [`Workplane::from_point_normal`].
+    ///
+    /// A `face` whose kind isn't [`TopoKind::Face`], an index out of range
+    /// and a non-planar face are [`KernelError::InvalidInput`].
+    fn work_plane_on_face(&self, s: &Self::Shape, face: SubShape)
+        -> Result<Workplane, KernelError>;
+
+    /// A work axis on `of`: the line of a straight edge, or the axis of a
+    /// cylindrical face. `dir` is a unit vector (either sign); `origin` is
+    /// the point of the line closest to the model origin.
+    ///
+    /// A vertex, an index out of range, a curved edge and a face that isn't
+    /// cylindrical are [`KernelError::InvalidInput`].
+    fn work_axis_on(&self, s: &Self::Shape, of: SubShape) -> Result<Axis, KernelError>;
+
+    /// The position of the vertex `vertex` of `s`.
+    ///
+    /// A `vertex` whose kind isn't [`TopoKind::Vertex`] and an index out of
+    /// range are [`KernelError::InvalidInput`].
+    fn vertex_point(&self, s: &Self::Shape, vertex: SubShape) -> Result<Point3, KernelError>;
+
     /// Tight axis-aligned bounding box of one sub-shape of `s`. An index out
     /// of range for `of.kind` is [`KernelError::InvalidInput`], checked
     /// before anything reaches the backend.
