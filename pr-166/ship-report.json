@@ -1,0 +1,124 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(kernel): loft through planar sections",
+      "ref": "fb08e8a",
+      "task_id": "loft-154",
+      "type": "commit"
+    },
+    {
+      "description": "PR #166",
+      "ref": "https://github.com/glitchwizard/saulitwerx/pull/166",
+      "task_id": "loft-154",
+      "type": "pr"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt --all --check",
+      "passed": true,
+      "required": true,
+      "task_id": "loft-154",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy --workspace --all-targets -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "loft-154",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test --workspace",
+      "passed": true,
+      "required": true,
+      "task_id": "loft-154",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-kernel --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "loft-154",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-kernel --features occt",
+      "passed": false,
+      "required": true,
+      "task_id": "loft-154",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-kernel --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "loft-154",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-qa --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "loft-154",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-qa --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "loft-154",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`Kernel::loft(&self, sections: &[Self::Shape], ruled: bool) -> Result<Self::Shape, KernelError>`, documented: the result is a closed solid through the sections' outer loops in the order given. `ruled` joins neighboring sections with straight-line (ruled) surfaces; otherwise one smooth surface passes through all sections. The doc comment cites OCCT's reference documentation for `BRepOffsetAPI_ThruSections`. Implemented for `OcctKernel`. New shim code is `noexcept`, catches C++ exceptions, and rejects a result `BRepCheck_Analyzer` finds invalid. Every new `unsafe` call is in `ffi` with a SAFETY comment.",
+      "Tests (behind `occt`), volumes within 1e-6 relative, points within 1e-6: ruled square 20x20 z=0 to square 10x10 z=30: volume 7000; 6 faces, 12 edges, 8 vertices; bbox (-10,-10,0)-(10,10,30). Ruled circle r10 z=0 to r5 z=20: volume 3500π/3; 3 faces; bbox (-10,-10,0)-(10,10,20). Three circles r10/r5/r10 at z=0/10/20: ruled volume 2·(π·10/3·175); smooth has same bbox and volume strictly between 500π and the ruled volume. Section faces unchanged afterwards.",
+      "Errors, each with a test and never a panic, all `InvalidInput` and checked before the backend: fewer than 2 sections; a section that is not a single planar face (e.g. a box solid); a section face with a hole (holes are out of scope).",
+      "Sections the backend can't loft (two equal squares at the same z) return an `Err`, not `Ok` or a panic, and the input faces are still usable afterwards.",
+      "No new dependencies. `swx-kernel` still has no workspace dependencies.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and so do the CI `swx-kernel (occt)` job commands.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-09T08:27:53.639462877+00:00",
+    "constraints": [],
+    "created_at": "2026-11-09T08:27:06.688958697+00:00",
+    "description": "M3-11a: Kernel loft through planar sections (ruled or smooth)",
+    "project_id": "saulitwerx",
+    "scope": "crates/swx-kernel only; PR #166",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 2,
+      "checks_count": 8,
+      "estimate": "medium",
+      "id": "loft-154",
+      "status": "completed",
+      "title": "Implement and verify Kernel::loft (#154, PR #166)",
+      "type": "implement"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
