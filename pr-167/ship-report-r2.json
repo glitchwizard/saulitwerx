@@ -1,0 +1,118 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "Merge main into feat/158-kernel-sweep",
+      "ref": "68a10ce",
+      "task_id": "gates-158",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt --all --check",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-158",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy --workspace --all-targets -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-158",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test --workspace",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-158",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-kernel --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-158",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-kernel --features occt",
+      "passed": false,
+      "required": true,
+      "task_id": "gates-158",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-kernel --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-158",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-qa --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-158",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-qa --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-158",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`Kernel::sweep(&self, profile: &Self::Shape, plane: &Workplane, path: &[Segment2]) -> Result<Self::Shape, KernelError>`, documented: the path runs from the first segment's start (a `Line`'s `start`, an `Arc`'s point at `start_angle`) through the segments in order; each next segment must begin where the previous one ends, within `LOOP_GAP_TOLERANCE` (either of its endpoints may meet it). The path's start must lie in the profile's plane. The result is the closed solid the profile sweeps along the path. The doc comment cites OCCT's reference documentation for `BRepOffsetAPI_MakePipe`. Implemented for `OcctKernel`. New shim code is `noexcept`, catches C++ exceptions, and rejects a result `BRepCheck_Analyzer` finds invalid. Every new `unsafe` call is in `ffi` with a SAFETY comment.",
+      "Tests (behind `occt`). The path is on `Workplane::XZ` (u along +X, v along +Z): Straight: square 10 × 10 centered on the origin on `Workplane::XY`, path one `Line` (0, 0) → (0, 30): volume 3000 (within 1e-6 relative); 6 faces; bounding box (−5, −5, 0)–(5, 5, 30) within 1e-6. Quarter arc: circle r 2 centered on the origin on `Workplane::XY`, path one `Arc` with center (20, 0), radius 20, from angle π to 3π/2 (from (0, 0, 0) down to (20, 0, −20)): volume 40π² ≈ 394.7842 (Pappus; within 1e-4 relative); 3 faces; the result has a planar face through x = 20 with normal ±X (`face_plane`, within 1e-6). Line then arc: the same circle, path `Line` (0, 0) → (0, −10) then `Arc` center (20, −10), radius 20, from π to 3π/2: volume 40π + 40π² ≈ 520.4479 (within 1e-4 relative). The profile face is unchanged afterwards (one face, area 100 for the square).",
+      "Errors, each with a test and never a panic, all `InvalidInput` and checked before the backend: an empty path; a `Circle` segment in the path (closed paths are out of scope); a radius ≤ 0 or a non-finite number in the path; an invalid `plane` (zero or non-perpendicular `x_dir` and `normal`, as for `make_face`); a gap between segments larger than `LOOP_GAP_TOLERANCE`; a path whose start is not in the profile's plane (e.g. `Line` (0, 5) → (0, 30) with the square at z = 0); a profile that is not a single planar face (e.g. a box solid); a profile face with a hole (holes are out of scope).",
+      "A path whose start direction lies in the profile's plane (`Line` (0, 0) → (30, 0) with the square on `Workplane::XY`) returns an `Err` (`Backend` or `InvalidInput`), not `Ok` or a panic, and the profile is still usable afterwards.",
+      "No new dependencies. `swx-kernel` still has no workspace dependencies.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and so do the CI `swx-kernel (occt)` job commands.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-09T10:22:32.334270008+00:00",
+    "constraints": [],
+    "created_at": "2026-11-09T10:20:55.694102757+00:00",
+    "description": "M3-11b: Kernel sweep of a planar face along an open planar path (lines and arcs)",
+    "project_id": "saulitwerx",
+    "scope": "swx-kernel; PR #167 fix run: merge main after #166",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 8,
+      "estimate": "small",
+      "id": "gates-158",
+      "status": "completed",
+      "title": "Merge main into PR #167 and re-run gates",
+      "type": "test"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
