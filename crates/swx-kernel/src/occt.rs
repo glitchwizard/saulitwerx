@@ -5,6 +5,7 @@ use std::path::Path;
 
 use crate::ffi::{self, ChamferMode, EdgeOp, FacePlane, ShapeHandle};
 use crate::hole::{perpendicular, prepare_hole, HoleCylinder};
+use crate::loft::check_section_count;
 use crate::profile::{check_revolve_profile, prepare_face, prepare_path, prepare_revolve};
 use crate::topo::{
     validate_adjacent, validate_edges, validate_edges_on_faces, validate_faces, validate_index,
@@ -383,6 +384,35 @@ impl Kernel for OcctKernel {
         }
         if before - after <= 1e-9 * before.abs() {
             return Err(misses());
+        }
+        Ok(result)
+    }
+
+    fn loft(&self, sections: &[OcctShape], ruled: bool) -> Result<OcctShape, KernelError> {
+        check_section_count(sections.len())?;
+        for (i, s) in sections.iter().enumerate() {
+            match ffi::planar_face_wires(&s.0) {
+                Some(1) => {}
+                Some(_) => {
+                    return Err(KernelError::InvalidInput(format!(
+                        "loft section {i} has a hole; sections with holes are not supported"
+                    )))
+                }
+                None => {
+                    return Err(KernelError::InvalidInput(format!(
+                        "loft section {i} is not a single planar face"
+                    )))
+                }
+            }
+        }
+        let handles: Vec<&ShapeHandle> = sections.iter().map(|s| &s.0).collect();
+        let result = ffi::loft(&handles, ruled)
+            .map(OcctShape)
+            .ok_or_else(|| backend("loft"))?;
+        if self.volume(&result)?.abs() <= EMPTY_VOLUME_TOLERANCE {
+            return Err(KernelError::EmptyResult(
+                "the loft encloses no volume".to_string(),
+            ));
         }
         Ok(result)
     }
@@ -2385,5 +2415,112 @@ mod tests {
         };
         invalid(K.hole(&b, away, CBORE, HoleDepth::ThroughAll));
         assert_close(K.volume(&b).unwrap(), 24000.0);
+    }
+
+    /// Square of side `side` centered on the z axis at height `z`.
+    fn square_section(side: f64, z: f64) -> OcctShape {
+        let h = side / 2.0;
+        let plane = Workplane::XY.offset(z).unwrap();
+        K.make_face(&plane, &polygon(&[[-h, -h], [h, -h], [h, h], [-h, h]]), &[])
+            .unwrap()
+    }
+
+    /// Circle of radius `r` centered on the z axis at height `z`.
+    fn circle_section(r: f64, z: f64) -> OcctShape {
+        let plane = Workplane::XY.offset(z).unwrap();
+        K.make_face(&plane, &circle([0.0, 0.0], r), &[]).unwrap()
+    }
+
+    /// Each section is still one face with its original area.
+    fn assert_sections_unchanged(sections: &[OcctShape], areas: &[f64]) {
+        for (s, area) in sections.iter().zip(areas) {
+            assert_eq!(K.face_count(s).unwrap(), 1);
+            assert_close(K.surface_area(s).unwrap(), *area);
+        }
+    }
+
+    #[test]
+    fn loft_ruled_square_frustum() {
+        let sections = [square_section(20.0, 0.0), square_section(10.0, 30.0)];
+        let s = K.loft(&sections, true).unwrap();
+        // h/3 · (A1 + A2 + √(A1·A2)) = 10 · (400 + 100 + 200).
+        assert_close(K.volume(&s).unwrap(), 7000.0);
+        assert_eq!(K.sub_shape_count(&s, TopoKind::Face).unwrap(), 6);
+        assert_eq!(K.sub_shape_count(&s, TopoKind::Edge).unwrap(), 12);
+        assert_eq!(K.sub_shape_count(&s, TopoKind::Vertex).unwrap(), 8);
+        assert_bbox(&s, [-10.0, -10.0, 0.0], [10.0, 10.0, 30.0]);
+        assert_sections_unchanged(&sections, &[400.0, 100.0]);
+    }
+
+    #[test]
+    fn loft_ruled_cone_frustum() {
+        let sections = [circle_section(10.0, 0.0), circle_section(5.0, 20.0)];
+        let s = K.loft(&sections, true).unwrap();
+        // π h/3 · (R² + Rr + r²) = π · 20/3 · 175.
+        assert_close(K.volume(&s).unwrap(), 3500.0 * PI / 3.0);
+        assert_eq!(K.face_count(&s).unwrap(), 3);
+        assert_bbox(&s, [-10.0, -10.0, 0.0], [10.0, 10.0, 20.0]);
+        assert_sections_unchanged(&sections, &[100.0 * PI, 25.0 * PI]);
+    }
+
+    #[test]
+    fn loft_three_circles_ruled_and_smooth() {
+        let sections = [
+            circle_section(10.0, 0.0),
+            circle_section(5.0, 10.0),
+            circle_section(10.0, 20.0),
+        ];
+        let ruled_volume = 2.0 * (PI * 10.0 / 3.0 * 175.0);
+        let ruled = K.loft(&sections, true).unwrap();
+        assert_close(K.volume(&ruled).unwrap(), ruled_volume);
+        assert_bbox(&ruled, [-10.0, -10.0, 0.0], [10.0, 10.0, 20.0]);
+
+        let smooth = K.loft(&sections, false).unwrap();
+        assert_bbox(&smooth, [-10.0, -10.0, 0.0], [10.0, 10.0, 20.0]);
+        let v = K.volume(&smooth).unwrap();
+        assert!(
+            v > 500.0 * PI && v < ruled_volume,
+            "smooth volume {v} should be between {} and {ruled_volume}",
+            500.0 * PI
+        );
+        assert_sections_unchanged(&sections, &[100.0 * PI, 25.0 * PI, 100.0 * PI]);
+    }
+
+    #[test]
+    fn loft_rejects_bad_sections_before_the_backend() {
+        let invalid = |r: Result<OcctShape, KernelError>| {
+            assert!(
+                matches!(r, Err(KernelError::InvalidInput(_))),
+                "expected InvalidInput, got {r:?}"
+            );
+        };
+        let a = square_section(20.0, 0.0);
+        invalid(K.loft(&[], true));
+        invalid(K.loft(std::slice::from_ref(&a), true));
+        let solid = K.make_box([-5.0, -5.0, 10.0], [10.0, 10.0, 10.0]).unwrap();
+        invalid(K.loft(&[square_section(20.0, 0.0), solid], false));
+        let plane = Workplane::XY.offset(30.0).unwrap();
+        let holed = K
+            .make_face(
+                &plane,
+                &polygon(&[[-10.0, -10.0], [10.0, -10.0], [10.0, 10.0], [-10.0, 10.0]]),
+                &[circle([0.0, 0.0], 3.0)],
+            )
+            .unwrap();
+        invalid(K.loft(&[square_section(20.0, 0.0), holed], true));
+        assert_sections_unchanged(&[a], &[400.0]);
+    }
+
+    #[test]
+    fn loft_of_coincident_sections_is_an_error() {
+        let sections = [square_section(20.0, 0.0), square_section(20.0, 0.0)];
+        for ruled in [true, false] {
+            let r = K.loft(&sections, ruled);
+            assert!(r.is_err(), "expected an error, got {r:?}");
+        }
+        assert_sections_unchanged(&sections, &[400.0, 400.0]);
+        // The inputs are still usable.
+        let s = K.extrude(&sections[0], Extent::Distance(5.0)).unwrap();
+        assert_close(K.volume(&s).unwrap(), 2000.0);
     }
 }
