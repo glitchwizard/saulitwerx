@@ -171,6 +171,13 @@ extern "C" {
     ) -> c_int;
     fn swx_occt_volume(s: *const RawShape, out: *mut c_double) -> c_int;
     fn swx_occt_is_valid(s: *const RawShape) -> c_int;
+    fn swx_occt_planar_face_wires(s: *const RawShape, out: *mut usize) -> c_int;
+    fn swx_occt_loft(
+        sections: *const *const RawShape,
+        n: usize,
+        ruled: c_int,
+        out: *mut *mut RawShape,
+    ) -> c_int;
     fn swx_occt_surface_area(s: *const RawShape, out: *mut c_double) -> c_int;
     fn swx_occt_bounding_box(s: *const RawShape, out: *mut c_double) -> c_int;
     fn swx_occt_sub_shape_bounding_box(
@@ -624,6 +631,33 @@ pub(crate) fn is_valid(s: &ShapeHandle) -> bool {
     // the shim takes no other arguments and returns a plain status.
     let status = unsafe { swx_occt_is_valid(s.0.as_ptr()) };
     status == 1
+}
+
+/// Number of wires of `s` when it is a single planar face (1 = outer loop
+/// only, more = holes). `None` for anything else or on any failure.
+pub(crate) fn planar_face_wires(s: &ShapeHandle) -> Option<usize> {
+    let mut out = 0usize;
+    // SAFETY: `s` is a live handle read-only for the call and not retained;
+    // `out` is a valid writable `usize` on our stack (`size_t` layout).
+    let status = unsafe { swx_occt_planar_face_wires(s.0.as_ptr(), &mut out) };
+    (status == 0).then_some(out)
+}
+
+/// Solid lofted through the outer wires of the planar faces `sections`, in
+/// order; `ruled` joins neighbors with ruled surfaces. `None` on any failure,
+/// including a result the shim finds invalid.
+pub(crate) fn loft(sections: &[&ShapeHandle], ruled: bool) -> Option<ShapeHandle> {
+    let ptrs: Vec<*const RawShape> = sections
+        .iter()
+        .map(|s| s.0.as_ptr() as *const RawShape)
+        .collect();
+    let mut raw = ptr::null_mut();
+    // SAFETY: `ptrs` holds `ptrs.len()` pointers to live handles borrowed for
+    // the whole call (via `sections`); the shim only reads them and retains
+    // none; `ruled` is a plain int; `raw` is a valid out-pointer that receives
+    // a new, independently owned handle.
+    let status = unsafe { swx_occt_loft(ptrs.as_ptr(), ptrs.len(), c_int::from(ruled), &mut raw) };
+    take(status, raw)
 }
 
 pub(crate) fn surface_area(s: &ShapeHandle) -> Option<f64> {

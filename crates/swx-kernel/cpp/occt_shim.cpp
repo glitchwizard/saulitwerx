@@ -26,6 +26,7 @@
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRepOffsetAPI_DraftAngle.hxx>
 #include <BRepOffsetAPI_MakeThickSolid.hxx>
+#include <BRepOffsetAPI_ThruSections.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <BRepPrimAPI_MakeCylinder.hxx>
 #include <BRepPrimAPI_MakePrism.hxx>
@@ -812,6 +813,70 @@ int swx_occt_draft(const SwxShape* s, const size_t* faces, size_t n, double ox, 
             if (!maker.AddDone()) {
                 return -1;
             }
+        }
+        maker.Build();
+        if (!maker.IsDone()) {
+            return -1;
+        }
+        const TopoDS_Shape result = maker.Shape();
+        if (result.IsNull() || !BRepCheck_Analyzer(result).IsValid()) {
+            return -1;
+        }
+        return emit(result, out);
+    } catch (...) {
+        return -1;
+    }
+}
+
+// Loft-section check: when `s` is a single planar face, writes its number of
+// wires (1 = outer loop only, more = holes) to `out` and returns 0; returns
+// -1 for anything else (a solid, a non-planar face) or on any exception.
+int swx_occt_planar_face_wires(const SwxShape* s, size_t* out) noexcept {
+    if (s == nullptr || out == nullptr) {
+        return -1;
+    }
+    try {
+        if (s->shape.IsNull() || s->shape.ShapeType() != TopAbs_FACE) {
+            return -1;
+        }
+        BRepAdaptor_Surface surface(TopoDS::Face(s->shape));
+        if (surface.GetType() != GeomAbs_Plane) {
+            return -1;
+        }
+        size_t wires = 0;
+        for (TopExp_Explorer ex(s->shape, TopAbs_WIRE); ex.More(); ex.Next()) {
+            ++wires;
+        }
+        *out = wires;
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+// Closed solid through the outer wires of the `n` planar faces in `sections`,
+// in order (OCCT reference documentation: BRepOffsetAPI_ThruSections, with
+// isSolid = true, CheckCompatibility(true) and one AddWire per section using
+// BRepTools::OuterWire). `ruled` != 0 joins neighbors with ruled surfaces.
+// Returns -1 on any failure, including a result BRepCheck_Analyzer rejects.
+int swx_occt_loft(const SwxShape* const* sections, size_t n, int ruled,
+                  SwxShape** out) noexcept {
+    if (sections == nullptr || out == nullptr || n < 2) {
+        return -1;
+    }
+    try {
+        BRepOffsetAPI_ThruSections maker(Standard_True, ruled != 0 ? Standard_True : Standard_False);
+        maker.CheckCompatibility(Standard_True);
+        for (size_t i = 0; i < n; ++i) {
+            const SwxShape* s = sections[i];
+            if (s == nullptr || s->shape.IsNull() || s->shape.ShapeType() != TopAbs_FACE) {
+                return -1;
+            }
+            const TopoDS_Wire wire = BRepTools::OuterWire(TopoDS::Face(s->shape));
+            if (wire.IsNull()) {
+                return -1;
+            }
+            maker.AddWire(wire);
         }
         maker.Build();
         if (!maker.IsDone()) {
