@@ -1,0 +1,109 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(kernel): work plane, axis and point on a solid's face, edge or vertex",
+      "ref": "7b2f01a",
+      "task_id": "gates-168",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt --all --check",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-168",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy --workspace --all-targets -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-168",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test --workspace",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-168",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-kernel --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-168",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-kernel --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-168",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-qa --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-168",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-qa --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-168",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "Three documented `Kernel` methods, implemented for `OcctKernel`: `work_plane_on_face(&self, s, face: SubShape) -> Result<Workplane, KernelError>`: the plane of a planar face; `normal` is the outward normal from `face_plane`; `origin` is the projection of the model origin onto the plane; `x_dir` follows the `Workplane::from_point_normal` rule. `work_axis_on(&self, s, of: SubShape) -> Result<Axis, KernelError>`: for a straight edge, the edge's line; for a cylindrical face, the cylinder's axis. `dir` is a unit vector (either sign); `origin` is the point of the line closest to the model origin. `vertex_point(&self, s, vertex: SubShape) -> Result<Point3, KernelError>`. New shim code (if any) is `noexcept` and catches C++ exceptions; every new `unsafe` call is in `ffi` with a SAFETY comment.",
+      "Tests (behind `occt`), points and directions within 1e-9, on `make_box([0,0,0], [10,20,30])` (faces found with `face_plane`) and `make_cylinder([5,5,0], 3, 10)`: Top face: origin (0, 0, 30), normal (0, 0, 1), `x_dir` (1, 0, 0). Face at x = 10: origin (10, 0, 0), normal (1, 0, 0), `x_dir` (0, 1, 0). Bottom face: origin (0, 0, 0), normal (0, 0, −1). The box edge from (0, 20, 30) to (10, 20, 30): axis origin (0, 20, 30), dir ±(1, 0, 0). The cylinder's lateral face: axis origin (5, 5, 0), dir ±(0, 0, 1). The 8 `vertex_point`s of the box are exactly its 8 corners (as a set). The input solid is unchanged afterwards (same volume and face count).",
+      "Errors, each with a test and never a panic, all `InvalidInput`: wrong `SubShape` kind for the method (e.g. a vertex for `work_plane_on_face`); index out of range; a non-planar face for `work_plane_on_face` (cylinder lateral face); a curved edge (cylinder's circular edge) or a planar face for `work_axis_on`.",
+      "No new dependencies. `swx-kernel` still has no workspace dependencies.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and so do the CI `swx-kernel (occt)` job commands.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-09T10:29:17.002661085+00:00",
+    "constraints": [],
+    "created_at": "2026-11-09T10:28:55.409858175+00:00",
+    "description": "M3-08b: Work plane, axis and point from a solid's face, edge or vertex (by index)",
+    "project_id": "saulitwerx",
+    "scope": "swx-kernel; PR #172",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 7,
+      "estimate": "small",
+      "id": "gates-168",
+      "status": "completed",
+      "title": "Work plane, axis, point on geometry: gates",
+      "type": "test"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
