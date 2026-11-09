@@ -67,7 +67,7 @@ Every message starts with `swx-qa: `. No picture is written when there is an err
   [`invalid input: no such file: f`], [The STEP file to read doesn't exist.],
   [`invalid input: adjacent needs two different kinds, got edge and edge`], [`adjacent` was asked for the same kind it starts from. Ask for another kind: the faces or vertices of an edge (@sec-topology).],
   [`invalid input: face index 7 is out of range: the shape has 7 faces`], [The index is past the last sub-shape of its kind. Indices start at 0, so the last is the count minus 1. An index from another shape, or from before a change, can also be out of range (@sec-topology).],
-  [`kernel failure: <operation> failed`], [OpenCascade couldn't complete the operation. For a cut, check that the tool solid overlaps the part (@ch-solids). For a `fillet` or a `chamfer`, the size is too large for the faces next to the edges: make it smaller (@sec-fillet-mistakes). For a `shell`, the walls are too thick for the part: keep them under half its narrowest width (@sec-shell-mistakes). For a `draft`, a face can't be tilted, such as one parallel to the neutral plane (@sec-draft-mistakes).],
+  [`kernel failure: <operation> failed`], [OpenCascade couldn't complete the operation. For a cut, check that the tool solid overlaps the part (@ch-solids). For a `fillet` or a `chamfer`, the size is too large for the faces next to the edges: make it smaller (@sec-fillet-mistakes). For a `shell`, the walls are too thick for the part: keep them under half its narrowest width (@sec-shell-mistakes). For a `draft`, a face can't be tilted, such as one parallel to the neutral plane (@sec-draft-mistakes). For a `loft`, two sections may be in the same place (@sec-loft-mistakes).],
   [`invalid input: the edge list is empty`], [A fillet or a chamfer was given no edges. Give at least one (@ch-fillet).],
   [`invalid input: the face list is empty`], [A shell was given no faces to open, or a draft no faces to tilt. Give at least one (@ch-shell, @ch-draft).],
   [`invalid input: vertex 1 is not on edge 11`], [A variable fillet's start vertex isn't one of its edge's two ends. Ask `adjacent` for the edge's vertices (@sec-fillet-variable).],
@@ -80,6 +80,19 @@ Every message starts with `swx-qa: `. No picture is written when there is an err
   [`empty result: the hole removes the whole solid`], [The hole is so large that nothing is left.],
   [`invalid input: draft angle must be finite, non-zero and below π/2 in size, got <v>`], [A draft angle is zero, 90° or more, not a number, or given in degrees. Give radians: `5f64.to_radians()` (@sec-draft).],
   [`invalid input: draft pull direction must be finite and non-zero, got …`], [The neutral plane's direction is missing or not a number.],
+  [`invalid input: a loft needs at least 2 sections, got 1`], [A loft was given one section, or none (@sec-loft-mistakes).],
+  [`invalid input: loft section 1 has a hole; sections with holes are not supported`], [A loft section is ring-shaped. Loft the outer outline, and cut the hole separately.],
+  [`invalid input: loft section 1 is not a single planar face`], [A loft section is a solid, or more than one face. Pass faces from `make_face`.],
+  [`empty result: the loft encloses no volume`], [The sections enclose nothing between them.],
+  [`invalid input: sweep path is empty`], [A sweep was given no path (@sec-sweep-mistakes).],
+  [`invalid input: sweep path: circles (closed paths) are not supported`], [The path holds a full circle. A sweep path must be open; for a ring, revolve instead (@ch-revolve).],
+  [`invalid input: sweep path: segment 1 doesn't meet segment 0 within 0.0000001`], [Two neighboring pieces of the path don't touch. Reuse the same end values (@sec-sweep-mistakes).],
+  [`invalid input: sweep path starts 5 off the profile's plane`], [The path's start isn't on the profile's plane; the number is how far off it is, in mm. Start the path at the profile's middle.],
+  [`invalid input: sweep profile is not a single planar face`, `sweep profile has a hole; profiles with holes are not supported`], [The profile is a solid, or has a hole. Pass one face from `make_face`; for a tube, cut an inner sweep from an outer one.],
+  [`empty result: the sweep encloses no volume`], [The path runs along the profile's own plane, so the profile sweeps out nothing. Draw the path on a plane that crosses the profile's.],
+  [`invalid input: work_axis_on needs an edge or a face, got a vertex`], [A work axis was asked of a corner. Give a straight edge or a round face (@sec-work-part).],
+  [`invalid input: Edge 13 is not a straight edge or a cylindrical face` (or `Face …`)], [The edge is curved, or the face isn't round like a cylinder, so it has no single line.],
+  [`invalid input: vertex_point needs a vertex, got a Edge sub-shape` (or `Face`)], [A work point was asked of an edge or a face. Give a vertex.],
   [`invalid input: the planes are parallel: they have no line in common`], [Two parallel planes have no line where they meet (@sec-work-mistakes).],
   [`invalid input: the three plane points are collinear`], [Three points in a line don't fix a plane. Move one off the line.],
   [`invalid input: axis direction (the points coincide) must be non-zero`, `plane points (two coincide) must be non-zero`], [An axis or a plane was given the same point twice.],
@@ -94,8 +107,8 @@ Every message starts with `swx-qa: `. No picture is written when there is an err
   [`invalid input: expected an edge, got face 0` (or `vertex`)], [A fillet's or a chamfer's list holds something that isn't an edge. Give edges only (@sec-fillet-mistakes).],
   [`invalid input: edge index 12 is out of range: the shape has 12 edges`], [As for faces: the edge number is past the last edge, or comes from another solid. Find the edges in the solid you are softening.],
   [`invalid input: face index 14 is out of range (the shape has 14 faces)`], [`face_plane`, or a face extent, was given a face number past the last face of the target.],
-  [`invalid input: face_plane needs a face, got a Edge sub-shape` (or `Vertex`)], [`face_plane` was given an edge or a vertex. Give a face.],
-  [`invalid input: face 2 is not planar`], [The face is curved, so it has no plane: a to-face extrude can't end on it. Pick a flat face (@sec-extrude-to-face).],
+  [`invalid input: face_plane needs a face, got a Edge sub-shape` (or `Vertex`)], [`face_plane` or `work_plane_on_face` was given an edge or a vertex. Give a face.],
+  [`invalid input: face 2 is not planar`], [The face is curved, so it has no plane: a to-face extrude can't end on it, and no work plane can sit on it. Pick a flat face (@sec-extrude-to-face, @sec-work-part).],
   [`invalid input: outer loop: consecutive segments don't meet within 0.0000001` (or `hole N loop: …`)], [Two pieces of the loop, or its last and first, don't meet. Reuse the same corner values for both ends (@ch-extrude).],
   [`invalid input: outer loop is empty`, `… loop encloses no area`], [The loop has no pieces, or they enclose nothing: a line there and back, or a figure eight whose halves are the same size.],
   [`invalid input: … loop of one segment must be a circle`, `… a circle must be the only segment of its loop`], [A loop of one piece must be a full circle, and a circle can't share a loop. Use arcs to round corners.],
@@ -220,8 +233,10 @@ For an unknown entity, `infer` and `add_inferred` give the sketch messages above
 - An extrude's or a revolve's target is a solid you hold in your program. Faces and edges can be counted and numbered (@sec-topology), a plain extrude says which face each piece of the outline became (@sec-extrude-history), and a Boolean what became of each face (@sec-boolean-history), but they can't be picked, and their numbers don't last through a change; so the outline's workplane is given by its numbers (@sec-extrude-modes).
 - Holes have flat bottoms and are simple or counterbored: no drill points, countersinks or threads yet (@ch-hole).
 - A draft tilts flat faces by one angle about one neutral plane; it can't split a face or step its neutral line (@ch-draft).
-- Work planes, axes and points are built from numbers and from each other, not picked on a part (@ch-work).
-- Extrudes, revolves, fillets, chamfers, shells, holes, drafts and work features aren't recorded in a part's history, so they don't rebuild when a parameter changes.
+- Work planes, axes and points can be taken from a part's faces, edges and corners only by their numbers, not picked; an axis taken from the part may point either way (@sec-work-part).
+- A loft goes through flat sections without holes, in the order given, with no guide curves and no control over how the sections line up (@ch-loft).
+- A sweep moves one flat profile without holes along an open path of lines and arcs in one plane: no closed, 3D or spline paths, no twist or change of size. A bend tighter than the profile gives a part that passes through itself, with no error (@ch-sweep).
+- Extrudes, revolves, lofts, sweeps, fillets, chamfers, shells, holes, drafts and work features aren't recorded in a part's history, so they don't rebuild when a parameter changes.
 - No native part files; work can't be saved with its history.
 - `swx-qa sketch` draws only its two built-in sketches. Your own sketches need a short program (@sec-picture-sketch). Sketch pictures show no dimension arrows and no marks for constraints such as horizontal.
 - A parameter's unit is free text. Only the seven units of @sec-ref-expr are understood by formulas; any other unit counts as none.
