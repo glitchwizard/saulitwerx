@@ -122,6 +122,14 @@ extern "C" {
         dz: c_double,
         out: *mut c_double,
     ) -> c_int;
+    fn swx_occt_sweep_profile(s: *const RawShape, out: *mut c_double) -> c_int;
+    fn swx_occt_sweep(
+        s: *const RawShape,
+        plane: *const c_double,
+        n: usize,
+        edges: *const c_double,
+        out: *mut *mut RawShape,
+    ) -> c_int;
     fn swx_occt_fillet_chamfer(
         op: c_int,
         s: *const RawShape,
@@ -665,6 +673,49 @@ pub(crate) fn revolve_profile(
         side_min: out[6],
         side_max: out[7],
     })
+}
+
+/// For a single planar face `s`: a point on its plane, the plane's unit
+/// normal, and its number of wires (1 = outer loop only, more = holes).
+/// `None` for anything else or on any failure.
+pub(crate) fn sweep_profile(s: &ShapeHandle) -> Option<([f64; 3], [f64; 3], usize)> {
+    let mut out = [0.0 as c_double; 7];
+    // SAFETY: `s` is a live handle read-only for the call and not retained;
+    // `out` is a valid writable array of exactly the 7 doubles the shim writes.
+    let status = unsafe { swx_occt_sweep_profile(s.0.as_ptr(), out.as_mut_ptr()) };
+    (status == 0).then(|| {
+        (
+            [out[0], out[1], out[2]],
+            [out[3], out[4], out[5]],
+            out[6] as usize,
+        )
+    })
+}
+
+/// Sweeps the planar face `s` along the open path `edges` (8 doubles per
+/// edge, see `PreparedFace::encode`) on `plane` (9 doubles, see
+/// `PreparedFace::plane_array`). `None` on any failure, including a result
+/// the shim finds invalid.
+pub(crate) fn sweep(s: &ShapeHandle, plane: &[f64; 9], edges: &[f64]) -> Option<ShapeHandle> {
+    if edges.is_empty() || edges.len() % 8 != 0 {
+        return None;
+    }
+    let mut raw = ptr::null_mut();
+    // SAFETY: `s` is a live handle read-only for the call and not retained;
+    // `plane` points to 9 readable doubles and `edges` to `edges.len()`
+    // readable doubles (8 per edge, so `edges.len() / 8` edges), which the
+    // shim only reads during the call; `raw` is a valid out-pointer that
+    // receives a new, independently owned handle.
+    let status = unsafe {
+        swx_occt_sweep(
+            s.0.as_ptr(),
+            plane.as_ptr(),
+            edges.len() / 8,
+            edges.as_ptr(),
+            &mut raw,
+        )
+    };
+    take(status, raw)
 }
 
 pub(crate) fn bounding_box(s: &ShapeHandle) -> Option<[f64; 6]> {

@@ -5,7 +5,7 @@ use std::path::Path;
 
 use crate::ffi::{self, ChamferMode, EdgeOp, FacePlane, ShapeHandle};
 use crate::hole::{perpendicular, prepare_hole, HoleCylinder};
-use crate::profile::{check_revolve_profile, prepare_face, prepare_revolve};
+use crate::profile::{check_revolve_profile, prepare_face, prepare_path, prepare_revolve};
 use crate::topo::{
     validate_adjacent, validate_edges, validate_edges_on_faces, validate_faces, validate_index,
 };
@@ -13,7 +13,7 @@ use crate::{
     input_file_cstring, path_to_cstring, validate_point, validate_size, Axis, BooleanOp,
     BoundingBox, ChamferSize, EdgeOnFace, Extent, ExtrudeHistory, HoleDepth, HoleKind, Kernel,
     KernelError, Mesh, OpHistory, Operand, Point3, ProfileLoop, Segment2, SubShape, TopoKind,
-    Workplane, EMPTY_VOLUME_TOLERANCE,
+    Workplane, EMPTY_VOLUME_TOLERANCE, LOOP_GAP_TOLERANCE,
 };
 
 /// [`Kernel`] backed by the system OpenCascade libraries.
@@ -171,6 +171,40 @@ impl Kernel for OcctKernel {
         ffi::revolve(&face.0, origin, dir, angle)
             .map(OcctShape)
             .ok_or_else(|| backend("revolve"))
+    }
+
+    fn sweep(
+        &self,
+        profile: &OcctShape,
+        plane: &Workplane,
+        path: &[Segment2],
+    ) -> Result<OcctShape, KernelError> {
+        let prepared = prepare_path(plane, path)?;
+        let (point, normal, wires) = ffi::sweep_profile(&profile.0).ok_or_else(|| {
+            KernelError::InvalidInput("sweep profile is not a single planar face".to_string())
+        })?;
+        if wires != 1 {
+            return Err(KernelError::InvalidInput(
+                "sweep profile has a hole; profiles with holes are not supported".to_string(),
+            ));
+        }
+        let start = prepared.point_3d(prepared.loops[0][0].from);
+        let off: f64 = (0..3).map(|k| (start[k] - point[k]) * normal[k]).sum();
+        if off.abs() > LOOP_GAP_TOLERANCE {
+            return Err(KernelError::InvalidInput(format!(
+                "sweep path starts {off} off the profile's plane"
+            )));
+        }
+        let (_, edges) = prepared.encode();
+        let result = ffi::sweep(&profile.0, &prepared.plane_array(), &edges)
+            .map(OcctShape)
+            .ok_or_else(|| backend("sweep"))?;
+        if self.volume(&result)?.abs() <= EMPTY_VOLUME_TOLERANCE {
+            return Err(KernelError::EmptyResult(
+                "the sweep encloses no volume".to_string(),
+            ));
+        }
+        Ok(result)
     }
 
     fn fillet(
@@ -816,6 +850,142 @@ mod tests {
             assert_close(bb.min[axis], min[axis]);
             assert_close(bb.max[axis], max[axis]);
         }
+    }
+
+    /// Square 10 × 10 centered on the origin on `Workplane::XY`.
+    fn sweep_square() -> OcctShape {
+        K.make_face(
+            &Workplane::XY,
+            &polygon(&[[-5.0, -5.0], [5.0, -5.0], [5.0, 5.0], [-5.0, 5.0]]),
+            &[],
+        )
+        .unwrap()
+    }
+
+    /// Circle r 2 centered on the origin on `Workplane::XY`.
+    fn sweep_circle() -> OcctShape {
+        K.make_face(&Workplane::XY, &circle([0.0, 0.0], 2.0), &[])
+            .unwrap()
+    }
+
+    /// Quarter arc on `Workplane::XZ` from (0, 0, v0) down to (20, 0, v0 − 20).
+    fn quarter_arc(v0: f64) -> Segment2 {
+        Segment2::Arc {
+            center: [20.0, v0],
+            radius: 20.0,
+            start_angle: PI,
+            end_angle: 1.5 * PI,
+        }
+    }
+
+    fn assert_profile_unchanged(p: &OcctShape, area: f64) {
+        assert_eq!(K.face_count(p).unwrap(), 1);
+        assert_close(K.surface_area(p).unwrap(), area);
+    }
+
+    #[test]
+    fn sweep_square_along_a_straight_line() {
+        let p = sweep_square();
+        let path = [line([0.0, 0.0], [0.0, 30.0])];
+        let s = K.sweep(&p, &Workplane::XZ, &path).unwrap();
+        assert_close(K.volume(&s).unwrap(), 3000.0);
+        assert_eq!(K.face_count(&s).unwrap(), 6);
+        assert_bbox(&s, [-5.0, -5.0, 0.0], [5.0, 5.0, 30.0]);
+        assert_profile_unchanged(&p, 100.0);
+    }
+
+    #[test]
+    fn sweep_circle_along_a_quarter_arc() {
+        let p = sweep_circle();
+        let s = K.sweep(&p, &Workplane::XZ, &[quarter_arc(0.0)]).unwrap();
+        // Pappus: area 4π times the centroid's path length 10π.
+        let v = K.volume(&s).unwrap();
+        let expected = 40.0 * PI * PI;
+        assert!((v - expected).abs() <= 1e-4 * expected, "volume {v}");
+        assert_eq!(K.face_count(&s).unwrap(), 3);
+        // The end cap lies in the plane x = 20 with normal ±X.
+        let end = (0..3)
+            .filter_map(|i| K.face_plane(&s, face_sub(i)).ok())
+            .find(|(o, n)| (o[0] - 20.0).abs() <= 1e-6 && (n[0].abs() - 1.0).abs() <= 1e-6);
+        assert!(end.is_some(), "no planar face at x = 20 with normal ±X");
+        assert_profile_unchanged(&p, 4.0 * PI);
+    }
+
+    #[test]
+    fn sweep_circle_along_a_line_then_an_arc() {
+        let p = sweep_circle();
+        let path = [line([0.0, 0.0], [0.0, -10.0]), quarter_arc(-10.0)];
+        let s = K.sweep(&p, &Workplane::XZ, &path).unwrap();
+        let v = K.volume(&s).unwrap();
+        let expected = 40.0 * PI + 40.0 * PI * PI;
+        assert!((v - expected).abs() <= 1e-4 * expected, "volume {v}");
+        assert_profile_unchanged(&p, 4.0 * PI);
+    }
+
+    #[test]
+    fn sweep_rejects_bad_inputs_before_the_backend() {
+        let invalid = |r: Result<OcctShape, KernelError>| {
+            assert!(
+                matches!(r, Err(KernelError::InvalidInput(_))),
+                "expected InvalidInput, got {r:?}"
+            );
+        };
+        let p = sweep_square();
+        let up = line([0.0, 0.0], [0.0, 30.0]);
+        let xz = &Workplane::XZ;
+        invalid(K.sweep(&p, xz, &[]));
+        invalid(K.sweep(&p, xz, &[circle([0.0, 0.0], 5.0).segments[0]]));
+        invalid(K.sweep(&p, xz, &[quarter_arc_with_radius(0.0)]));
+        invalid(K.sweep(&p, xz, &[line([0.0, 0.0], [0.0, f64::NAN])]));
+        let skew = Workplane {
+            x_dir: [1.0, 1.0, 0.0],
+            ..Workplane::XZ
+        };
+        invalid(K.sweep(&p, &skew, &[up]));
+        let zero = Workplane {
+            normal: [0.0; 3],
+            ..Workplane::XZ
+        };
+        invalid(K.sweep(&p, &zero, &[up]));
+        invalid(K.sweep(&p, xz, &[up, line([0.0, 31.0], [5.0, 40.0])]));
+        invalid(K.sweep(&p, xz, &[line([0.0, 5.0], [0.0, 30.0])]));
+        let solid = K.make_box([-5.0, -5.0, 0.0], [10.0, 10.0, 10.0]).unwrap();
+        invalid(K.sweep(&solid, xz, &[up]));
+        let holed = K
+            .make_face(
+                &Workplane::XY,
+                &polygon(&[[-5.0, -5.0], [5.0, -5.0], [5.0, 5.0], [-5.0, 5.0]]),
+                &[circle([0.0, 0.0], 2.0)],
+            )
+            .unwrap();
+        invalid(K.sweep(&holed, xz, &[up]));
+        assert_profile_unchanged(&p, 100.0);
+    }
+
+    fn quarter_arc_with_radius(radius: f64) -> Segment2 {
+        Segment2::Arc {
+            center: [20.0, 0.0],
+            radius,
+            start_angle: PI,
+            end_angle: 1.5 * PI,
+        }
+    }
+
+    #[test]
+    fn sweep_along_the_profile_plane_is_an_error() {
+        let p = sweep_square();
+        let r = K.sweep(&p, &Workplane::XZ, &[line([0.0, 0.0], [30.0, 0.0])]);
+        assert!(
+            matches!(
+                r,
+                Err(KernelError::Backend(_) | KernelError::InvalidInput(_))
+            ),
+            "expected an error, got {r:?}"
+        );
+        assert_profile_unchanged(&p, 100.0);
+        // The profile is still usable.
+        let s = K.extrude(&p, Extent::Distance(2.0)).unwrap();
+        assert_close(K.volume(&s).unwrap(), 200.0);
     }
 
     #[test]
