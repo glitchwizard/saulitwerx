@@ -55,10 +55,13 @@
 #include <TopTools_IndexedMapOfShape.hxx>
 #include <TopTools_ListOfShape.hxx>
 #include <TopTools_ListIteratorOfListOfShape.hxx>
+#include <gp_Ax1.hxx>
 #include <gp_Ax2.hxx>
 #include <gp_Ax3.hxx>
 #include <gp_Circ.hxx>
+#include <gp_Cylinder.hxx>
 #include <gp_Dir.hxx>
+#include <gp_Lin.hxx>
 #include <gp_Pln.hxx>
 #include <gp_Pnt.hxx>
 #include <gp_Trsf.hxx>
@@ -1202,6 +1205,73 @@ int swx_occt_face_plane(const SwxShape* s, size_t index, double* out) noexcept {
         }
         const double values[6] = {p.X(), p.Y(), p.Z(), n.X(), n.Y(), n.Z()};
         std::copy(values, values + 6, out);
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+// Line of sub-shape `index` (0-based, in the TopExp::MapShapes order of
+// `kind`, which must be 0 face or 1 edge) of `s`: for a straight edge, the
+// edge's line; for a cylindrical face, the cylinder's axis. Both adaptors
+// apply the sub-shape's location (OCCT reference documentation:
+// BRepAdaptor_Curve::Line, BRepAdaptor_Surface::Cylinder). Writes a point on
+// the line (3) and its unit direction (3) to `out`. Returns 1 when the edge
+// is not straight or the face is not cylindrical, -1 on any other failure
+// (including an index out of range).
+int swx_occt_sub_shape_axis(const SwxShape* s, int kind, size_t index, double* out) noexcept {
+    TopAbs_ShapeEnum type;
+    if (s == nullptr || out == nullptr || !topo_kind(kind, &type) || type == TopAbs_VERTEX) {
+        return -1;
+    }
+    try {
+        TopTools_IndexedMapOfShape map;
+        TopExp::MapShapes(s->shape, type, map);
+        if (index >= static_cast<size_t>(map.Extent())) {
+            return -1;
+        }
+        const TopoDS_Shape& sub = map(static_cast<int>(index) + 1);
+        gp_Ax1 axis;
+        if (type == TopAbs_EDGE) {
+            BRepAdaptor_Curve curve(TopoDS::Edge(sub));
+            if (curve.GetType() != GeomAbs_Line) {
+                return 1;
+            }
+            axis = curve.Line().Position();
+        } else {
+            BRepAdaptor_Surface surface(TopoDS::Face(sub));
+            if (surface.GetType() != GeomAbs_Cylinder) {
+                return 1;
+            }
+            axis = surface.Cylinder().Axis();
+        }
+        const gp_Pnt p = axis.Location();
+        const gp_Dir d = axis.Direction();
+        const double values[6] = {p.X(), p.Y(), p.Z(), d.X(), d.Y(), d.Z()};
+        std::copy(values, values + 6, out);
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+// Position of vertex `index` (0-based, in the TopExp::MapShapes vertex order)
+// of `s`, with its location applied (OCCT reference documentation:
+// BRep_Tool::Pnt). Writes 3 doubles to `out`. Returns -1 on any failure
+// (including an index out of range).
+int swx_occt_vertex_point(const SwxShape* s, size_t index, double* out) noexcept {
+    if (s == nullptr || out == nullptr) {
+        return -1;
+    }
+    try {
+        TopTools_IndexedMapOfShape vertices;
+        TopExp::MapShapes(s->shape, TopAbs_VERTEX, vertices);
+        if (index >= static_cast<size_t>(vertices.Extent())) {
+            return -1;
+        }
+        const gp_Pnt p = BRep_Tool::Pnt(TopoDS::Vertex(vertices(static_cast<int>(index) + 1)));
+        const double values[3] = {p.X(), p.Y(), p.Z()};
+        std::copy(values, values + 3, out);
         return 0;
     } catch (...) {
         return -1;

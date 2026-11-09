@@ -3,7 +3,8 @@
 use std::f64::consts::FRAC_PI_2;
 use std::path::Path;
 
-use crate::ffi::{self, ChamferMode, EdgeOp, FacePlane, ShapeHandle};
+use crate::datum::{axis_nearest_origin, plane_nearest_origin};
+use crate::ffi::{self, ChamferMode, EdgeOp, FacePlane, ShapeHandle, SubShapeAxis};
 use crate::hole::{perpendicular, prepare_hole, HoleCylinder};
 use crate::loft::check_section_count;
 use crate::profile::{check_revolve_profile, prepare_face, prepare_revolve};
@@ -552,6 +553,39 @@ impl Kernel for OcctKernel {
             ))),
             None => Err(backend("face_plane")),
         }
+    }
+
+    fn work_plane_on_face(&self, s: &OcctShape, face: SubShape) -> Result<Workplane, KernelError> {
+        let (point, normal) = self.face_plane(s, face)?;
+        plane_nearest_origin(point, normal)
+    }
+
+    fn work_axis_on(&self, s: &OcctShape, of: SubShape) -> Result<Axis, KernelError> {
+        if of.kind == TopoKind::Vertex {
+            return Err(KernelError::InvalidInput(
+                "work_axis_on needs an edge or a face, got a vertex".to_string(),
+            ));
+        }
+        validate_index(of, self.sub_shape_count(s, of.kind)?)?;
+        match ffi::sub_shape_axis(&s.0, of.kind.code(), of.index) {
+            Some(SubShapeAxis::Line(point, dir)) => axis_nearest_origin(point, dir),
+            Some(SubShapeAxis::NoLine) => Err(KernelError::InvalidInput(format!(
+                "{:?} {} is not a straight edge or a cylindrical face",
+                of.kind, of.index
+            ))),
+            None => Err(backend("work_axis_on")),
+        }
+    }
+
+    fn vertex_point(&self, s: &OcctShape, vertex: SubShape) -> Result<Point3, KernelError> {
+        if vertex.kind != TopoKind::Vertex {
+            return Err(KernelError::InvalidInput(format!(
+                "vertex_point needs a vertex, got a {:?} sub-shape",
+                vertex.kind
+            )));
+        }
+        validate_index(vertex, self.sub_shape_count(s, TopoKind::Vertex)?)?;
+        ffi::vertex_point(&s.0, vertex.index).ok_or_else(|| backend("vertex_point"))
     }
 
     fn export_step(&self, s: &OcctShape, path: &Path) -> Result<(), KernelError> {
@@ -2352,5 +2386,203 @@ mod tests {
         // The inputs are still usable.
         let s = K.extrude(&sections[0], Extent::Distance(5.0)).unwrap();
         assert_close(K.volume(&s).unwrap(), 2000.0);
+    }
+
+    fn assert_vec9(actual: [f64; 3], expected: [f64; 3]) {
+        for i in 0..3 {
+            assert!(
+                (actual[i] - expected[i]).abs() <= 1e-9,
+                "expected {expected:?}, got {actual:?}"
+            );
+        }
+    }
+
+    /// `dir` is ±`expected` within 1e-9.
+    fn assert_dir_either_sign(dir: [f64; 3], expected: [f64; 3]) {
+        let s = if dir.iter().zip(expected).map(|(a, b)| a * b).sum::<f64>() < 0.0 {
+            -1.0
+        } else {
+            1.0
+        };
+        assert_vec9(dir.map(|c| c * s), expected);
+    }
+
+    /// The face of `s` whose `face_plane` normal is `normal` (within 1e-9).
+    fn face_with_normal(s: &OcctShape, normal: [f64; 3]) -> SubShape {
+        let n = K.sub_shape_count(s, TopoKind::Face).unwrap();
+        (0..n)
+            .map(|i| sub(TopoKind::Face, i))
+            .find(|&f| match K.face_plane(s, f) {
+                Ok((_, m)) => (0..3).all(|a| (m[a] - normal[a]).abs() <= 1e-9),
+                Err(_) => false,
+            })
+            .expect("face with that normal")
+    }
+
+    /// The sub-shape of `kind` of `s` whose bounding box is `min`–`max`.
+    fn sub_with_bbox(s: &OcctShape, kind: TopoKind, min: Point3, max: Point3) -> SubShape {
+        let n = K.sub_shape_count(s, kind).unwrap();
+        (0..n)
+            .map(|i| sub(kind, i))
+            .find(|&e| {
+                let b = K.sub_shape_bounding_box(s, e).unwrap();
+                (0..3)
+                    .all(|a| (b.min[a] - min[a]).abs() <= 1e-6 && (b.max[a] - max[a]).abs() <= 1e-6)
+            })
+            .expect("sub-shape with that bounding box")
+    }
+
+    #[test]
+    fn work_plane_on_box_faces() {
+        let b = K.make_box([0.0; 3], [10.0, 20.0, 30.0]).unwrap();
+        let top = K
+            .work_plane_on_face(&b, face_with_normal(&b, [0.0, 0.0, 1.0]))
+            .unwrap();
+        assert_vec9(top.origin, [0.0, 0.0, 30.0]);
+        assert_vec9(top.normal, [0.0, 0.0, 1.0]);
+        assert_vec9(top.x_dir, [1.0, 0.0, 0.0]);
+        let side = K
+            .work_plane_on_face(&b, face_with_normal(&b, [1.0, 0.0, 0.0]))
+            .unwrap();
+        assert_vec9(side.origin, [10.0, 0.0, 0.0]);
+        assert_vec9(side.normal, [1.0, 0.0, 0.0]);
+        assert_vec9(side.x_dir, [0.0, 1.0, 0.0]);
+        let bottom = K
+            .work_plane_on_face(&b, face_with_normal(&b, [0.0, 0.0, -1.0]))
+            .unwrap();
+        assert_vec9(bottom.origin, [0.0, 0.0, 0.0]);
+        assert_vec9(bottom.normal, [0.0, 0.0, -1.0]);
+        // The input is unchanged.
+        assert_close(K.volume(&b).unwrap(), 6000.0);
+        assert_eq!(K.face_count(&b).unwrap(), 6);
+    }
+
+    #[test]
+    fn work_axis_on_a_box_edge_and_a_cylinder_face() {
+        let b = K.make_box([0.0; 3], [10.0, 20.0, 30.0]).unwrap();
+        let edge = sub_with_bbox(&b, TopoKind::Edge, [0.0, 20.0, 30.0], [10.0, 20.0, 30.0]);
+        let a = K.work_axis_on(&b, edge).unwrap();
+        assert_vec9(a.origin, [0.0, 20.0, 30.0]);
+        assert_dir_either_sign(a.dir, [1.0, 0.0, 0.0]);
+
+        let c = K.make_cylinder([5.0, 5.0, 0.0], 3.0, 10.0).unwrap();
+        let lateral = (0..K.sub_shape_count(&c, TopoKind::Face).unwrap())
+            .map(|i| sub(TopoKind::Face, i))
+            .find(|&f| K.face_plane(&c, f).is_err())
+            .expect("lateral face");
+        let a = K.work_axis_on(&c, lateral).unwrap();
+        assert_vec9(a.origin, [5.0, 5.0, 0.0]);
+        assert_dir_either_sign(a.dir, [0.0, 0.0, 1.0]);
+        // The inputs are unchanged.
+        assert_close(K.volume(&b).unwrap(), 6000.0);
+        assert_eq!(K.face_count(&b).unwrap(), 6);
+        assert_close(K.volume(&c).unwrap(), 90.0 * PI);
+        assert_eq!(K.face_count(&c).unwrap(), 3);
+    }
+
+    #[test]
+    fn vertex_points_are_the_box_corners() {
+        let b = K.make_box([0.0; 3], [10.0, 20.0, 30.0]).unwrap();
+        assert_eq!(K.sub_shape_count(&b, TopoKind::Vertex).unwrap(), 8);
+        let mut got: Vec<[f64; 3]> = (0..8)
+            .map(|i| K.vertex_point(&b, sub(TopoKind::Vertex, i)).unwrap())
+            .collect();
+        let mut want = Vec::new();
+        for x in [0.0, 10.0] {
+            for y in [0.0, 20.0] {
+                for z in [0.0, 30.0] {
+                    want.push([x, y, z]);
+                }
+            }
+        }
+        let key = |p: &[f64; 3]| {
+            (
+                p[0].round() as i64,
+                p[1].round() as i64,
+                p[2].round() as i64,
+            )
+        };
+        got.sort_by_key(key);
+        want.sort_by_key(key);
+        for (g, w) in got.iter().zip(&want) {
+            assert_vec9(*g, *w);
+        }
+        assert_close(K.volume(&b).unwrap(), 6000.0);
+        assert_eq!(K.face_count(&b).unwrap(), 6);
+    }
+
+    #[test]
+    fn work_features_on_geometry_reject_bad_sub_shapes() {
+        let invalid = |r: Result<(), KernelError>, what: &str| {
+            assert!(
+                matches!(r, Err(KernelError::InvalidInput(_))),
+                "{what}: {r:?}"
+            );
+        };
+        let b = K.make_box([0.0; 3], [10.0, 20.0, 30.0]).unwrap();
+        let c = K.make_cylinder([5.0, 5.0, 0.0], 3.0, 10.0).unwrap();
+        // Wrong kind.
+        invalid(
+            K.work_plane_on_face(&b, sub(TopoKind::Vertex, 0)).map(drop),
+            "plane on vertex",
+        );
+        invalid(
+            K.work_plane_on_face(&b, sub(TopoKind::Edge, 0)).map(drop),
+            "plane on edge",
+        );
+        invalid(
+            K.work_axis_on(&b, sub(TopoKind::Vertex, 0)).map(drop),
+            "axis on vertex",
+        );
+        invalid(
+            K.vertex_point(&b, sub(TopoKind::Face, 0)).map(drop),
+            "point on face",
+        );
+        invalid(
+            K.vertex_point(&b, sub(TopoKind::Edge, 0)).map(drop),
+            "point on edge",
+        );
+        // Index out of range.
+        invalid(
+            K.work_plane_on_face(&b, sub(TopoKind::Face, 6)).map(drop),
+            "face 6",
+        );
+        invalid(
+            K.work_axis_on(&b, sub(TopoKind::Edge, 12)).map(drop),
+            "edge 12",
+        );
+        invalid(
+            K.work_axis_on(&b, sub(TopoKind::Face, 6)).map(drop),
+            "axis face 6",
+        );
+        invalid(
+            K.vertex_point(&b, sub(TopoKind::Vertex, 8)).map(drop),
+            "vertex 8",
+        );
+        // A non-planar face for a plane.
+        let lateral = (0..3)
+            .map(|i| sub(TopoKind::Face, i))
+            .find(|&f| K.face_plane(&c, f).is_err())
+            .expect("lateral face");
+        invalid(
+            K.work_plane_on_face(&c, lateral).map(drop),
+            "plane on cylinder side",
+        );
+        // A circular edge and a planar face for an axis.
+        let circle = sub_with_bbox(&c, TopoKind::Edge, [2.0, 2.0, 10.0], [8.0, 8.0, 10.0]);
+        invalid(
+            K.work_axis_on(&c, circle).map(drop),
+            "axis on circular edge",
+        );
+        let cap = face_with_normal(&c, [0.0, 0.0, 1.0]);
+        invalid(K.work_axis_on(&c, cap).map(drop), "axis on planar face");
+        invalid(
+            K.work_axis_on(&b, face_with_normal(&b, [0.0, 0.0, 1.0]))
+                .map(drop),
+            "axis on box face",
+        );
+        // The inputs are still usable.
+        assert_close(K.volume(&b).unwrap(), 6000.0);
+        assert_close(K.volume(&c).unwrap(), 90.0 * PI);
     }
 }

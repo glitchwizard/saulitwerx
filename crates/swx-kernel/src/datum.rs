@@ -184,6 +184,36 @@ pub fn plane_axis_intersection(plane: &Workplane, axis: &Axis) -> Result<Point3,
     Ok(add(axis.origin, scale(d, t)))
 }
 
+/// The plane through `point` with normal `normal` (normalized), placed with
+/// its origin at the orthogonal projection of [`ORIGIN`] onto it,
+/// `(point · n) n`, and `x_dir` as in [`Workplane::from_point_normal`].
+///
+/// Non-finite inputs and a zero normal are [`KernelError::InvalidInput`].
+#[cfg_attr(not(feature = "occt"), allow(dead_code))]
+pub(crate) fn plane_nearest_origin(
+    point: Point3,
+    normal: [f64; 3],
+) -> Result<Workplane, KernelError> {
+    finite("plane point", &point)?;
+    let n = unit("plane normal", normal)?;
+    Workplane::from_point_normal(scale(n, dot(point, n)), n)
+}
+
+/// The line through `point` along `dir`, as an [`Axis`] with a unit `dir`
+/// and its origin at the line's point closest to [`ORIGIN`],
+/// `point − (point · d) d`.
+///
+/// Non-finite inputs and a zero direction are [`KernelError::InvalidInput`].
+#[cfg_attr(not(feature = "occt"), allow(dead_code))]
+pub(crate) fn axis_nearest_origin(point: Point3, dir: [f64; 3]) -> Result<Axis, KernelError> {
+    finite("axis point", &point)?;
+    let d = unit("axis direction", dir)?;
+    Ok(Axis {
+        origin: sub(point, scale(d, dot(point, d))),
+        dir: d,
+    })
+}
+
 /// A checked plane: finite origin, unit normal and a unit `x_dir`
 /// perpendicular to it (the given `x_dir` with any normal component removed).
 fn frame(p: &Workplane) -> Result<(Point3, [f64; 3], [f64; 3]), KernelError> {
@@ -453,6 +483,30 @@ mod tests {
                 origin: [0.0; 3],
                 dir: [1.0, 1.0, 0.0],
             },
+        ));
+    }
+
+    #[test]
+    fn plane_and_axis_are_placed_nearest_the_origin() {
+        // A point anywhere on the plane z = 30 gives the origin (0, 0, 30).
+        let p = plane_nearest_origin([7.0, -4.0, 30.0], [0.0, 0.0, 2.0]).unwrap();
+        assert_plane(&p, [0.0, 0.0, 30.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
+        // A normal along X takes +Y as x_dir.
+        let p = plane_nearest_origin([10.0, 20.0, 30.0], [1.0, 0.0, 0.0]).unwrap();
+        assert_plane(&p, [10.0, 0.0, 0.0], [0.0, 1.0, 0.0], [1.0, 0.0, 0.0]);
+        // The line y = 20, z = 30 along X is nearest the origin at (0, 20, 30).
+        let a = axis_nearest_origin([10.0, 20.0, 30.0], [-3.0, 0.0, 0.0]).unwrap();
+        assert_vec(a.origin, [0.0, 20.0, 30.0]);
+        assert_vec(a.dir, [-1.0, 0.0, 0.0]);
+        let a = axis_nearest_origin([5.0, 5.0, 9.0], [0.0, 0.0, 1.0]).unwrap();
+        assert_vec(a.origin, [5.0, 5.0, 0.0]);
+        // Bad inputs.
+        assert_invalid(plane_nearest_origin([0.0; 3], [0.0; 3]));
+        assert_invalid(plane_nearest_origin([f64::NAN, 0.0, 0.0], [0.0, 0.0, 1.0]));
+        assert_invalid(axis_nearest_origin([0.0; 3], [0.0; 3]));
+        assert_invalid(axis_nearest_origin(
+            [0.0, f64::INFINITY, 0.0],
+            [1.0, 0.0, 0.0],
         ));
     }
 }

@@ -190,6 +190,13 @@ extern "C" {
     fn swx_occt_face_count(s: *const RawShape, out: *mut usize) -> c_int;
     fn swx_occt_sub_shape_count(s: *const RawShape, kind: c_int, out: *mut usize) -> c_int;
     fn swx_occt_face_plane(s: *const RawShape, index: usize, out: *mut c_double) -> c_int;
+    fn swx_occt_sub_shape_axis(
+        s: *const RawShape,
+        kind: c_int,
+        index: usize,
+        out: *mut c_double,
+    ) -> c_int;
+    fn swx_occt_vertex_point(s: *const RawShape, index: usize, out: *mut c_double) -> c_int;
     fn swx_occt_adjacent(
         s: *const RawShape,
         of_kind: c_int,
@@ -762,6 +769,45 @@ pub(crate) fn face_plane(s: &ShapeHandle, index: usize) -> Option<FacePlane> {
         1 => Some(FacePlane::NotPlanar),
         _ => None,
     }
+}
+
+/// What `swx_occt_sub_shape_axis` reports about one edge or face.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum SubShapeAxis {
+    /// A point on the line and its unit direction.
+    Line([f64; 3], [f64; 3]),
+    /// The edge is not straight, or the face is not cylindrical.
+    NoLine,
+}
+
+/// Line of sub-shape `index` of shim kind code `kind` (0 face, 1 edge) of
+/// `s`: a straight edge's line or a cylindrical face's axis. `None` on any
+/// failure, including an index out of range or a vertex kind.
+pub(crate) fn sub_shape_axis(s: &ShapeHandle, kind: i32, index: usize) -> Option<SubShapeAxis> {
+    let mut out = [0.0 as c_double; 6];
+    // SAFETY: `s` is a live handle read-only for the call and not retained;
+    // `kind` and `index` are plain values; `out` is a valid writable array of
+    // exactly the 6 doubles the shim writes.
+    let status = unsafe { swx_occt_sub_shape_axis(s.0.as_ptr(), kind, index, out.as_mut_ptr()) };
+    match status {
+        0 => Some(SubShapeAxis::Line(
+            [out[0], out[1], out[2]],
+            [out[3], out[4], out[5]],
+        )),
+        1 => Some(SubShapeAxis::NoLine),
+        _ => None,
+    }
+}
+
+/// Position of vertex `index` (0-based) of `s`. `None` on any failure,
+/// including an index out of range.
+pub(crate) fn vertex_point(s: &ShapeHandle, index: usize) -> Option<[f64; 3]> {
+    let mut out = [0.0 as c_double; 3];
+    // SAFETY: `s` is a live handle read-only for the call and not retained;
+    // `index` is a plain `usize` (`size_t` layout) by value; `out` is a valid
+    // writable array of exactly the 3 doubles the shim writes.
+    let status = unsafe { swx_occt_vertex_point(s.0.as_ptr(), index, out.as_mut_ptr()) };
+    (status == 0).then_some(out)
 }
 
 /// 0-based indices of the sub-shapes of kind code `kind` adjacent to
