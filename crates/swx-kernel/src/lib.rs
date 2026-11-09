@@ -16,6 +16,7 @@ use std::path::Path;
 mod datum;
 mod feature;
 mod hole;
+mod loft;
 mod mesh;
 mod profile;
 mod topo;
@@ -31,6 +32,7 @@ pub use feature::{
     PARALLEL_FACE_TOLERANCE,
 };
 pub use hole::{HoleDepth, HoleKind};
+pub use loft::MIN_LOFT_SECTIONS;
 pub use mesh::Mesh;
 #[cfg(feature = "occt")]
 pub use occt::{OcctKernel, OcctShape};
@@ -283,6 +285,25 @@ pub trait Kernel {
         kind: HoleKind,
         depth: HoleDepth,
     ) -> Result<Self::Shape, KernelError>;
+
+    /// Closed solid lofted through the outer loops of the planar section
+    /// faces `sections` (each made with [`Kernel::make_face`]), in the order
+    /// given.
+    ///
+    /// With `ruled`, each pair of neighboring sections is joined by
+    /// straight-line (ruled) surfaces; otherwise one smooth surface passes
+    /// through all sections. The ends are capped with the first and last
+    /// sections. Method: OCCT reference documentation,
+    /// `BRepOffsetAPI_ThruSections` (solid mode, compatibility check on, one
+    /// wire per section from `BRepTools::OuterWire`).
+    ///
+    /// It is [`KernelError::InvalidInput`], checked before the backend, when
+    /// there are fewer than [`MIN_LOFT_SECTIONS`] sections, when a section is
+    /// not a single planar face (e.g. a solid), or when a section face has a
+    /// hole. Sections the backend can't loft (e.g. two equal sections in the
+    /// same plane), or a result it finds invalid or empty, are an error. The
+    /// sections are unchanged either way.
+    fn loft(&self, sections: &[Self::Shape], ruled: bool) -> Result<Self::Shape, KernelError>;
 
     /// Boolean union `a ∪ b`.
     fn union(&self, a: &Self::Shape, b: &Self::Shape) -> Result<Self::Shape, KernelError>;
