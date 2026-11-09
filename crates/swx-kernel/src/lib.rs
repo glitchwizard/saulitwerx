@@ -157,6 +157,33 @@ pub trait Kernel {
         axis: Axis,
         angle: f64,
     ) -> Result<Self::Shape, KernelError>;
+    /// Closed solid swept by moving the planar `profile` face along the open
+    /// `path` of lines and arcs drawn on `plane`.
+    ///
+    /// The path runs from the first segment's start (a `Line`'s `start`, an
+    /// `Arc`'s point at `start_angle`) through the segments in order; each
+    /// next segment must begin where the previous one ends, within
+    /// [`LOOP_GAP_TOLERANCE`] (either of its endpoints may meet it). The
+    /// path's start must lie in the profile's plane (within the same
+    /// tolerance). The profile keeps the backend's default orientation along
+    /// the path. Method: OCCT reference documentation,
+    /// `BRepOffsetAPI_MakePipe` (spine = the path as one wire).
+    ///
+    /// It is [`KernelError::InvalidInput`], checked before the backend, when
+    /// the path is empty or contains a `Circle` (closed paths are out of
+    /// scope), when a radius is ≤ 0 or a number is not finite, when `plane`
+    /// is invalid (as for [`Kernel::make_face`]), when consecutive segments
+    /// don't meet, when the path's start is off the profile's plane, when
+    /// `profile` is not a single planar face, or when it has a hole. A sweep
+    /// the backend can't build (e.g. a path that starts along the profile's
+    /// plane), or a result it finds invalid or empty, is an error. `profile`
+    /// is unchanged either way.
+    fn sweep(
+        &self,
+        profile: &Self::Shape,
+        plane: &Workplane,
+        path: &[Segment2],
+    ) -> Result<Self::Shape, KernelError>;
 
     /// Rounds `edges` of `s` with a constant-radius fillet.
     ///

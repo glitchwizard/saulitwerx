@@ -540,15 +540,7 @@ pub(crate) fn prepare_face(
     outer: &ProfileLoop,
     holes: &[ProfileLoop],
 ) -> Result<PreparedFace, KernelError> {
-    finite("workplane origin", &plane.origin)?;
-    let x_dir = normalized("workplane x_dir", plane.x_dir)?;
-    let normal = normalized("workplane normal", plane.normal)?;
-    let dot: f64 = x_dir.iter().zip(normal).map(|(a, b)| a * b).sum();
-    if dot.abs() > PERPENDICULAR_TOLERANCE {
-        return Err(invalid(format!(
-            "workplane x_dir and normal must be perpendicular (dot {dot})"
-        )));
-    }
+    let mut prepared = prepare_face_plane(plane)?;
     let (mut loops, mut reversed) = (Vec::new(), Vec::new());
     for (i, (name, lp)) in std::iter::once(("outer".to_string(), outer))
         .chain(
@@ -563,13 +555,9 @@ pub(crate) fn prepare_face(
         loops.push(edges);
         reversed.push(rev);
     }
-    Ok(PreparedFace {
-        origin: plane.origin,
-        x_dir,
-        normal,
-        loops,
-        reversed,
-    })
+    prepared.loops = loops;
+    prepared.reversed = reversed;
+    Ok(prepared)
 }
 
 impl PreparedFace {
@@ -607,6 +595,77 @@ impl PreparedFace {
             .collect();
         (counts, edges)
     }
+
+    /// Model-space point of the 2D workplane point `p`.
+    #[cfg_attr(not(feature = "occt"), allow(dead_code))]
+    pub(crate) fn point_3d(&self, p: [f64; 2]) -> Point3 {
+        let [nx, ny, nz] = self.normal;
+        let [xx, xy, xz] = self.x_dir;
+        let y_dir = [ny * xz - nz * xy, nz * xx - nx * xz, nx * xy - ny * xx];
+        [0, 1, 2].map(|k| self.origin[k] + p[0] * self.x_dir[k] + p[1] * y_dir[k])
+    }
+}
+
+/// Validates [`Kernel::sweep`](crate::Kernel::sweep) path inputs and returns
+/// the path as one open chain (`loops[0]`) in the caller's order, starting at
+/// the first segment's start, with each shared endpoint snapped to the
+/// midpoint of the two it joins. Later segments may run either way.
+#[cfg_attr(not(feature = "occt"), allow(dead_code))]
+pub(crate) fn prepare_path(
+    plane: &Workplane,
+    path: &[Segment2],
+) -> Result<PreparedFace, KernelError> {
+    let mut prepared = prepare_face_plane(plane)?;
+    if path.is_empty() {
+        return Err(invalid("sweep path is empty".to_string()));
+    }
+    if path.iter().any(|s| matches!(s, Segment2::Circle { .. })) {
+        return Err(invalid(
+            "sweep path: circles (closed paths) are not supported".to_string(),
+        ));
+    }
+    let edges = path.iter().map(edge).collect::<Result<Vec<_>, _>>()?;
+    let mut out = vec![edges[0]];
+    for (i, e) in edges.iter().enumerate().skip(1) {
+        let at = out[out.len() - 1].to;
+        let next = if dist(e.from, at) <= LOOP_GAP_TOLERANCE {
+            *e
+        } else if dist(e.to, at) <= LOOP_GAP_TOLERANCE {
+            e.reversed()
+        } else {
+            return Err(invalid(format!(
+                "sweep path: segment {i} doesn't meet segment {} within {LOOP_GAP_TOLERANCE}",
+                i - 1
+            )));
+        };
+        let mid = [(at[0] + next.from[0]) / 2.0, (at[1] + next.from[1]) / 2.0];
+        let last = out.len() - 1;
+        out[last].to = mid;
+        out.push(Edge2 { from: mid, ..next });
+    }
+    prepared.loops = vec![out];
+    prepared.reversed = vec![false];
+    Ok(prepared)
+}
+
+/// Checks `plane` as [`prepare_face`] does and returns it with no loops.
+fn prepare_face_plane(plane: &Workplane) -> Result<PreparedFace, KernelError> {
+    finite("workplane origin", &plane.origin)?;
+    let x_dir = normalized("workplane x_dir", plane.x_dir)?;
+    let normal = normalized("workplane normal", plane.normal)?;
+    let dot: f64 = x_dir.iter().zip(normal).map(|(a, b)| a * b).sum();
+    if dot.abs() > PERPENDICULAR_TOLERANCE {
+        return Err(invalid(format!(
+            "workplane x_dir and normal must be perpendicular (dot {dot})"
+        )));
+    }
+    Ok(PreparedFace {
+        origin: plane.origin,
+        x_dir,
+        normal,
+        loops: Vec::new(),
+        reversed: Vec::new(),
+    })
 }
 
 #[cfg(test)]
@@ -975,5 +1034,78 @@ mod tests {
         assert_eq!(&edges[..5], &[0.0, 0.0, 0.0, 4.0, 0.0]);
         assert_eq!(edges[32], EdgeKind::CircleCw as i32 as f64);
         assert_eq!(&edges[37..], &[2.0, 1.0, 0.5]);
+    }
+
+    fn arc(center: [f64; 2], radius: f64, a0: f64, a1: f64) -> Segment2 {
+        Segment2::Arc {
+            center,
+            radius,
+            start_angle: a0,
+            end_angle: a1,
+        }
+    }
+
+    #[test]
+    fn sweep_path_chains_in_order_and_snaps_joins() {
+        // Line down, then a quarter arc; the arc is given ccw, so it is
+        // entered at its start (π) where the line ends.
+        let path = [
+            line([0.0, 0.0], [0.0, -10.0]),
+            arc([20.0, -10.0], 20.0, PI, 1.5 * PI),
+        ];
+        let p = prepare_path(&Workplane::XZ, &path).unwrap();
+        let e = &p.loops[0];
+        assert_eq!(e.len(), 2);
+        assert_eq!(e[0].from, [0.0, 0.0]);
+        assert_eq!(e[0].to, e[1].from);
+        assert!(dist(e[1].from, [0.0, -10.0]) < 1e-12);
+        assert!(dist(e[1].to, [20.0, -30.0]) < 1e-12);
+        assert_eq!(e[1].kind, EdgeKind::ArcCcw);
+        // A second segment given backwards is reversed.
+        let back = [line([0.0, 0.0], [5.0, 0.0]), line([9.0, 3.0], [5.0, 0.0])];
+        let p = prepare_path(&Workplane::XY, &back).unwrap();
+        assert_eq!(p.loops[0][1].from, [5.0, 0.0]);
+        assert_eq!(p.loops[0][1].to, [9.0, 3.0]);
+        // Workplane::XZ maps (u, v) to (u, 0, v).
+        let q = p.point_3d([2.0, 3.0]);
+        assert_eq!(
+            prepare_path(&Workplane::XZ, &back)
+                .unwrap()
+                .point_3d([2.0, 3.0]),
+            [2.0, 0.0, 3.0]
+        );
+        assert_eq!(q, [2.0, 3.0, 0.0]);
+    }
+
+    #[test]
+    fn sweep_path_rejects_bad_inputs() {
+        let ok = line([0.0, 0.0], [0.0, 30.0]);
+        let bad = |plane: &Workplane, path: &[Segment2]| {
+            assert!(
+                matches!(prepare_path(plane, path), Err(KernelError::InvalidInput(_))),
+                "expected InvalidInput for {path:?} on {plane:?}"
+            );
+        };
+        let xz = &Workplane::XZ;
+        bad(xz, &[]);
+        bad(xz, &[circle([0.0, 0.0], 5.0).segments[0]]);
+        bad(xz, &[ok, circle([0.0, 30.0], 5.0).segments[0]]);
+        bad(xz, &[arc([1.0, 0.0], 0.0, PI, 1.5 * PI)]);
+        bad(xz, &[arc([1.0, 0.0], -2.0, PI, 1.5 * PI)]);
+        bad(xz, &[line([0.0, f64::NAN], [0.0, 30.0])]);
+        bad(xz, &[line([0.0, 0.0], [f64::INFINITY, 30.0])]);
+        bad(xz, &[ok, line([0.0, 30.1], [5.0, 40.0])]);
+        let zero_x = Workplane {
+            x_dir: [0.0; 3],
+            ..Workplane::XZ
+        };
+        bad(&zero_x, &[ok]);
+        let skew = Workplane {
+            x_dir: [1.0, 1.0, 0.0],
+            ..Workplane::XZ
+        };
+        bad(&skew, &[ok]);
+        // A gap within the tolerance is accepted.
+        assert!(prepare_path(xz, &[ok, line([0.0, 30.0 + 5e-8], [5.0, 40.0])]).is_ok());
     }
 }

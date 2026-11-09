@@ -25,6 +25,7 @@
 #include <BRepLProp_SLProps.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRepOffsetAPI_DraftAngle.hxx>
+#include <BRepOffsetAPI_MakePipe.hxx>
 #include <BRepOffsetAPI_MakeThickSolid.hxx>
 #include <BRepOffsetAPI_ThruSections.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
@@ -620,6 +621,110 @@ int swx_occt_revolve_profile(const SwxShape* s, double ox, double oy, double oz,
         const double values[8] = {p0.X(), p0.Y(), p0.Z(), n.X(), n.Y(), n.Z(), lo, hi};
         std::copy(values, values + 8, out);
         return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+// Sweep-profile check: when `s` is a single planar face, writes a point on its
+// plane (3 doubles), the plane's unit normal (3) and its number of wires (1 =
+// outer loop only, more = holes) to `out` (7 doubles) and returns 0; returns
+// -1 for anything else (a solid, a non-planar face) or on any exception.
+int swx_occt_sweep_profile(const SwxShape* s, double* out) noexcept {
+    if (s == nullptr || out == nullptr) {
+        return -1;
+    }
+    try {
+        if (s->shape.IsNull() || s->shape.ShapeType() != TopAbs_FACE) {
+            return -1;
+        }
+        BRepAdaptor_Surface surface(TopoDS::Face(s->shape));
+        if (surface.GetType() != GeomAbs_Plane) {
+            return -1;
+        }
+        const gp_Pln plane = surface.Plane();
+        const gp_Pnt p0 = plane.Location();
+        const gp_Dir n = plane.Axis().Direction();
+        size_t wires = 0;
+        for (TopExp_Explorer ex(s->shape, TopAbs_WIRE); ex.More(); ex.Next()) {
+            ++wires;
+        }
+        const double values[7] = {p0.X(), p0.Y(), p0.Z(), n.X(), n.Y(), n.Z(),
+                                  static_cast<double>(wires)};
+        std::copy(values, values + 7, out);
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+// Solid swept by the planar face `s` along an open path (OCCT reference
+// documentation: BRepOffsetAPI_MakePipe(spine, profile)). `plane` is as for
+// build_face; the `n` path edges use build_face's 8-double encoding (kind 0
+// line, 1/2 arc counter/clockwise; circles are rejected), in path order, each
+// starting exactly where the previous one ends. Returns -1 on any failure,
+// including a result BRepCheck_Analyzer rejects.
+int swx_occt_sweep(const SwxShape* s, const double* plane, size_t n, const double* edges,
+                   SwxShape** out) noexcept {
+    if (s == nullptr || plane == nullptr || edges == nullptr || out == nullptr || n == 0) {
+        return -1;
+    }
+    try {
+        if (s->shape.IsNull() || s->shape.ShapeType() != TopAbs_FACE) {
+            return -1;
+        }
+        const gp_Pnt origin(plane[0], plane[1], plane[2]);
+        const gp_Dir x_dir(plane[3], plane[4], plane[5]);
+        const gp_Dir normal(plane[6], plane[7], plane[8]);
+        const gp_Ax3 axes(origin, normal, x_dir);
+        const gp_Vec u_vec(axes.XDirection());
+        const gp_Vec v_vec(axes.YDirection());
+        auto to_3d = [&](double u, double v) { return origin.Translated(u_vec * u + v_vec * v); };
+
+        // One vertex per junction, so neighboring edges share it.
+        std::vector<TopoDS_Vertex> vertices;
+        for (size_t i = 0; i < n; ++i) {
+            vertices.push_back(BRepBuilderAPI_MakeVertex(to_3d(edges[8 * i + 1], edges[8 * i + 2])));
+        }
+        const double* last = edges + 8 * (n - 1);
+        vertices.push_back(BRepBuilderAPI_MakeVertex(to_3d(last[3], last[4])));
+
+        BRepBuilderAPI_MakeWire wire;
+        for (size_t i = 0; i < n; ++i) {
+            const double* e = edges + 8 * i;
+            const int kind = static_cast<int>(e[0]);
+            if (kind < 0 || kind > 2) {
+                return -1;
+            }
+            const TopoDS_Vertex& from = vertices[i];
+            const TopoDS_Vertex& to = vertices[i + 1];
+            BRepBuilderAPI_MakeEdge edge = [&]() {
+                if (kind == 0) {
+                    return BRepBuilderAPI_MakeEdge(from, to);
+                }
+                const gp_Dir axis = kind == 1 ? normal : normal.Reversed();
+                const gp_Circ circ(gp_Ax2(to_3d(e[5], e[6]), axis, x_dir), e[7]);
+                return BRepBuilderAPI_MakeEdge(circ, from, to);
+            }();
+            if (!edge.IsDone()) {
+                return -1;
+            }
+            wire.Add(edge.Edge());
+            if (!wire.IsDone()) {
+                return -1;
+            }
+        }
+
+        BRepOffsetAPI_MakePipe maker(wire.Wire(), s->shape);
+        maker.Build();
+        if (!maker.IsDone()) {
+            return -1;
+        }
+        const TopoDS_Shape result = maker.Shape();
+        if (result.IsNull() || !BRepCheck_Analyzer(result).IsValid()) {
+            return -1;
+        }
+        return emit(result, out);
     } catch (...) {
         return -1;
     }
