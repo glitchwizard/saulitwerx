@@ -668,6 +668,53 @@ fn prepare_face_plane(plane: &Workplane) -> Result<PreparedFace, KernelError> {
     })
 }
 
+/// The largest distance from `start` to any of `points`, measured in the
+/// plane through `start` with unit normal `normal` (the component along
+/// `normal` is dropped). 0 when `points` is empty.
+#[cfg_attr(not(feature = "occt"), allow(dead_code))]
+pub(crate) fn profile_reach(points: &[Point3], start: Point3, normal: Point3) -> f64 {
+    points
+        .iter()
+        .map(|p| {
+            let d = [0, 1, 2].map(|k| p[k] - start[k]);
+            let along: f64 = (0..3).map(|k| d[k] * normal[k]).sum();
+            let inplane = [0, 1, 2].map(|k| d[k] - along * normal[k]);
+            inplane.iter().map(|c| c * c).sum::<f64>().sqrt()
+        })
+        .fold(0.0, f64::max)
+}
+
+/// Relative tolerance of [`check_sweep_bends`]: a bend radius within this
+/// fraction of the profile's reach counts as equal to it (and is refused).
+/// It covers the single-precision mesh points the reach is measured from.
+pub(crate) const BEND_RADIUS_TOLERANCE: f64 = 1e-6;
+
+/// Refuses a sweep whose path bends tighter than its profile reaches: an
+/// arc of `path` whose radius is ≤ `reach`, the profile's largest distance
+/// from the path's start ([`profile_reach`]), within
+/// [`BEND_RADIUS_TOLERANCE`].
+///
+/// A tube of radius r around a curve is free of local self-intersection only
+/// where r·κ < 1, κ being the curve's curvature (A. Gray, *Tubes*, 2nd ed.,
+/// Birkhäuser 2004, §1.2; the same bound limits offset curves). For an arc,
+/// κ = 1/radius, so the profile must stay strictly inside the bend radius.
+/// Using the profile's farthest point in every direction is conservative.
+#[cfg_attr(not(feature = "occt"), allow(dead_code))]
+pub(crate) fn check_sweep_bends(path: &[Segment2], reach: f64) -> Result<(), KernelError> {
+    for (i, s) in path.iter().enumerate() {
+        if let Segment2::Arc { radius, .. } = *s {
+            if radius <= reach * (1.0 + BEND_RADIUS_TOLERANCE) {
+                return Err(invalid(format!(
+                    "sweep path: arc segment {i} has radius {radius}, not larger than the \
+                     profile's distance {reach} from the path's start; the swept solid \
+                     would pass through itself"
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1107,5 +1154,50 @@ mod tests {
         bad(&skew, &[ok]);
         // A gap within the tolerance is accepted.
         assert!(prepare_path(xz, &[ok, line([0.0, 30.0 + 5e-8], [5.0, 40.0])]).is_ok());
+    }
+
+    #[test]
+    fn profile_reach_is_measured_in_the_profile_plane() {
+        let z = [0.0, 0.0, 1.0];
+        assert_eq!(profile_reach(&[], [0.0; 3], z), 0.0);
+        // The out-of-plane component (z) is dropped.
+        let pts = [[3.0, 4.0, 0.0], [-1.0, 0.0, 0.0], [0.0, 1.0, 9.0]];
+        assert!((profile_reach(&pts, [0.0; 3], z) - 5.0).abs() <= 1e-12);
+        // Corners of a 12 × 6 rectangle centered on the start: √45.
+        let rect = [
+            [6.0, 3.0, 0.0],
+            [-6.0, 3.0, 0.0],
+            [-6.0, -3.0, 0.0],
+            [6.0, -3.0, 0.0],
+        ];
+        assert!((profile_reach(&rect, [0.0; 3], z) - 45f64.sqrt()).abs() <= 1e-12);
+    }
+
+    #[test]
+    fn bends_no_wider_than_the_profile_are_refused() {
+        let path = |r: f64| {
+            [
+                line([0.0, 0.0], [0.0, 30.0]),
+                arc([r, 30.0], r, 0.5 * PI, PI),
+            ]
+        };
+        for r in [3.0, 5.0, 5.0 * (1.0 + 1e-7)] {
+            let err = check_sweep_bends(&path(r), 5.0).unwrap_err();
+            assert!(
+                matches!(&err, KernelError::InvalidInput(m)
+                    if m.contains("arc segment 1") && m.contains(&format!("radius {r}"))
+                        && m.contains("distance 5")),
+                "{err}"
+            );
+        }
+        assert!(check_sweep_bends(&path(5.001), 5.0).is_ok());
+        assert!(check_sweep_bends(&path(20.0), 5.0).is_ok());
+        // Rectangle 12 × 6: reach √45 ≈ 6.708.
+        let reach = 45f64.sqrt();
+        assert!(check_sweep_bends(&path(4.0), reach).is_err());
+        assert!(check_sweep_bends(&path(6.7), reach).is_err());
+        assert!(check_sweep_bends(&path(6.8), reach).is_ok());
+        // Lines only: nothing to check.
+        assert!(check_sweep_bends(&[line([0.0, 0.0], [0.0, 30.0])], 100.0).is_ok());
     }
 }
