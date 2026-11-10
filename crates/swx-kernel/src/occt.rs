@@ -7,7 +7,10 @@ use crate::datum::{axis_nearest_origin, plane_nearest_origin, plane_tangent_to_c
 use crate::ffi::{self, ChamferMode, EdgeOp, FaceCylinder, FacePlane, ShapeHandle, SubShapeAxis};
 use crate::hole::{perpendicular, prepare_hole, HoleCylinder};
 use crate::loft::check_section_count;
-use crate::profile::{check_revolve_profile, prepare_face, prepare_path, prepare_revolve};
+use crate::profile::{
+    check_revolve_profile, check_sweep_bends, prepare_face, prepare_path, prepare_revolve,
+    profile_reach,
+};
 use crate::topo::{
     validate_adjacent, validate_edges, validate_edges_on_faces, validate_faces, validate_index,
 };
@@ -197,6 +200,17 @@ impl Kernel for OcctKernel {
                 "sweep path starts {off} off the profile's plane"
             )));
         }
+        // The profile's reach from the path's start, from its mesh points: a
+        // fine mesh (deflection 1e-5 of its size) of a face has its vertices
+        // on the face's boundary, so this is the reach to within that.
+        let b = self.bounding_box(profile)?;
+        let size = (0..3)
+            .map(|k| (b.max[k] - b.min[k]).powi(2))
+            .sum::<f64>()
+            .sqrt();
+        let mesh = self.tessellate(profile, (size * 1e-5).max(1e-9))?;
+        let points: Vec<Point3> = mesh.positions.iter().map(|p| p.map(f64::from)).collect();
+        check_sweep_bends(path, profile_reach(&points, start, normal))?;
         let (_, edges) = prepared.encode();
         let result = ffi::sweep(&profile.0, &prepared.plane_array(), &edges)
             .map(OcctShape)
@@ -1293,6 +1307,58 @@ mod tests {
         // The profile is still usable.
         let s = K.extrude(&p, Extent::Distance(2.0)).unwrap();
         assert_close(K.volume(&s).unwrap(), 200.0);
+    }
+
+    /// On `Workplane::XZ`: up from (0, 0) to (0, 30), then a quarter arc of
+    /// `radius` that bends towards +x (the M3-11c reproduction path).
+    fn line_then_bend(radius: f64) -> [Segment2; 2] {
+        [
+            line([0.0, 0.0], [0.0, 30.0]),
+            Segment2::Arc {
+                center: [radius, 30.0],
+                radius,
+                start_angle: 0.5 * PI,
+                end_angle: PI,
+            },
+        ]
+    }
+
+    #[test]
+    fn sweep_refuses_a_bend_no_wider_than_the_profile() {
+        let p = K
+            .make_face(&Workplane::XY, &circle([0.0, 0.0], 5.0), &[])
+            .unwrap();
+        for r in [3.0, 5.0] {
+            let res = K.sweep(&p, &Workplane::XZ, &line_then_bend(r));
+            assert!(
+                matches!(&res, Err(KernelError::InvalidInput(m))
+                    if m.contains("arc segment 1") && m.contains(&format!("radius {r}"))),
+                "radius {r}: {res:?}"
+            );
+        }
+        let s = K.sweep(&p, &Workplane::XZ, &line_then_bend(20.0)).unwrap();
+        let v = K.volume(&s).unwrap();
+        let expected = PI * 25.0 * (30.0 + 10.0 * PI);
+        assert!((v - expected).abs() <= 1e-4 * expected, "volume {v}");
+        assert_profile_unchanged(&p, 25.0 * PI);
+
+        // A 12 × 6 rectangle reaches √45 ≈ 6.7 from the path's start.
+        let rect = K
+            .make_face(
+                &Workplane::XY,
+                &polygon(&[[-6.0, -3.0], [6.0, -3.0], [6.0, 3.0], [-6.0, 3.0]]),
+                &[],
+            )
+            .unwrap();
+        for r in [5.0, 6.7] {
+            let res = K.sweep(&rect, &Workplane::XZ, &line_then_bend(r));
+            assert!(
+                matches!(&res, Err(KernelError::InvalidInput(m)) if m.contains("arc segment 1")),
+                "radius {r}: {res:?}"
+            );
+        }
+        assert!(K.sweep(&rect, &Workplane::XZ, &line_then_bend(6.8)).is_ok());
+        assert_profile_unchanged(&rect, 72.0);
     }
 
     #[test]

@@ -174,7 +174,11 @@ pub trait Kernel {
     /// scope), when a radius is ≤ 0 or a number is not finite, when `plane`
     /// is invalid (as for [`Kernel::make_face`]), when consecutive segments
     /// don't meet, when the path's start is off the profile's plane, when
-    /// `profile` is not a single planar face, or when it has a hole. A sweep
+    /// `profile` is not a single planar face, when it has a hole, or when an
+    /// arc of the path has a radius ≤ the profile's largest distance from
+    /// the path's start, measured in the profile's plane (the bend would
+    /// fold the solid through itself; the message names the arc's segment
+    /// index, its radius and that distance). A sweep
     /// the backend can't build (e.g. a path that starts along the profile's
     /// plane), or a result it finds invalid or empty, is an error. `profile`
     /// is unchanged either way.
