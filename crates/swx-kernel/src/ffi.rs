@@ -56,6 +56,8 @@ extern "C" {
         b: *const RawShape,
         out: *mut *mut RawShape,
     ) -> c_int;
+    fn swx_occt_solid_count(s: *const RawShape, out: *mut usize) -> c_int;
+    fn swx_occt_solid(s: *const RawShape, index: usize, out: *mut *mut RawShape) -> c_int;
     #[allow(clippy::too_many_arguments)]
     fn swx_occt_boolean_tracked(
         op: c_int,
@@ -285,6 +287,26 @@ pub(crate) fn boolean(op: BooleanOp, a: &ShapeHandle, b: &ShapeHandle) -> Option
     // only reads them and does not retain the pointers. `raw` is a valid
     // out-pointer that receives a new, independently owned handle.
     let status = unsafe { swx_occt_boolean(op as c_int, a.0.as_ptr(), b.0.as_ptr(), &mut raw) };
+    take(status, raw)
+}
+
+/// Number of distinct solids in `s`. `None` on any failure.
+pub(crate) fn solid_count(s: &ShapeHandle) -> Option<usize> {
+    let mut out = 0usize;
+    // SAFETY: `s` is a live handle read-only for the call and not retained;
+    // `out` is a valid writable `usize` on our stack (`size_t` layout).
+    let status = unsafe { swx_occt_solid_count(s.0.as_ptr(), &mut out) };
+    (status == 0).then_some(out)
+}
+
+/// Solid `index` (0-based) of `s` as a new shape. `None` on any failure,
+/// including an index out of range.
+pub(crate) fn solid(s: &ShapeHandle, index: usize) -> Option<ShapeHandle> {
+    let mut raw = ptr::null_mut();
+    // SAFETY: `s` is a live handle read-only for the call and not retained;
+    // `index` is a plain `usize` (`size_t` layout) by value; `raw` is a valid
+    // out-pointer that receives a new, independently owned handle.
+    let status = unsafe { swx_occt_solid(s.0.as_ptr(), index, &mut raw) };
     take(status, raw)
 }
 

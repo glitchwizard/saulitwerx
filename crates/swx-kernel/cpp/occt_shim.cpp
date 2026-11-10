@@ -199,6 +199,42 @@ int swx_occt_boolean(int op, const SwxShape* a, const SwxShape* b, SwxShape** ou
     }
 }
 
+// Number of distinct solids in `s` (TopExp::MapShapes with TopAbs_SOLID;
+// OCCT reference documentation: TopExp, TopTools_IndexedMapOfShape). Writes
+// it to `out`. Returns -1 on any failure.
+int swx_occt_solid_count(const SwxShape* s, size_t* out) noexcept {
+    if (s == nullptr || out == nullptr) {
+        return -1;
+    }
+    try {
+        TopTools_IndexedMapOfShape solids;
+        TopExp::MapShapes(s->shape, TopAbs_SOLID, solids);
+        *out = static_cast<size_t>(solids.Extent());
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+// Solid `index` (0-based, in the TopExp::MapShapes solid order) of `s` as a
+// new, independently owned shape. Returns -1 on any failure (including an
+// index out of range).
+int swx_occt_solid(const SwxShape* s, size_t index, SwxShape** out) noexcept {
+    if (s == nullptr || out == nullptr) {
+        return -1;
+    }
+    try {
+        TopTools_IndexedMapOfShape solids;
+        TopExp::MapShapes(s->shape, TopAbs_SOLID, solids);
+        if (index >= static_cast<size_t>(solids.Extent())) {
+            return -1;
+        }
+        return emit(solids(static_cast<int>(index) + 1), out);
+    } catch (...) {
+        return -1;
+    }
+}
+
 // As swx_occt_boolean, plus the face history (OCCT reference documentation:
 // BRepAlgoAPI_BooleanOperation, BRepBuilderAPI_MakeShape::Modified and
 // IsDeleted; TopExp::MapShapes).
