@@ -36,6 +36,7 @@
 #include <BRepTools.hxx>
 #include <BRep_Tool.hxx>
 #include <Bnd_Box.hxx>
+#include <GCPnts_AbscissaPoint.hxx>
 #include <GProp_GProps.hxx>
 #include <Geom_Plane.hxx>
 #include <IFSelect_ReturnStatus.hxx>
@@ -1375,6 +1376,72 @@ int swx_occt_vertex_point(const SwxShape* s, size_t index, double* out) noexcept
             return -1;
         }
         const gp_Pnt p = BRep_Tool::Pnt(TopoDS::Vertex(vertices(static_cast<int>(index) + 1)));
+        const double values[3] = {p.X(), p.Y(), p.Z()};
+        std::copy(values, values + 3, out);
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+// Cylinder of face `index` (0-based, in the TopExp::MapShapes face order) of
+// `s`, with the face's location applied (OCCT reference documentation:
+// BRepAdaptor_Surface::Cylinder, gp_Cylinder). Writes a point on the axis
+// (3), the axis's unit direction (3) and the radius (1) to `out`. Returns 1
+// when the face is not cylindrical, -1 on any other failure (including an
+// index out of range).
+int swx_occt_face_cylinder(const SwxShape* s, size_t index, double* out) noexcept {
+    if (s == nullptr || out == nullptr) {
+        return -1;
+    }
+    try {
+        TopTools_IndexedMapOfShape faces;
+        TopExp::MapShapes(s->shape, TopAbs_FACE, faces);
+        if (index >= static_cast<size_t>(faces.Extent())) {
+            return -1;
+        }
+        BRepAdaptor_Surface surface(TopoDS::Face(faces(static_cast<int>(index) + 1)));
+        if (surface.GetType() != GeomAbs_Cylinder) {
+            return 1;
+        }
+        const gp_Cylinder cylinder = surface.Cylinder();
+        const gp_Pnt p = cylinder.Axis().Location();
+        const gp_Dir d = cylinder.Axis().Direction();
+        const double values[7] = {p.X(), p.Y(), p.Z(), d.X(), d.Y(), d.Z(), cylinder.Radius()};
+        std::copy(values, values + 7, out);
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+// Point at half the arc length of edge `index` (0-based, in the
+// TopExp::MapShapes edge order) of `s`, with the edge's location applied.
+// The length comes from GCPnts_AbscissaPoint::Length and the parameter at
+// half of it from the GCPnts_AbscissaPoint constructor, measured from the
+// curve's first parameter (OCCT reference documentation:
+// GCPnts_AbscissaPoint, BRepAdaptor_Curve). Writes 3 doubles to `out`.
+// Returns -1 on any failure (including an index out of range).
+int swx_occt_edge_midpoint(const SwxShape* s, size_t index, double* out) noexcept {
+    if (s == nullptr || out == nullptr) {
+        return -1;
+    }
+    try {
+        TopTools_IndexedMapOfShape edges;
+        TopExp::MapShapes(s->shape, TopAbs_EDGE, edges);
+        if (index >= static_cast<size_t>(edges.Extent())) {
+            return -1;
+        }
+        BRepAdaptor_Curve curve(TopoDS::Edge(edges(static_cast<int>(index) + 1)));
+        const double length = GCPnts_AbscissaPoint::Length(curve);
+        if (!std::isfinite(length) || length <= 0.0) {
+            return -1;
+        }
+        GCPnts_AbscissaPoint half(curve, 0.5 * length, curve.FirstParameter());
+        if (!half.IsDone()) {
+            return -1;
+        }
+        const gp_Pnt p = curve.Value(half.Parameter());
         const double values[3] = {p.X(), p.Y(), p.Z()};
         std::copy(values, values + 3, out);
         return 0;
