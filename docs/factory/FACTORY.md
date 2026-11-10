@@ -86,11 +86,11 @@ For each open PR whose issue is labeled `factory:review`, oldest first:
 
 ### Plan
 
-After reviewing, if fewer than **4** issues are labeled `factory:ready`:
+After reviewing, if fewer than **4** issues are labeled `factory:ready` **and unblocked** (every issue in their `Depends on:` line is closed; an issue waiting on one still in review doesn't count):
 
 1. Take the next unchecked items from `docs/ROADMAP.md`, in order, that have no open issue yet. Search the issue titles for the item ID.
 2. Create issues until there are 4 ready, using the format in §2: a `Depends on:` line when an issue needs another open issue merged first, and the QA item last in the acceptance criteria. Make the acceptance criteria concrete and testable, with numbers and tolerances where geometry is involved.
-3. Prefer keeping at least **2** ready issues that are independent of each other (§3), so a Builder run can take two. When the next roadmap items form a dependency chain, also create the next _(parallel ok)_ item whose prerequisites are met.
+3. Keep at least **2** unblocked ready issues that are independent of each other (§3), so a Builder run can take two. When the next roadmap items form a dependency chain, also create the next _(parallel ok)_ item whose prerequisites are met.
 4. If an item needs a design decision first (e.g. M3-04 topological naming), create a `docs/specs/<id>.md` spec issue first.
 
 ### Retro (weekly): the factory improves itself
