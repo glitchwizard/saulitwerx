@@ -24,7 +24,7 @@ Saulitwerx is built in small, tested steps, in the order of a public plan (the _
 #ref-table(
   columns: (auto, 1fr, auto),
   header: ("Area", "What exists", "Use it"),
-  [Solids], [Make boxes, cylinders and spheres; combine them (add, subtract, keep the overlap); measure volume, surface area and size.], [#now],
+  [Solids], [Make boxes, cylinders and spheres; combine them (add, subtract, keep the overlap), one tool or many at a time; count and separate the bodies of a part; measure volume, surface area and size.], [#now],
   [Exchange], [Save a solid as a STEP file, and read STEP files back.], [#now],
   [Pictures], [Draw a solid or a STEP file to a PNG picture with `swx-qa render`, and a sketch with `swx-qa sketch`.], [#now],
   [Sketching], [Lines, circles, arcs and points, with thirteen kinds of constraint (from horizontal and coincident to tangent and symmetric), a solver that moves the shape to satisfy them, a check of how fully a sketch is defined, and the regions a sketch encloses, ready to become solids.], [#now],
@@ -36,7 +36,7 @@ Saulitwerx is built in small, tested steps, in the order of a public plan (the _
   [Holes], [Drill simple or counterbored holes, blind or through all, in any direction.], [#now],
   [Draft], [Tilt the sides of a part so it comes out of a mold.], [#now],
   [Loft, sweep], [Blend a solid through several outlines, such as a square into a circle; move an outline along a bent path, such as a rod with an elbow.], [#now],
-  [Work features], [Build work planes, axes and points to place features on, from numbers or from a part's faces, edges and corners.], [#now],
+  [Work features], [Build work planes, axes and points to place features on, from numbers, halfway between two planes, or from a part's faces, edges and corners.], [#now],
   [Desktop app], [Windows, menus, a 3D view and mouse control.], [#later],
   [Part files], [Saving your design with its full history in a Saulitwerx part file.], [#later],
   [Features], [Extrude and revolve driven by sketches and recorded in the history; countersunk and threaded holes, and more.], [#later],

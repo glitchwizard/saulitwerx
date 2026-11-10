@@ -96,10 +96,12 @@ Success and errors work as for `render`. `--step` and `--crease` belong to `rend
   [`cargo run -p swx-kernel --features occt --example hole_plate -- <dir>`], [Drills four holes in a plate (@ch-hole). A STEP file in `<dir>`.],
   [`cargo run -p swx-kernel --features occt --example draft_block -- <dir>`], [Drafts the sides of a block three ways (@ch-draft). STEP files in `<dir>`.],
   [`cargo run -p swx-kernel --features occt --example loft_sections -- <dir>`], [Lofts a square into a circle, and a vase through three circles, ruled and smooth (@ch-loft). STEP files in `<dir>`.],
-  [`cargo run -p swx-kernel --features occt --example sweep_pipe -- <dir>`], [Sweeps a circle and a rectangle along a bent path (@ch-sweep). STEP files in `<dir>`.],
+  [`cargo run -p swx-kernel --features occt --example sweep_pipe -- <dir>`], [Sweeps a circle and a rectangle along a bent path, and shows the errors, a too-tight bend among them (@ch-sweep). STEP files in `<dir>`.],
   [`cargo run -p swx-kernel --example work_features`], [Builds work planes, axes and a point, and prints them (@sec-work). Needs no OpenCascade.],
   [`cargo run -p swx-kernel --features occt --example tilted_post -- <dir>`], [Stands a post at 30° on a plate, from a tilted work plane (@sec-work-use). A STEP file in `<dir>`.],
   [`cargo run -p swx-kernel --features occt --example work_on_part -- <dir>`], [Takes work features from a block's faces, edges and a corner, then uses two of them (@sec-work-part). A STEP file in `<dir>`.],
+  [`cargo run -p swx-kernel --features occt --example work_midplane -- <dir>`], [Takes a midplane, a tangent plane and an edge midpoint from a shaft, and drills and cuts on them (@sec-work-between). A STEP file in `<dir>`.],
+  [`cargo run -p swx-kernel --features occt --example multi_body -- <dir>`], [Drills two holes in one combine call with history, then splits the plate into two bodies (@sec-bodies). A STEP file in `<dir>`.],
   [`cargo run -p swx-core --example feature_history`], [Runs the history sample (@ch-history).],
   [`cargo run -p swx-core --example roll_back`], [Runs the roll-back sample (@sec-roll-back).],
   [`cargo run -p swx-core --example parameter_table`], [Runs the parameter-table sample (@sec-param-table).],
@@ -123,6 +125,10 @@ The `occt` feature switches on OpenCascade. It is off by default, so a plain bui
   [`make_sphere(center, r)`], [A sphere. Radius > 0.],
   [`union(a, b)`, `cut(a, b)`, `intersect(a, b)`], [Boolean operations (@sec-feature). Inputs unchanged.],
   [`boolean_tracked(op, a, b)`], [The same solid as `union`, `cut` or `intersect` (by `op`), with an `OpHistory` (@sec-boolean-history). Same errors as the plain call.],
+  [`combine(op, target, tools)`], [Applies `op` to `target` with each tool in `tools` in turn, the same as calling the Boolean once per tool (@sec-bodies). At least one tool; the target and every tool must hold a solid body (not a lone face). A result with no volume is `EmptyResult`. Inputs unchanged.],
+  [`combine_tracked(op, target, tools)`], [The same solid as `combine`, with a `CombineHistory`. Same errors.],
+  [`body_count(s)`], [The number of separate solid bodies in `s`. 0 for a lone face.],
+  [`bodies(s)`], [Each solid body of `s` as its own shape, ordered by the lowest corner of its bounding box (x, then y, then z). Empty for a lone face. `s` unchanged.],
   [`volume(s)`, `surface_area(s)`], [In mm³ and mm².],
   [`bounding_box(s)`], [The smallest box, aligned with the axes, that holds the solid: its `min` and `max` corners.],
   [`face_count(s)`], [The number of faces.],
@@ -138,7 +144,7 @@ The `occt` feature switches on OpenCascade. It is off by default, so a plain bui
   [`hole(s, at, kind, depth)`], [Drills a hole of `kind` and `depth` into `s` (@ch-hole). `at` is an `Axis`: its `origin` the hole's center on the start face, its `dir` pointing into the material. Depths are measured from `at.origin` along `dir`, to a flat bottom. A hole that removes nothing is refused; one that removes everything is `EmptyResult`. `s` is unchanged.],
   [`draft(s, faces, neutral, angle)`], [Tilts every face in `faces` by `angle` radians about the line where it crosses the neutral plane (@ch-draft). `neutral` is an `Axis`: a point on the neutral plane, and the pull direction, which is the plane's normal. A positive angle makes the solid smaller along the pull direction. The angle not zero and less than π/2 either way; the list not empty, faces only, each in range; a face listed twice counts once. A face the engine can't draft, such as one parallel to the neutral plane, fails, and `s` is unchanged.],
   [`loft(sections, ruled)`], [A new solid through the flat `sections`, in the order given, capped with the first and last (@ch-loft). Each section a single flat face from `make_face`, without holes, on any plane; at least `MIN_LOFT_SECTIONS` (2). `ruled` true: straight surfaces between neighbors; false: one smooth surface through all. Sections the engine can't loft, such as two in the same place, fail. The sections are unchanged.],
-  [`sweep(profile, plane, path)`], [A new solid made by moving the flat `profile` along the open `path`, a list of `Segment2` lines and arcs drawn on `plane` (@ch-sweep). The path runs from the first piece's start; each next piece must meet the end of the one before within `LOOP_GAP_TOLERANCE`, either way round. The path's start must lie on the profile's plane. The profile a single flat face without holes; no circles in the path. A sweep that encloses nothing is `EmptyResult`. Bends tighter than the profile aren't caught. The profile is unchanged.],
+  [`sweep(profile, plane, path)`], [A new solid made by moving the flat `profile` along the open `path`, a list of `Segment2` lines and arcs drawn on `plane` (@ch-sweep). The path runs from the first piece's start; each next piece must meet the end of the one before within `LOOP_GAP_TOLERANCE`, either way round. The path's start must lie on the profile's plane. The profile a single flat face without holes; no circles in the path. A sweep that encloses nothing is `EmptyResult`. Every arc of the path must have a radius larger than the profile's farthest point from the path's start, measured in the profile's plane; a tighter bend is refused. The profile is unchanged.],
   [`tessellate(s, deflection)`], [Breaks the surface into triangles, no farther than `deflection` (mm, > 0) from the true surface.],
   [`export_step(s, path)`], [Writes a STEP file in millimeters, replacing any existing file.],
   [`import_step(path)`], [Reads everything in a STEP file as one shape.],
@@ -159,6 +165,7 @@ All positions must be finite numbers; all sizes finite and greater than zero.
   [`HoleDepth::Blind(depth)`], [Stops `depth` mm from the start point, with a flat bottom. Depth > 0, and larger than a counterbore's `cb_depth`.],
   [`HoleDepth::ThroughAll`], [Through the whole solid, along the direction from the start point.],
   [`BooleanOp`], [`Union`, `Cut` or `Intersect`.],
+  [`CombineHistory { target, tools }`], [`target`: for each face of the target, in index order, the result's faces it became. `tools`: the same for each tool, in order. Each list sorted: one face if it lives on, several if split, none if deleted. Faces only.],
   [`OpHistory { modified, generated }`], [`modified`: one entry `(operand, face, images)` for each face of `a` (`Operand::A`), then of `b` (`Operand::B`), in index order. `images` are the result's faces it became, sorted: one if it lives on (perhaps trimmed), several if split, none if deleted. `generated` is empty for a Boolean. Faces only.],
 )
 
@@ -244,6 +251,7 @@ Work planes are `Workplane` values and work axes `Axis` values (@sec-ref-extrude
   [`Axis::through_points(p, q)`], [The axis through `p` pointing towards `q`. The points different.],
   [`Axis::plane_intersection(a, b)`], [The line where two planes meet, along a.normal × b.normal, through its point nearest the origin. The planes not parallel.],
   [`plane_axis_intersection(plane, axis)`], [The point where the axis crosses the plane. The axis not parallel to the plane.],
+  [`Workplane::midplane(a, b)`], [The plane halfway between two parallel planes, with `a`'s normal and `x_dir`; its origin is halfway from `a`'s origin to `b`. The planes parallel (they may face opposite ways); the same plane twice gives it back.],
 )
 
 #ref-table(
@@ -252,6 +260,8 @@ Work planes are `Workplane` values and work axes `Axis` values (@sec-ref-extrude
   [`work_plane_on_face(s, face)`], [The plane of the flat face `face` of `s`: normal the face's outward normal, origin the point of the plane nearest the part origin, `x_dir` as `from_point_normal` gives. `face` a face, in range, flat.],
   [`work_axis_on(s, of)`], [The line of a straight edge, or the center line of a cylindrical face, of `s`. `dir` a unit vector, either way along the line; origin the line's point nearest the part origin. `of` an edge or a face, in range; not a vertex, a curved edge or a face that isn't cylindrical.],
   [`vertex_point(s, vertex)`], [Where the vertex `vertex` of `s` is. `vertex` a vertex, in range.],
+  [`work_plane_tangent(s, face, toward)`], [The plane that touches the cylindrical face `face` of `s` along one line, on the side `toward` points to (@sec-work-between). Only the part of `toward` square to the cylinder's axis counts; it becomes the normal. Origin the point of the plane nearest the part origin, `x_dir` as `from_point_normal` gives. `face` a face, in range, cylindrical; `toward` non-zero and not along the axis.],
+  [`edge_midpoint(s, edge)`], [The point halfway along the edge `edge` of `s`, measured along the edge, so on a curved edge it lies on the curve. `edge` an edge, in range.],
 )
 
 Every input must be finite, and every refusal is `InvalidInput` (@sec-errors). The checks use `DATUM_TOLERANCE`, 1e-9: directions this close count as parallel, points this close (in mm) as the same, and an axis this close to a plane as lying in it.
