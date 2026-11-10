@@ -1,0 +1,125 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(kernel): combine_tracked",
+      "ref": "82a7c0b",
+      "task_id": "pr-181-gates",
+      "type": "commit"
+    },
+    {
+      "description": "",
+      "ref": "https://github.com/glitchwizard/saulitwerx/pull/181",
+      "task_id": "pr-181-gates",
+      "type": "pr"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt --all --check",
+      "passed": true,
+      "required": true,
+      "task_id": "pr-181-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy --workspace --all-targets -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "pr-181-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test --workspace",
+      "passed": true,
+      "required": true,
+      "task_id": "pr-181-gates",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-kernel --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "pr-181-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-kernel --features occt",
+      "passed": false,
+      "required": true,
+      "task_id": "pr-181-gates",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-kernel --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "pr-181-gates",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-qa --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "pr-181-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-qa --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "pr-181-gates",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "A documented `CombineHistory` type in `topo.rs`: `target: Vec<Vec<SubShape>>` (for each face of the target, in face index order, its face images in the result) and `tools: Vec<Vec<Vec<SubShape>>>` (for each tool in order, and each of its faces in face index order, its face images in the result). Every image list is sorted by index with no duplicates; a deleted face has an empty list.",
+      "A kernel-free helper (no OCCT) that composes one step's face images with the next step's images of the intermediate shape's faces, documented, with unit tests that run without `occt`: a face split in step 1 whose two images are both kept in step 2, one split again and one deleted; an image index out of range of the next step's map is `InvalidInput`.",
+      "`Kernel::combine_tracked(&self, op: BooleanOp, target, tools: &[Self::Shape]) -> Result<(Self::Shape, CombineHistory), KernelError>`, documented and implemented for `OcctKernel`: the same solid as `combine` (same volume within 1e-6 relative, same body count and face count), plus its history. Errors are those of `combine`. The inputs are unchanged. No new shim code is expected; any that is added is `noexcept` and catches C++ exceptions, and every new `unsafe` call is in `ffi` with a SAFETY comment.",
+      "Tests (behind `occt`); bounding boxes of image faces (`sub_shape_bounding_box`) within 1e-6 for planar faces and 1e-3 for cylindrical faces: one tool, join, cut, cut that splits; in every case, every image index is below the result's face count, `target` has one entry per target face and `tools[i]` one per face of tool `i`.",
+      "Errors, each with a test and never a panic: no tools, or a face (from `make_face`) as target or tool, is `InvalidInput`; an intersect with no common volume is `EmptyResult`.",
+      "No new dependencies. `swx-kernel` still has no workspace dependencies.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and so do the CI `swx-kernel (occt)` job commands.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-10T10:24:22.605793750+00:00",
+    "constraints": [],
+    "created_at": "2026-11-10T10:23:40.056804500+00:00",
+    "description": "M3-10b: Tracked combine: combine_tracked with face history for the target and every tool",
+    "project_id": "saulitwerx",
+    "scope": "crates/swx-kernel",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 2,
+      "checks_count": 8,
+      "estimate": "small",
+      "id": "pr-181-gates",
+      "status": "completed",
+      "title": "Run gates for PR #181 (M3-10b) at 82a7c0b",
+      "type": "test"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
