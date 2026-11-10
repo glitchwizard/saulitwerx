@@ -1,0 +1,109 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "PR #178 head",
+      "ref": "b6baca3",
+      "task_id": "gates-169",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-169",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-169",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-169",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "clippy swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-169",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "test swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-169",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "clippy swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-169",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "test swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-169",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "Three documented `Kernel` methods, implemented for `OcctKernel`: `body_count(&self, s) -> Result<usize, KernelError>`: number of distinct solids in `s` (0 for a lone face). `bodies(&self, s) -> Result<Vec<Self::Shape>, KernelError>`: each solid of `s` as its own shape, sorted by bounding-box minimum (x, then y, then z). `combine(&self, op: BooleanOp, target, tools: &[Self::Shape]) -> Result<Self::Shape, KernelError>`: the same result as applying `op` to the target with each tool in turn, in order. The inputs are unchanged. New shim code (if any) is `noexcept` and catches C++ exceptions; every new `unsafe` call is in `ffi` with a SAFETY comment.",
+      "Tests (behind `occt`), volumes within 1e-6 relative, points within 1e-6: two disjoint boxes union (body_count 2, bodies sorted); join with two tools (volume 3000); cut with two cylinders (3000 - 80pi); cut that splits (2 bodies, min x 0 then 20); intersect with two tools (volume 250); the target and tools are unchanged afterwards (same volumes).",
+      "Errors, each with a test and never a panic: no tools, or a tool or target that is not a solid (a face from `make_face`), is `InvalidInput`, checked before the backend; an intersect with no common volume is `EmptyResult`. `body_count` of a face is `Ok(0)`, and `bodies` of a face is `Ok` of an empty list.",
+      "No new dependencies. `swx-kernel` still has no workspace dependencies.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and so do the CI `swx-kernel (occt)` job commands.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-10T08:33:53.535262476+00:00",
+    "constraints": [],
+    "created_at": "2026-11-10T08:33:04.478449513+00:00",
+    "description": "M3-10a: Kernel multi-body shapes: body count, split into bodies, combine a target with several tool bodies",
+    "project_id": "saulitwerx",
+    "scope": "swx-kernel only (issue #169, PR #178)",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 7,
+      "estimate": "small",
+      "id": "gates-169",
+      "status": "completed",
+      "title": "Run the FACTORY gates for PR #178",
+      "type": "test"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
