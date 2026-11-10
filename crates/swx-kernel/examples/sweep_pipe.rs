@@ -2,7 +2,8 @@
 //! across along a path that rises 30 mm, turns a quarter circle of radius
 //! 20 mm, and runs 20 mm level (a bent rod), and a 12 × 6 mm rectangle along
 //! the same path (a bent bar). Prints each result, shows the errors a sweep
-//! can give, and writes the solids to STEP files.
+//! can give (including a bend tighter than the profile), and writes the
+//! solids to STEP files.
 //!
 //! Used by the user manual ("Sweeping along a path").
 //!
@@ -77,7 +78,8 @@ fn main() -> Res<()> {
     report(&k, "bar", &bar)?;
 
     // The errors: a path that starts 5 mm above the profile, a gap in the
-    // path, a closed path (a circle), and a profile with a hole.
+    // path, a closed path (a circle), a profile with a hole, and a bend of
+    // 4 mm radius, tighter than the rod's 5 mm radius.
     let washer = k.make_face(
         &Workplane::XY,
         &circle,
@@ -92,6 +94,15 @@ fn main() -> Res<()> {
         center: [0.0, 20.0],
         radius: 20.0,
     }];
+    let tight = [
+        path[0],
+        Segment2::Arc {
+            center: [4.0, 30.0],
+            radius: 4.0,
+            start_angle: FRAC_PI_2,
+            end_angle: PI,
+        },
+    ];
     for (label, r) in [
         (
             "starts above",
@@ -100,6 +111,7 @@ fn main() -> Res<()> {
         ("gap", k.sweep(&round, xz, &[path[0], path[2]])),
         ("circle path", k.sweep(&round, xz, &ring)),
         ("profile with hole", k.sweep(&washer, xz, &path)),
+        ("tight bend", k.sweep(&round, xz, &tight)),
     ] {
         println!("{label} -> error: {}", r.unwrap_err());
     }

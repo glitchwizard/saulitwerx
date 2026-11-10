@@ -103,3 +103,11 @@ required-features = ["occt"]
 [[example]]
 name = "work_on_part"
 required-features = ["occt"]
+
+[[example]]
+name = "multi_body"
+required-features = ["occt"]
+
+[[example]]
+name = "work_midplane"
+required-features = ["occt"]

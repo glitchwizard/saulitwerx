@@ -24,7 +24,7 @@ Every part starts with a set of them, all meeting at the #term[part origin], the
   caption: [A post that leans at 30°. Its circle is sketched on a work plane: the plate's top plane, made by offsetting the XY plane 10 mm, then turned 30° about a work axis across the middle of the top.],
 ) <fig-tilted-post>
 
-*In Saulitwerx today:* work planes, axes and points can be built from numbers, from the part origin and its planes and axes, and from each other. A work plane can be used wherever a `Workplane` goes (@sec-ref-extrude), and a work axis wherever an `Axis` goes: a revolve, a draft or a hole. They can also be taken from a part's own geometry: a plane on a flat face, an axis along a straight edge or through a round face, a point at a corner (@sec-work-part). You name that face, edge or corner by its number (@sec-topology); it can't be picked with the mouse yet, and the number doesn't follow the part through later changes. Work features aren't recorded in a part's history.
+*In Saulitwerx today:* work planes, axes and points can be built from numbers, from the part origin and its planes and axes, and from each other. A work plane can be used wherever a `Workplane` goes (@sec-ref-extrude), and a work axis wherever an `Axis` goes: a revolve, a draft or a hole. They can also be taken from a part's own geometry: a plane on a flat face or touching a round one, an axis along a straight edge or through a round face, a point at a corner or halfway along an edge (@sec-work-part, @sec-work-between). A plane can also sit halfway between two others. You name that face, edge or corner by its number (@sec-topology); it can't be picked with the mouse yet, and the number doesn't follow the part through later changes. Work features aren't recorded in a part's history.
 
 == Build work features <sec-work>
 
@@ -65,6 +65,7 @@ Here are all the ways to build each kind. Every one checks its input and gives a
   [An axis through two points], [`Axis::through_points(p, q)`, pointing from `p` to `q`.],
   [The axis where two planes meet], [`Axis::plane_intersection(a, b)`.],
   [The point where an axis crosses a plane], [`plane_axis_intersection(plane, axis)`.],
+  [A plane halfway between two parallel planes], [`Workplane::midplane(a, b)`, facing the way `a` faces (@sec-work-between).],
 )
 
 
@@ -185,6 +186,82 @@ The program is `crates/swx-kernel/examples/work_on_part.rs`. It does three thing
 
 #tip(title: [A plane on a face faces out])[A plane taken from a face always faces out of the part, like the face itself. Sketch on it and extrude a positive distance to build outward from the face; extrude a negative distance, or cut, to go into the part.]
 
+== Midplanes, tangent planes and midpoints <sec-work-between>
+
+Some places on a part are easy to describe but awkward to work out by hand. The middle of a shaft. The flat that touches its round side. The middle of an edge. Three calls give you each one exactly:
+
+- A #term[midplane] is the plane halfway between two parallel planes. Features placed on it sit in the middle of the part, such as a cross hole halfway along a shaft.
+- A #term[tangent plane] touches a round face along one straight line without cutting into it, on the side you choose. Sketch on it to put a flat, a pad or a label on a shaft or a boss.
+- An #term[edge midpoint] is the point halfway along an edge, measured along the edge. On a curved edge it lies on the curve.
+
+The sample in this section uses all three on a shaft 16 mm across and 50 mm long (@fig-work-midplane).
+
+// cargo run -p swx-kernel --features occt --example work_midplane -- work
+// swx-qa render --step work/work-midplane.step --size 600x900 -o docs/manual/img/work-midplane.png
+// Numbered rings drawn by the template.
+#shot(
+  "img/work-midplane.png",
+  width: 40%,
+  alt: "An upright round shaft with a small round hole through its side halfway up, and a flat cut into the other side along its top end",
+  marks: (
+    (68pt, 161pt, [1]),
+    (119pt, 93pt, [2]),
+    (119pt, 51pt, [3]),
+  ),
+  caption: [A shaft with (1) a cross hole on the midplane between its ends, (2) a flat cut from a plane tangent to its side, and (3) the midpoint of the flat's top edge.],
+) <fig-work-midplane>
+
+#task-intro(
+  goal: [Take a midplane, a tangent plane and an edge midpoint from a shaft, and drill and cut on them.],
+  needs: [Saulitwerx built with OpenCascade, and `swx-qa` built with it too (@ch-install).],
+  time: [5 minutes.],
+)
+
+#steps(
+  [#block(breakable: false)[Run the sample program, and tell it to save its part in a folder called `work`:
+  #term-block("cargo run -p swx-kernel --features occt --example work_midplane -- work")
+  It prints the faces it uses, the two planes, four errors on purpose, the finished part and the midpoint:
+  #term-block(label: "Output", "bottom face 2, top face 1, round face 0\nmidplane               origin (0, 0, 25)  normal (0, 0, -1)\ntangent plane (+Y)     origin (0, 8, 0)  normal (0, 1, 0)  x_dir (1, 0, 0)\nmidplane of XY and XZ -> error: invalid input: the planes are not\n    parallel: they have no midplane\ntangent on top face -> error: invalid input: face 1 is not cylindrical\ntangent toward +Z -> error: invalid input: toward is parallel to the\n    cylinder axis: it picks no side\nmidpoint of a face -> error: invalid input: edge_midpoint needs an edge,\n    got a Face sub-shape\nshaft with hole and flat: 9452.69 mm³, 6 faces\nflat's top edge 12: midpoint (0, 6, 50)\n…  (the geometry engine's file report)\nwrote work/work-midplane.step")
+  Three long error lines are wrapped here to fit the page.]],
+  [Read the `midplane` line. It lies at z = 25, halfway up the 50 mm shaft. It was built from the planes of the bottom and the top faces, and it faces the way the first one does: the bottom face faces out of the part, down, so the normal is (0, 0, −1).],
+  [Read the `tangent plane` line. Asked for the +Y side, the plane touches the shaft at y = 8, its radius, and faces out along +Y.],
+  [Read the errors. A midplane needs two parallel planes; XY and XZ cross. A tangent plane needs a round face, and a side that points away from the axis, not along it. A midpoint needs an edge.],
+  [Read the `shaft with hole and flat` line. The shaft holds π × 8² × 50 = 10053.10 mm³. The flat, 2 mm deep along the top 20 mm, removes 290.12 mm³. The rest of the difference, 310.29 mm³, is the cross hole 5 mm across: a little less than π × 2.5² × 16 = 314.16 mm³, because the shaft's round side trims the ends of the hole.],
+  [Read the last line before the file. The flat's top edge runs straight across the shaft's top at y = 6. Halfway along, it crosses the Y axis: (0, 6, 50).],
+  [#block(breakable: false)[Draw the part:
+  #term-block("target/release/swx-qa render --step work/work-midplane.step -o work-midplane.png")
+  Open `work-midplane.png`. You should see the shaft of @fig-work-midplane.]],
+)
+
+#result[A cross hole exactly halfway along the shaft, and a flat exactly 2 mm deep, with no positions worked out by hand.]
+
+#block(breakable: false)[
+=== How the sample is built
+
+The program is `crates/swx-kernel/examples/work_midplane.rs`. It does three things.
+
+#steps(
+  [*The midplane and the cross hole.* The two end faces give two planes (@sec-work-part), and `midplane` gives the one between them. The hole runs along the line where the midplane meets the XZ plane, starting outside the shaft at x = −10 and pointing into it (@ch-hole):
+  ```rust
+  let mid = Workplane::midplane(&a, &b)?;
+  let across = Axis::plane_intersection(&mid, &Workplane::XZ)?;
+  ```],
+  [*The tangent plane and the flat.* `work_plane_tangent` takes the round face and the side to touch. The sample moves the plane 2 mm into the shaft, sketches a rectangle on it over the top 20 mm, and cuts outward 5 mm, away from the axis (@sec-extrude-modes):
+  ```rust
+  let tangent = k.work_plane_tangent(&shaft, side, [0.0, 1.0, 0.0])?;
+  let floor = tangent.offset(-2.0)?;
+  ```],
+  [*The midpoint.* The sample finds the flat's top edge by its bounding box, then asks for its middle:
+  ```rust
+  let middle = k.edge_midpoint(&finished, edge)?;
+  ```],
+)
+]
+
+#caution(title: [Mind which way v runs])[On a plane, u runs along `x_dir` and v along the normal × `x_dir` (@sec-ref-extrude). For the tangent plane here, that is −Z: down the shaft. So the top 20 mm of the shaft is v from −51 to −30, not 30 to 51. When a sketch on a work plane lands in the wrong place, check the directions the program prints.]
+
+#tip(title: [A midplane faces the way the first plane does])[`midplane(a, b)` keeps `a`'s normal and directions, and swapping the two planes flips it. When a feature on the midplane goes the wrong way, swap them, or extrude a negative distance.]
+
 == Common mistakes <sec-work-mistakes>
 
 #set par(justify: false)
@@ -198,4 +275,8 @@ The program is `crates/swx-kernel/examples/work_on_part.rs`. It does three thing
 - *A plane on something other than a flat face.* An edge or a corner gives `invalid input: face_plane needs a face, got a Edge sub-shape` (or `Vertex`): the call is `work_plane_on_face`, though the message names the `face_plane` check it shares. A curved face gives `invalid input: face 6 is not planar`.
 - *An axis on a corner, a curved edge or a face that isn't round.* `invalid input: work_axis_on needs an edge or a face, got a vertex`, or `Edge 13 is not a straight edge or a cylindrical face`. Pick a straight edge, or a round face such as a boss, a pin or a hole.
 - *A point on something other than a corner.* `invalid input: vertex_point needs a vertex, got a Edge sub-shape` (or `Face`).
+- *A midplane of planes that cross.* `invalid input: the planes are not parallel: they have no midplane`. Take the planes of two opposite faces.
+- *A tangent plane on a face that isn't round.* `invalid input: face 1 is not cylindrical`. Give the round side of a shaft, a boss or a hole.
+- *A tangent side along the axis.* `invalid input: toward is parallel to the cylinder axis: it picks no side`. Point `toward` out from the axis, to the side you want.
+- *A midpoint of something other than an edge.* `invalid input: edge_midpoint needs an edge, got a Face sub-shape` (or `Vertex`).
 - *A number from another part, or from before a change.* `invalid input: face index 14 is out of range (the shape has 14 faces)`, or a work feature on the wrong face. Find the face, edge or corner again in the part you are building on.

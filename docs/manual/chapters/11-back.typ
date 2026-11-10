@@ -10,6 +10,11 @@
     ("Axis of revolution", [The line a revolve turns its outline around.]),
     ("Blind hole", [A hole that stops at a set depth, with a flat bottom.]),
     ("Bounding box", [The smallest box, with sides parallel to the axes, that holds a solid.]),
+    ("Body", [One separate piece of solid. A shape can hold several bodies that don't touch.]),
+    ("Multi-body part", [A part made of more than one body, such as a plate cut right across into two pieces.]),
+    ("Midplane", [The work plane halfway between two parallel planes.]),
+    ("Tangent plane", [A work plane that touches a round face along one straight line without cutting into it.]),
+    ("Edge midpoint", [The work point halfway along an edge, measured along the edge.]),
     ("Boolean operation", [Combining two solids by union, cut or intersect.]),
     ("CAD", [Computer-aided design: using a computer to design physical objects.]),
     ("Between faces", [An extrude extent that runs from one flat face of the target body to another.]),
@@ -114,6 +119,14 @@
 }
 
 = What's new
+
+== 2026-11-10: several bodies, midplanes and tangent planes, safer sweeps
+
+- *New:* count the separate bodies in a part, take each one on its own, and join, cut or intersect a part with a whole list of tools in one call, with the history of every face (@sec-bodies).
+- *New:* a work plane halfway between two parallel planes, a work plane touching a round face, and a work point halfway along an edge (@sec-work-between).
+- *Changed:* a sweep now refuses a bend tighter than its profile, with an error naming the bend, instead of returning a part that passes through itself (@ch-sweep).
+- *Pictures:* a plate drilled in one call and split into two bodies; a shaft with a cross hole on its midplane and a flat cut from a tangent plane.
+- Reference: the new calls, `CombineHistory`, and the sweep's bend rule. Help: ten new error messages, new common mistakes, and the known limitations updated. Glossary: five new terms, from body to tangent plane.
 
 == 2026-11-09: loft, sweep, and work features from the part
 
@@ -250,8 +263,8 @@ These are the next items on the public roadmap. None of them works yet. When one
   columns: (auto, 1fr),
   header: ("Soon", "What you'll be able to do"),
   [Extrude from a sketch], [Hand a sketch's region straight to the extrude and the revolve.],
-  [More part features], [Countersunk and threaded holes; shells with walls of different thicknesses; fillets, chamfers, shells, holes, drafts, lofts, sweeps and work features kept in a part's history.],
-  [Multi-body parts], [Keep several solids in one part, and join, cut or intersect them with each other.],
+  [More part features], [Shells with walls of different thicknesses; fillets, chamfers, shells, holes, drafts, lofts, sweeps and work features kept in a part's history.],
+  [Hole feature v2], [Countersunk and tapped holes, with sizes from a thread table.],
   [Threads], [Model real screw threads, outside on a shaft or inside a hole, along a helix.],
   [Lasting references], [A feature built on a face or an edge keeps finding it when earlier features change.],
   [Part files], [Save a part with its full history, and open it again.],
@@ -321,7 +334,7 @@ Later milestones add assemblies, 2D drawings and exploded views. The full plan i
         [`hole`], [simple or counterbore],
         [`draft`], [tilt faces for a mold],
         [`loft` · `sweep`], [blend / follow a path],
-        [`offset` · `angled`], [work planes],
+        [`offset` · `midplane`], [work planes],
         [`work_plane_on_face`], [plane on a flat face],
         [`work_axis_on`], [axis on edge or round face],
         [`boolean_tracked`], [Boolean + face history],

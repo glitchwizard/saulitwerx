@@ -89,10 +89,18 @@ Every message starts with `swx-qa: `. No picture is written when there is an err
   [`invalid input: sweep path: segment 1 doesn't meet segment 0 within 0.0000001`], [Two neighboring pieces of the path don't touch. Reuse the same end values (@sec-sweep-mistakes).],
   [`invalid input: sweep path starts 5 off the profile's plane`], [The path's start isn't on the profile's plane; the number is how far off it is, in mm. Start the path at the profile's middle.],
   [`invalid input: sweep profile is not a single planar face`, `sweep profile has a hole; profiles with holes are not supported`], [The profile is a solid, or has a hole. Pass one face from `make_face`; for a tube, cut an inner sweep from an outer one.],
+  [`invalid input: sweep path: arc segment 1 has radius 4, not larger than the profile's distance 5.000000232604544 from the path's start; the swept solid would pass through itself`], [A bend of the path is tighter than the profile is wide: the inside of the part would fold through itself. Make the bend's radius larger than the distance shown, or the profile smaller (@sec-sweep-mistakes).],
   [`empty result: the sweep encloses no volume`], [The path runs along the profile's own plane, so the profile sweeps out nothing. Draw the path on a plane that crosses the profile's.],
   [`invalid input: work_axis_on needs an edge or a face, got a vertex`], [A work axis was asked of a corner. Give a straight edge or a round face (@sec-work-part).],
   [`invalid input: Edge 13 is not a straight edge or a cylindrical face` (or `Face …`)], [The edge is curved, or the face isn't round like a cylinder, so it has no single line.],
   [`invalid input: vertex_point needs a vertex, got a Edge sub-shape` (or `Face`)], [A work point was asked of an edge or a face. Give a vertex.],
+  [`invalid input: the planes are not parallel: they have no midplane`], [A midplane needs two parallel planes (@sec-work-mistakes).],
+  [`invalid input: face 1 is not cylindrical`], [A tangent plane was asked of a face that isn't round like a cylinder. Give the round side of a shaft, a boss or a hole (@sec-work-between).],
+  [`invalid input: toward is parallel to the cylinder axis: it picks no side`], [The direction given for a tangent plane runs along the cylinder, so it doesn't say which side to touch. Point it out sideways from the axis.],
+  [`invalid input: work_plane_tangent needs a face, got a Edge sub-shape` (or `Vertex`), `edge_midpoint needs an edge, got a Face sub-shape` (or `Vertex`)], [A tangent plane needs a face, and a midpoint an edge.],
+  [`invalid input: combine needs at least one tool body`], [A combine was given an empty list of tools (@sec-bodies).],
+  [`invalid input: the combine target has no solid body`, `combine tool 0 has no solid body`], [The target, or a tool (counted from 0), is a flat face, not a solid. Extrude it first.],
+  [`empty result: the combined result encloses no volume`], [A cut removed everything, or an intersect found no common volume.],
   [`invalid input: the planes are parallel: they have no line in common`], [Two parallel planes have no line where they meet (@sec-work-mistakes).],
   [`invalid input: the three plane points are collinear`], [Three points in a line don't fix a plane. Move one off the line.],
   [`invalid input: axis direction (the points coincide) must be non-zero`, `plane points (two coincide) must be non-zero`], [An axis or a plane was given the same point twice.],
@@ -233,9 +241,10 @@ For an unknown entity, `infer` and `add_inferred` give the sketch messages above
 - An extrude's or a revolve's target is a solid you hold in your program. Faces and edges can be counted and numbered (@sec-topology), a plain extrude says which face each piece of the outline became (@sec-extrude-history), and a Boolean what became of each face (@sec-boolean-history), but they can't be picked, and their numbers don't last through a change; so the outline's workplane is given by its numbers (@sec-extrude-modes).
 - Holes have flat bottoms and are simple or counterbored: no drill points, countersinks or threads yet (@ch-hole).
 - A draft tilts flat faces by one angle about one neutral plane; it can't split a face or step its neutral line (@ch-draft).
+- A part with several bodies (@sec-bodies) is one shape: its bodies can be counted and taken apart, but not named, moved or kept apart in a part's history.
 - Work planes, axes and points can be taken from a part's faces, edges and corners only by their numbers, not picked; an axis taken from the part may point either way (@sec-work-part).
 - A loft goes through flat sections without holes, in the order given, with no guide curves and no control over how the sections line up (@ch-loft).
-- A sweep moves one flat profile without holes along an open path of lines and arcs in one plane: no closed, 3D or spline paths, no twist or change of size. A bend tighter than the profile gives a part that passes through itself, with no error (@ch-sweep).
+- A sweep moves one flat profile without holes along an open path of lines and arcs in one plane: no closed, 3D or spline paths, no twist or change of size. A bend must be wider than the profile: the check uses the profile's farthest point from the path's start, so it can refuse a bend that would just fit on the profile's narrow side (@ch-sweep).
 - Extrudes, revolves, lofts, sweeps, fillets, chamfers, shells, holes, drafts and work features aren't recorded in a part's history, so they don't rebuild when a parameter changes.
 - No native part files; work can't be saved with its history.
 - `swx-qa sketch` draws only its two built-in sketches. Your own sketches need a short program (@sec-picture-sketch). Sketch pictures show no dimension arrows and no marks for constraints such as horizontal.

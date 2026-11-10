@@ -175,6 +175,80 @@ for (operand, face, images) in &history.modified {
 
 *In Saulitwerx today:* history covers faces only. Edges are found through their faces (@sec-topology). `history.generated` is always empty for a Boolean, because a Boolean makes no new faces, only the edges where the two solids meet. A cut or join made by an extrude (@sec-extrude-modes) doesn't report a history yet, and the part's history doesn't keep it.
 
+== Parts with several bodies <sec-bodies>
+
+#idx("multi-body part")
+A solid doesn't have to be in one piece. Cut a slot right across a plate and you get two pieces that don't touch, but they are still one result, one shape. Each separate piece is a #term[body]. A part with more than one is a #term[multi-body part]. You meet them when a cut splits a part, and you can build them on purpose: to make two halves that fit together, or to shape several pieces side by side and pull them apart at the end.
+
+Three calls work with bodies:
+
+- `body_count` says how many bodies a shape has.
+- `bodies` hands you each body as its own shape, to measure, save or use on its own.
+- `combine` applies one Boolean to a target with a whole list of tools, in order: one call drills every hole, or joins every boss. `combine_tracked` does the same and says what became of every face, like a Boolean with history (@sec-boolean-history).
+
+
+#task-intro(
+  goal: [Drill two holes in one call, see what became of each face, split the plate in two, and take the two bodies apart.],
+  needs: [Saulitwerx built with OpenCascade, and `swx-qa` built with it too (@ch-install).],
+  time: [5 minutes.],
+)
+
+#steps(
+  [#block(breakable: false)[Run the sample program, and tell it to save its part in a folder called `bodies`:
+  #term-block("cargo run -p swx-kernel --features occt --example multi_body -- bodies")
+  It prints the drilled plate and the history of its faces, the slotted plate and its two bodies, three errors on purpose, and the file it wrote:
+  #term-block(label: "Output", "drilled plate: 13796.81 mm³, 8 faces, 1 body\nplate face 0 -> [0]\nplate face 1 -> [5]\nplate face 2 -> [1]\nplate face 3 -> [3]\nplate face 4 -> [4]\nplate face 5 -> [2]\npin 0 faces -> [[6], [], []]\npin 1 faces -> [[7], [], []]\nslotted plate: 12836.81 mm³, 2 bodies\nbody 0: 6418.41 mm³, x 0..28\nbody 1: 6418.41 mm³, x 32..60\nno tools -> error: invalid input: combine needs at least one tool body\nflat tool -> error: invalid input: combine tool 0 has no solid body\nfar tool -> error: empty result: the combined result encloses no volume\n…  (the geometry engine's file report)\nwrote bodies/two-bodies.step")]],
+  [Read the first line. The plate is 60 × 40 × 6 = 14400 mm³, and each hole 8 mm across takes π × 4² × 6 = 301.59 mm³: 14400 − 603.19 = 13796.81 mm³. Still one body.],
+  [Read the `plate face` lines. Each of the plate's 6 faces lives on, renumbered. The top and the bottom now have holes in them, but each is still one face.],
+  [Read the `pin` lines. Each pin is a cylinder with three faces: its round side, then its two ends. The round side became the wall of its hole, face 6 or 7. The ends were outside the plate, so nothing of them is left.],
+  [Read the `slotted plate` lines. The slot removed 4 × 40 × 6 = 960 mm³, and the plate fell into 2 bodies. `bodies` gives them in order along X: the left half, from x = 0 to 28, then the right half, from 32 to 60. Each holds half the volume.],
+  [Read the errors. A combine needs at least one tool, every tool must be a solid (not a flat face), and an intersect with a tool that doesn't touch the plate leaves nothing.],
+  [#block(breakable: false)[Draw the part:
+  #term-block("target/release/swx-qa render --step bodies/two-bodies.step -o two-bodies.png")
+  Open `two-bodies.png`. You should see the two halves of @fig-two-bodies.]],
+)
+
+#result[Two holes from one call, a part split into two bodies, and each body in hand on its own.]
+
+// cargo run -p swx-kernel --features occt --example multi_body -- bodies
+// swx-qa render --step bodies/two-bodies.step --size 900x700 -o docs/manual/img/two-bodies.png
+#shot(
+  "img/two-bodies.png",
+  width: 65%,
+  alt: "Two flat rectangular plates side by side with a narrow gap between them, each with one round hole through its middle",
+  caption: [A 60 × 40 × 6 mm plate with two holes, drilled in one combine call, then cut by a 4 mm slot across the middle. The result is one shape with two bodies.],
+) <fig-two-bodies>
+
+#block(breakable: false)[
+=== How the sample is built
+
+The program is `crates/swx-kernel/examples/multi_body.rs`. It does three things.
+
+#steps(
+  [*Combine with history.* The tools go in a list. The result is the same as cutting with each pin in turn:
+  ```rust
+  let (drilled, history) = k.combine_tracked(BooleanOp::Cut, &plate, &pins)?;
+  // history.target[f]: the faces of `drilled` that face f of the plate became
+  // history.tools[t][f]: the same for face f of tool t
+  ```],
+  [*Split.* A plain `combine` with one tool, the slot, cuts the plate in two:
+  ```rust
+  let split = k.combine(BooleanOp::Cut, &drilled, &[slot])?;
+  ```],
+  [*Count and take apart:*
+  ```rust
+  let n = k.body_count(&split)?;      // 2
+  for body in k.bodies(&split)? { /* measure, save or use each one */ }
+  ```],
+)
+]
+
+#tip(title: [One call for a row of features])[To drill ten holes or join ten bosses, build the ten tools and pass them to one `combine`. It's shorter than ten Booleans, and `combine_tracked` still tells you which hole wall came from which tool.]
+
+#caution(title: [Count the bodies after a cut])[A cut can split a part without warning: a slot or a hole that runs right across leaves two pieces in one shape. If a later feature should touch the whole part, check `body_count` first.]
+
+*In Saulitwerx today:* the bodies of a shape can be counted, taken apart and combined, but not named, moved or picked, and a part's history doesn't keep them. `bodies` orders them by the lowest corner of each one's bounding box, so the order follows where they are, not how they were made.
+
 == Open a STEP file from another program
 
 `import_step` reads any STEP file, and `swx-qa render --step` draws one (@ch-pictures). Everything in the file comes in as one shape. Saulitwerx can't edit an imported shape yet; using it as a starting feature is on the roadmap.

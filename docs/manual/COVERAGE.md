@@ -1,4 +1,4 @@
-manual-synced-to: 3b3f794ff53e6f444ccc6a550df55c9d08347cca
+manual-synced-to: 7a7028d5f9dd6823a6355cda55d307dd0b564ffa
 
 # Manual coverage
 
@@ -33,8 +33,10 @@ Everything a user can do or set on `main`, found from the code, `docs/ROADMAP.md
 | Kernel: `draft` (faces, neutral plane as an `Axis`: point and pull direction, angle in radians, sign rule, (0, π/2) in size; face-list checks; faces parallel to the neutral plane fail); every message | 12, 18.4, 19.2, 19.4 |
 | Work features: `ORIGIN`, `Axis::X`/`Y`/`Z`, `Workplane::offset`, `through_points`, `from_point_normal`, `angled`, `Axis::through_points`, `Axis::plane_intersection`, `plane_axis_intersection`, `DATUM_TOLERANCE`; every message | 15, 18.6, 19.2, 19.4 |
 | Kernel: `loft` (sections in order, ruled or smooth; `MIN_LOFT_SECTIONS`; single planar faces without holes, any plane; coincident sections fail; empty result); every message | 13, 18.4, 19.2, 19.4 |
-| Kernel: `sweep` (planar profile without holes, open path of lines and arcs on a workplane, start on the profile's plane, segments either way round within `LOOP_GAP_TOLERANCE`, no circles; path along the profile's plane is an empty result; tight bends not caught); every message | 14, 18.4, 19.2, 19.4 |
+| Kernel: `sweep` (planar profile without holes, open path of lines and arcs on a workplane, start on the profile's plane, segments either way round within `LOOP_GAP_TOLERANCE`, no circles; path along the profile's plane is an empty result; an arc no wider than the profile's reach from the path's start is refused); every message | 14, 18.4, 19.2, 19.4 |
 | Work features from geometry: `work_plane_on_face`, `work_axis_on` (straight edge or cylindrical face; either direction), `vertex_point`; origin nearest the part origin; every message | 15.3, 18.6, 19.2, 19.4 |
+| Work features between and around faces: `Workplane::midplane` (parallel planes, keeps `a`'s normal), `work_plane_tangent` (cylindrical face, side from `toward`), `edge_midpoint` (half the arc length); every message | 15.4, 18.6, 19.2 |
+| Kernel: multi-body shapes: `body_count`, `bodies` (ordered by bounding-box minimum), `combine` (target with several tools, in order; tool, solid and empty checks), `combine_tracked`, `CombineHistory` (target, tools); every message | 6.5, 18.4, 19.2, 19.4 |
 | Kernel: `extrude_feature`, `ExtrudeMode` (NewSolid, Join, Cut, Intersect), `EMPTY_VOLUME_TOLERANCE` | 7.3, 18.5 |
 | Kernel: `Extent::ThroughAll`, `ThroughDirection` (Normal, Reversed, Both); through-all only with `extrude_feature` and `Cut`; miss check | 7.4, 7.7, 18.5, 19.2 |
 | Kernel: `revolve`, `revolve_feature`, `Axis` (origin, dir); angle in radians, (0, 2π]; right-hand rule; modes as extrude; axis-in-plane and profile-crossing checks, `REVOLVE_AXIS_TOLERANCE` | 8, 18.5, 18.15, 19.2, 19.4 |
@@ -99,6 +101,8 @@ Everything a user can do or set on `main`, found from the code, `docs/ROADMAP.md
 | `swx-kernel` `loft_sections` (occt) | 13 |
 | `swx-kernel` `sweep_pipe` (occt) | 14 |
 | `swx-kernel` `work_on_part` (occt) | 15.3 |
+| `swx-kernel` `work_midplane` (occt) | 15.4 |
+| `swx-kernel` `multi_body` (occt) | 6.5 |
 
 ## Not user-facing yet
 
@@ -106,6 +110,6 @@ Everything a user can do or set on `main`, found from the code, `docs/ROADMAP.md
 
 ## Backlog
 
-- Nothing built is undocumented. Next: when shells take walls of different thicknesses or join the history (later M3-06 slices), extend chapter 10. When sketch regions reach the extrude and the revolve (M3-01c, #106), rewrite chapters 7, 8, 13 and 14 so their tasks start from a sketch, and update the known limitations. When fillets and chamfers take lasting edge references or join the history (later M3-05 slices), rewrite chapter 9's tasks around them. When extrudes and revolves with join, cut or intersect report a face history built on `boolean_tracked`, add it to 7.5 and 6.4. When holes gain countersinks, threads and a thread table (M3-12), extend chapter 11. When work features can be picked on a part, use lasting references, or join the history (later M3-08 slices), extend chapter 15. When lofts gain guide curves or sections with holes, or sweeps gain closed, 3D or helical paths, twist or guide rails (later M3-11 slices, MB-03), extend chapters 13 and 14; when the sweep catches bends tighter than its profile (issue opened 2026-11-09), update 14 and its known limitation.
+- Nothing built is undocumented. Next: when shells take walls of different thicknesses or join the history (later M3-06 slices), extend chapter 10. When sketch regions reach the extrude and the revolve (M3-01c, #106), rewrite chapters 7, 8, 13 and 14 so their tasks start from a sketch, and update the known limitations. When fillets and chamfers take lasting edge references or join the history (later M3-05 slices), rewrite chapter 9's tasks around them. When extrudes and revolves with join, cut or intersect report a face history built on `boolean_tracked`, add it to 7.5 and 6.4. When holes gain countersinks, threads and a thread table (M3-12), extend chapter 11. When work features can be picked on a part, use lasting references, or join the history (later M3-08 slices), extend chapter 15. When bodies can be named, moved or kept in a part's history, extend 6.5. When lofts gain guide curves or sections with holes, or sweeps gain closed, 3D or helical paths, twist or guide rails (later M3-11 slices, MB-03), extend chapters 13 and 14. The sweep's bend check (M3-11c) is documented in 14.
 - Possible addition: a rounded-corner task (arc ends joined to two lines, M2-04a), now that an extrude can use arcs: a plate with rounded corners.
 - Possible improvement: the variable-fillet picture (9.3) and the square-to-round loft (13) show faint tessellation ripples on curved faces, because `swx-qa render` has no finer-mesh option. Regenerate them if the renderer gains one.

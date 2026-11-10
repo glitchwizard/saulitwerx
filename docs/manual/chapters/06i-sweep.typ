@@ -37,12 +37,12 @@ The profile keeps its size and shape all the way. Through each bend it turns wit
 #steps(
   [#block(breakable: false)[Run the sample program, and tell it to save its parts in a folder called `sweep`:
   #term-block("cargo run -p swx-kernel --features occt --example sweep_pipe -- sweep")
-  It prints one line for each sweep, four errors on purpose, then the files it wrote:
-  #term-block(label: "Output", "rod         6394.39 mm³  5 faces  box 45 × 10 × 55 mm\nbar         5861.95 mm³  14 faces  box 46 × 6 × 56 mm\nstarts above -> error: invalid input: sweep path starts 5 off the\n    profile's plane\ngap -> error: invalid input: sweep path: segment 1 doesn't meet segment 0\n    within 0.0000001\ncircle path -> error: invalid input: sweep path: circles (closed paths)\n    are not supported\nprofile with hole -> error: invalid input: sweep profile has a hole;\n    profiles with holes are not supported\n…  (the geometry engine's file reports)\nwrote sweep/sweep-rod.step\nwrote sweep/sweep-bar.step")
-  Four long error lines are wrapped here to fit the page.]],
+  It prints one line for each sweep, five errors on purpose, then the files it wrote:
+  #term-block(label: "Output", "rod         6394.39 mm³  5 faces  box 45 × 10 × 55 mm\nbar         5861.95 mm³  14 faces  box 46 × 6 × 56 mm\nstarts above -> error: invalid input: sweep path starts 5 off the\n    profile's plane\ngap -> error: invalid input: sweep path: segment 1 doesn't meet segment 0\n    within 0.0000001\ncircle path -> error: invalid input: sweep path: circles (closed paths)\n    are not supported\nprofile with hole -> error: invalid input: sweep profile has a hole;\n    profiles with holes are not supported\ntight bend -> error: invalid input: sweep path: arc segment 1 has radius\n    4, not larger than the profile's distance 5.000000232604544 from the\n    path's start; the swept solid would pass through itself\n…  (the geometry engine's file reports)\nwrote sweep/sweep-rod.step\nwrote sweep/sweep-bar.step")
+  Five long error lines are wrapped here to fit the page.]],
   [Read the `rod` line. The path is 30 mm + a quarter circle of 20 mm radius (31.42 mm) + 20 mm = 81.42 mm long. The circle's area is π × 5² = 78.54 mm², and 78.54 × 81.42 = 6394.39 mm³: a sweep holds its profile's area times its path's length.],
   [Read the `bar` line. The rectangle is 72 mm², so the bar holds 72 × 81.42 = 5861.95 mm³. Each of its four sides is split into three faces, one for each piece of the path, which with the two ends makes 14.],
-  [Read the errors. The path must start on the profile's plane, its pieces must meet end to end, it can't be a circle, and the profile can't have a hole.],
+  [Read the errors. The path must start on the profile's plane, its pieces must meet end to end, it can't be a circle, and the profile can't have a hole. The last one bends the rod round a 4 mm radius, tighter than the rod's own 5 mm radius, so the sweep refuses it (see the caution below).],
   [#block(breakable: false)[Draw the rod:
   #term-block("target/release/swx-qa render --step sweep/sweep-rod.step -o sweep-rod.png")
   Open `sweep-rod.png`. You should see the left-hand part of @fig-sweep.]],
@@ -79,7 +79,7 @@ The program is `crates/swx-kernel/examples/sweep_pipe.rs`. It does three things.
 
 #tip(title: [Start square to the profile])[Start the path at the profile's middle, heading straight out of the profile's plane, as the sample does. A path that starts at a slant leans the whole part over; one that starts flat along the profile's plane gives nothing to sweep, and fails.]
 
-#caution(title: [Keep bends wider than the profile])[A bend whose radius is smaller than half the profile's width folds the inside of the part through itself. Saulitwerx doesn't catch this yet: the sweep returns a part and no error, but the part isn't sound, and features built on it can fail or measure wrong. In the sample, the 20 mm bend radius is well over the rod's 5 mm radius. Make bends wider, or the profile smaller.]
+#caution(title: [Keep bends wider than the profile])[Picture bending a thick rod round a tight corner: the inside of the bend gets squeezed until it would have to pass through itself. A sweep can't build that, so it refuses any arc whose radius isn't larger than the profile's reach: the distance from the path's start to the profile's farthest point, measured in the profile's plane. The message names the arc (pieces are counted from 0), its radius and that distance. In the sample, the rod's reach is its 5 mm radius (shown as 5.000000232604544, because it is measured on a fine mesh of the profile), so the 20 mm bend passes and the 4 mm bend is refused. For the 12 × 6 mm bar, the reach is its corner, √(6² + 3²) = 6.71 mm from the middle, so its bends must be wider than that. The check uses the farthest point in every direction, so it can refuse a bend that would just fit on the profile's narrow side. Make the bend wider, or the profile smaller.]
 
 == Common mistakes <sec-sweep-mistakes>
 
@@ -92,4 +92,4 @@ The program is `crates/swx-kernel/examples/sweep_pipe.rs`. It does three things.
 - *A profile with a hole.* `invalid input: sweep profile has a hole; profiles with holes are not supported`. To make a tube, sweep the outer circle, sweep the inner one along the same path, and cut the second from the first (@sec-feature). For the sample's path, circles 10 and 6 mm across give a tube of 4092.41 mm³.
 - *A solid in place of the profile.* `invalid input: sweep profile is not a single planar face`. Pass the face from `make_face`.
 - *A path that starts along the profile's plane.* The profile slides within its own plane and sweeps out nothing: `empty result: the sweep encloses no volume`. Draw the path on a plane that crosses the profile's plane.
-- *A bend tighter than the profile.* No error, but a part that passes through itself (see the caution above).
+- *A bend tighter than the profile.* The message names the arc, its radius and the profile's reach: `invalid input: sweep path: arc segment 1 has radius 4,` `not larger than the profile's distance 5.000000232604544 from the path's start;` `the swept solid would pass through itself`. Give the arc a radius larger than the distance shown (see the caution above).
