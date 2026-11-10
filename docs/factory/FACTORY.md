@@ -71,7 +71,7 @@ Issue title format: `M2-03: Solver constraints: coincident, horizontal, …`. Th
 
 For each open PR whose issue is labeled `factory:review`, oldest first:
 
-1. CI must be green. If it isn't, label the issue `factory:changes`, comment why, and go to the next PR. **A PR with no CI checks at all counts as red, and so does a PR that conflicts with `main`** (comment: merge `main` into the branch). If `.github/workflows/ci.yml` is missing on `main`, merge nothing, open (or keep open) one `needs-human` issue titled "CI workflow missing", and skip to Plan.
+1. CI must be green. If it isn't, label the issue `factory:changes`, comment why, and go to the next PR. **A PR with no CI checks at all counts as red, and so does a PR that conflicts with `main`** (comment: merge `main` into the branch). A PR whose only problem is a conflict (its CI was green) still gets the full step 2 review in the same run, and the one send-back comment lists every required change, so the fix run handles them all at once. If `.github/workflows/ci.yml` is missing on `main`, merge nothing, open (or keep open) one `needs-human` issue titled "CI workflow missing", and skip to Plan.
 2. Read the issue and the full diff. Check:
    - every acceptance criterion is met and tested, and every box the Builder checked is actually true (uncheck any that aren't and send the PR back);
    - the PR has a QA report (§6b) for its current head commit, with all six sections. Open every image it embeds and check that it shows what the report claims (§6b, *Reviewer checks*);
@@ -80,7 +80,7 @@ For each open PR whose issue is labeled `factory:review`, oldest first:
    - `CLEAN_ROOM.md` is respected (no vendor names or assets, no proprietary formats);
    - there is no AI attribution;
    - no unrelated changes.
-3. **Pass** → make sure every box in the issue is checked, squash-merge with the PR title as the commit subject, delete the branch, remove all `factory:*` workflow labels from the issue (it closes via `Closes #N`), and check off the roadmap item in `docs/ROADMAP.md`. Commit that roadmap change through a small `docs/` PR merged in the same run. Combine all roadmap check-offs from this run into one PR. The same PR carries the STATE lines (§6).
+3. **Pass** → make sure every box in the issue is checked, squash-merge with the PR title as the commit subject, remove all `factory:*` workflow labels from the issue (it closes via `Closes #N`), and check off the roadmap item in `docs/ROADMAP.md`. Commit that roadmap change through a small `docs/` PR merged in the same run. Combine all roadmap check-offs from this run into one PR. The same PR carries the STATE lines (§6).
 4. **Fail** → leave a review comment with a numbered list of required changes, then label the issue `factory:changes`. A missing, incomplete or false QA report is a fail.
 5. Anything legally or architecturally ambiguous → label it `needs-human`, comment the question, and don't merge.
 
