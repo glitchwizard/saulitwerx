@@ -509,6 +509,69 @@ impl Kernel for OcctKernel {
         Ok((OcctShape(shape), history))
     }
 
+    fn body_count(&self, s: &OcctShape) -> Result<usize, KernelError> {
+        ffi::solid_count(&s.0).ok_or_else(|| backend("body_count"))
+    }
+
+    fn bodies(&self, s: &OcctShape) -> Result<Vec<OcctShape>, KernelError> {
+        let mut keyed = (0..self.body_count(s)?)
+            .map(|i| {
+                let body = ffi::solid(&s.0, i)
+                    .map(OcctShape)
+                    .ok_or_else(|| backend("bodies"))?;
+                Ok((self.bounding_box(&body)?.min, body))
+            })
+            .collect::<Result<Vec<_>, KernelError>>()?;
+        keyed.sort_by(|(a, _), (b, _)| {
+            a[0].total_cmp(&b[0])
+                .then(a[1].total_cmp(&b[1]))
+                .then(a[2].total_cmp(&b[2]))
+        });
+        Ok(keyed.into_iter().map(|(_, body)| body).collect())
+    }
+
+    fn combine(
+        &self,
+        op: BooleanOp,
+        target: &OcctShape,
+        tools: &[OcctShape],
+    ) -> Result<OcctShape, KernelError> {
+        if tools.is_empty() {
+            return Err(KernelError::InvalidInput(
+                "combine needs at least one tool body".to_string(),
+            ));
+        }
+        if self.body_count(target)? == 0 {
+            return Err(KernelError::InvalidInput(
+                "the combine target has no solid body".to_string(),
+            ));
+        }
+        for (i, tool) in tools.iter().enumerate() {
+            if self.body_count(tool)? == 0 {
+                return Err(KernelError::InvalidInput(format!(
+                    "combine tool {i} has no solid body"
+                )));
+            }
+        }
+        // Checked after every step: once a cut or intersect is empty it stays
+        // empty, and an empty shape is no valid operand for the next step.
+        let step = |a: &OcctShape, tool: &OcctShape| -> Result<OcctShape, KernelError> {
+            let r = ffi::boolean(op, &a.0, &tool.0)
+                .map(OcctShape)
+                .ok_or_else(|| backend("combine"))?;
+            if self.volume(&r)?.abs() <= EMPTY_VOLUME_TOLERANCE {
+                return Err(KernelError::EmptyResult(
+                    "the combined result encloses no volume".to_string(),
+                ));
+            }
+            Ok(r)
+        };
+        let first = step(target, &tools[0])?;
+        tools[1..]
+            .iter()
+            .try_fold(first, |acc, tool| step(&acc, tool))
+    }
+
     fn volume(&self, s: &OcctShape) -> Result<f64, KernelError> {
         ffi::volume(&s.0).ok_or_else(|| backend("volume"))
     }
@@ -750,6 +813,150 @@ mod tests {
         let b = unit_box([5.0, 0.0, 0.0], 10.0);
         let i = K.intersect(&a, &b).unwrap();
         assert_close(K.volume(&i).unwrap(), 500.0);
+    }
+
+    fn assert_point6(actual: Point3, expected: Point3) {
+        for k in 0..3 {
+            assert!(
+                (actual[k] - expected[k]).abs() <= 1e-6,
+                "expected {expected:?}, got {actual:?}"
+            );
+        }
+    }
+
+    fn assert_bbox6(s: &OcctShape, min: Point3, max: Point3) {
+        let b = K.bounding_box(s).unwrap();
+        assert_point6(b.min, min);
+        assert_point6(b.max, max);
+    }
+
+    #[test]
+    fn bodies_of_a_union_of_disjoint_boxes() {
+        let a = unit_box([0.0; 3], 10.0);
+        let b = unit_box([20.0, 0.0, 0.0], 10.0);
+        // Given in the other order, so the sort has something to do.
+        let u = K.union(&b, &a).unwrap();
+        assert_eq!(K.body_count(&u).unwrap(), 2);
+        assert_close(K.volume(&u).unwrap(), 2000.0);
+        let parts = K.bodies(&u).unwrap();
+        assert_eq!(parts.len(), 2);
+        for (part, x) in parts.iter().zip([0.0, 20.0]) {
+            assert_eq!(K.body_count(part).unwrap(), 1);
+            assert_close(K.volume(part).unwrap(), 1000.0);
+            assert_point6(K.bounding_box(part).unwrap().min, [x, 0.0, 0.0]);
+        }
+        // The input is unchanged.
+        assert_eq!(K.body_count(&u).unwrap(), 2);
+        assert_close(K.volume(&u).unwrap(), 2000.0);
+    }
+
+    #[test]
+    fn combine_join_cut_and_intersect_with_several_tools() {
+        // Join.
+        let target = unit_box([0.0; 3], 10.0);
+        let tools = [
+            unit_box([10.0, 0.0, 0.0], 10.0),
+            unit_box([20.0, 0.0, 0.0], 10.0),
+        ];
+        let j = K.combine(BooleanOp::Union, &target, &tools).unwrap();
+        assert_eq!(K.body_count(&j).unwrap(), 1);
+        assert_close(K.volume(&j).unwrap(), 3000.0);
+        assert_bbox6(&j, [0.0; 3], [30.0, 10.0, 10.0]);
+        assert_close(K.volume(&target).unwrap(), 1000.0);
+        for t in &tools {
+            assert_close(K.volume(t).unwrap(), 1000.0);
+        }
+
+        // Cut with two cylinders.
+        let bar = K.make_box([0.0; 3], [30.0, 10.0, 10.0]).unwrap();
+        let pins = [
+            K.make_cylinder([5.0, 5.0, 0.0], 2.0, 10.0).unwrap(),
+            K.make_cylinder([25.0, 5.0, 0.0], 2.0, 10.0).unwrap(),
+        ];
+        let c = K.combine(BooleanOp::Cut, &bar, &pins).unwrap();
+        assert_eq!(K.body_count(&c).unwrap(), 1);
+        assert_close(K.volume(&c).unwrap(), 3000.0 - 80.0 * PI);
+        assert!((K.volume(&c).unwrap() - 2748.6726).abs() <= 1e-3);
+        assert_close(K.volume(&bar).unwrap(), 3000.0);
+        for p in &pins {
+            assert_close(K.volume(p).unwrap(), 40.0 * PI);
+        }
+
+        // Cut that splits the bar in two.
+        let slab = K.make_box([10.0, -1.0, -1.0], [10.0, 12.0, 12.0]).unwrap();
+        let s = K
+            .combine(BooleanOp::Cut, &bar, std::slice::from_ref(&slab))
+            .unwrap();
+        assert_eq!(K.body_count(&s).unwrap(), 2);
+        assert_close(K.volume(&s).unwrap(), 2000.0);
+        let parts = K.bodies(&s).unwrap();
+        assert_eq!(parts.len(), 2);
+        assert_close(K.bounding_box(&parts[0]).unwrap().min[0], 0.0);
+        assert_close(K.bounding_box(&parts[1]).unwrap().min[0], 20.0);
+        assert_close(K.volume(&slab).unwrap(), 1440.0);
+
+        // Intersect.
+        let tools = [
+            unit_box([5.0, 0.0, 0.0], 10.0),
+            unit_box([0.0, 0.0, 5.0], 10.0),
+        ];
+        let i = K.combine(BooleanOp::Intersect, &target, &tools).unwrap();
+        assert_eq!(K.body_count(&i).unwrap(), 1);
+        assert_close(K.volume(&i).unwrap(), 250.0);
+        assert_bbox6(&i, [5.0, 0.0, 5.0], [10.0, 10.0, 10.0]);
+        assert_close(K.volume(&target).unwrap(), 1000.0);
+    }
+
+    #[test]
+    fn combine_rejects_bad_inputs_and_empty_results() {
+        let target = unit_box([0.0; 3], 10.0);
+        let tool = unit_box([5.0, 0.0, 0.0], 10.0);
+        let face = K
+            .make_face(
+                &Workplane::XY,
+                &polygon(&[[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]]),
+                &[],
+            )
+            .unwrap();
+        let invalid = |r: Result<OcctShape, KernelError>, what: &str| {
+            assert!(
+                matches!(r, Err(KernelError::InvalidInput(_))),
+                "{what}: {r:?}"
+            );
+        };
+        invalid(K.combine(BooleanOp::Union, &target, &[]), "no tools");
+        invalid(
+            K.combine(BooleanOp::Cut, &face, std::slice::from_ref(&tool)),
+            "face target",
+        );
+        let face_tool = K
+            .make_face(
+                &Workplane::XY,
+                &polygon(&[[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]]),
+                &[],
+            )
+            .unwrap();
+        invalid(
+            K.combine(BooleanOp::Union, &target, &[tool, face_tool]),
+            "face tool",
+        );
+        // No common volume: the first tool misses entirely, or the second
+        // misses what the first left.
+        let far = unit_box([50.0, 0.0, 0.0], 10.0);
+        let r = K.combine(BooleanOp::Intersect, &target, std::slice::from_ref(&far));
+        assert!(matches!(r, Err(KernelError::EmptyResult(_))), "{r:?}");
+        let tools = [
+            unit_box([5.0, 0.0, 0.0], 10.0),
+            unit_box([-20.0, 0.0, 0.0], 10.0),
+        ];
+        let r = K.combine(BooleanOp::Intersect, &target, &tools);
+        assert!(matches!(r, Err(KernelError::EmptyResult(_))), "{r:?}");
+        // A face has no bodies.
+        assert_eq!(K.body_count(&face).unwrap(), 0);
+        assert!(K.bodies(&face).unwrap().is_empty());
+        // The inputs are unchanged.
+        assert_close(K.volume(&target).unwrap(), 1000.0);
+        assert_close(K.volume(&far).unwrap(), 1000.0);
     }
 
     #[test]

@@ -353,6 +353,30 @@ pub trait Kernel {
         b: &Self::Shape,
     ) -> Result<(Self::Shape, OpHistory), KernelError>;
 
+    /// Number of distinct solid bodies in `s` (0 for a lone face).
+    fn body_count(&self, s: &Self::Shape) -> Result<usize, KernelError>;
+
+    /// Each solid body of `s` as its own shape, sorted by bounding-box
+    /// minimum (x, then y, then z). A shape with no solids (a lone face)
+    /// gives an empty list. `s` is unchanged.
+    fn bodies(&self, s: &Self::Shape) -> Result<Vec<Self::Shape>, KernelError>;
+
+    /// Combines `target` with each of `tools` in turn by `op`: the same
+    /// result as `op(op(target, tools[0]), tools[1])…`, in order. The inputs
+    /// are unchanged.
+    ///
+    /// No tools, or a target or tool with no solid body (e.g. a lone face),
+    /// is [`KernelError::InvalidInput`], checked before the backend. A
+    /// result that encloses no volume (at most [`EMPTY_VOLUME_TOLERANCE`]),
+    /// such as an intersect with no common volume, is
+    /// [`KernelError::EmptyResult`].
+    fn combine(
+        &self,
+        op: BooleanOp,
+        target: &Self::Shape,
+        tools: &[Self::Shape],
+    ) -> Result<Self::Shape, KernelError>;
+
     /// Enclosed volume.
     fn volume(&self, s: &Self::Shape) -> Result<f64, KernelError>;
     /// Total area of all faces.
