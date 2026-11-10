@@ -205,6 +205,8 @@ extern "C" {
         out: *mut c_double,
     ) -> c_int;
     fn swx_occt_vertex_point(s: *const RawShape, index: usize, out: *mut c_double) -> c_int;
+    fn swx_occt_face_cylinder(s: *const RawShape, index: usize, out: *mut c_double) -> c_int;
+    fn swx_occt_edge_midpoint(s: *const RawShape, index: usize, out: *mut c_double) -> c_int;
     fn swx_occt_adjacent(
         s: *const RawShape,
         of_kind: c_int,
@@ -858,6 +860,46 @@ pub(crate) fn vertex_point(s: &ShapeHandle, index: usize) -> Option<[f64; 3]> {
     // `index` is a plain `usize` (`size_t` layout) by value; `out` is a valid
     // writable array of exactly the 3 doubles the shim writes.
     let status = unsafe { swx_occt_vertex_point(s.0.as_ptr(), index, out.as_mut_ptr()) };
+    (status == 0).then_some(out)
+}
+
+/// What `swx_occt_face_cylinder` reports about one face.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum FaceCylinder {
+    /// A point on the cylinder's axis, the axis's unit direction, and the
+    /// radius.
+    Cylinder([f64; 3], [f64; 3], f64),
+    /// The face is not cylindrical.
+    NotCylindrical,
+}
+
+/// Cylinder of face `index` (0-based) of `s`. `None` on any failure,
+/// including an index out of range.
+pub(crate) fn face_cylinder(s: &ShapeHandle, index: usize) -> Option<FaceCylinder> {
+    let mut out = [0.0 as c_double; 7];
+    // SAFETY: `s` is a live handle read-only for the call and not retained;
+    // `index` is a plain `usize` (`size_t` layout) by value; `out` is a valid
+    // writable array of exactly the 7 doubles the shim writes.
+    let status = unsafe { swx_occt_face_cylinder(s.0.as_ptr(), index, out.as_mut_ptr()) };
+    match status {
+        0 => Some(FaceCylinder::Cylinder(
+            [out[0], out[1], out[2]],
+            [out[3], out[4], out[5]],
+            out[6],
+        )),
+        1 => Some(FaceCylinder::NotCylindrical),
+        _ => None,
+    }
+}
+
+/// Point at half the arc length of edge `index` (0-based) of `s`. `None` on
+/// any failure, including an index out of range.
+pub(crate) fn edge_midpoint(s: &ShapeHandle, index: usize) -> Option<[f64; 3]> {
+    let mut out = [0.0 as c_double; 3];
+    // SAFETY: `s` is a live handle read-only for the call and not retained;
+    // `index` is a plain `usize` (`size_t` layout) by value; `out` is a valid
+    // writable array of exactly the 3 doubles the shim writes.
+    let status = unsafe { swx_occt_edge_midpoint(s.0.as_ptr(), index, out.as_mut_ptr()) };
     (status == 0).then_some(out)
 }
 

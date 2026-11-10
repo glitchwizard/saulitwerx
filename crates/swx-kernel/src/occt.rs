@@ -3,8 +3,8 @@
 use std::f64::consts::FRAC_PI_2;
 use std::path::Path;
 
-use crate::datum::{axis_nearest_origin, plane_nearest_origin};
-use crate::ffi::{self, ChamferMode, EdgeOp, FacePlane, ShapeHandle, SubShapeAxis};
+use crate::datum::{axis_nearest_origin, plane_nearest_origin, plane_tangent_to_cylinder};
+use crate::ffi::{self, ChamferMode, EdgeOp, FaceCylinder, FacePlane, ShapeHandle, SubShapeAxis};
 use crate::hole::{perpendicular, prepare_hole, HoleCylinder};
 use crate::loft::check_section_count;
 use crate::profile::{check_revolve_profile, prepare_face, prepare_path, prepare_revolve};
@@ -620,6 +620,42 @@ impl Kernel for OcctKernel {
         }
         validate_index(vertex, self.sub_shape_count(s, TopoKind::Vertex)?)?;
         ffi::vertex_point(&s.0, vertex.index).ok_or_else(|| backend("vertex_point"))
+    }
+
+    fn work_plane_tangent(
+        &self,
+        s: &OcctShape,
+        face: SubShape,
+        toward: [f64; 3],
+    ) -> Result<Workplane, KernelError> {
+        if face.kind != TopoKind::Face {
+            return Err(KernelError::InvalidInput(format!(
+                "work_plane_tangent needs a face, got a {:?} sub-shape",
+                face.kind
+            )));
+        }
+        validate_index(face, self.sub_shape_count(s, TopoKind::Face)?)?;
+        match ffi::face_cylinder(&s.0, face.index) {
+            Some(FaceCylinder::Cylinder(point, dir, radius)) => {
+                plane_tangent_to_cylinder(point, dir, radius, toward)
+            }
+            Some(FaceCylinder::NotCylindrical) => Err(KernelError::InvalidInput(format!(
+                "face {} is not cylindrical",
+                face.index
+            ))),
+            None => Err(backend("work_plane_tangent")),
+        }
+    }
+
+    fn edge_midpoint(&self, s: &OcctShape, edge: SubShape) -> Result<Point3, KernelError> {
+        if edge.kind != TopoKind::Edge {
+            return Err(KernelError::InvalidInput(format!(
+                "edge_midpoint needs an edge, got a {:?} sub-shape",
+                edge.kind
+            )));
+        }
+        validate_index(edge, self.sub_shape_count(s, TopoKind::Edge)?)?;
+        ffi::edge_midpoint(&s.0, edge.index).ok_or_else(|| backend("edge_midpoint"))
     }
 
     fn export_step(&self, s: &OcctShape, path: &Path) -> Result<(), KernelError> {
@@ -2750,6 +2786,143 @@ mod tests {
             K.work_axis_on(&b, face_with_normal(&b, [0.0, 0.0, 1.0]))
                 .map(drop),
             "axis on box face",
+        );
+        // The inputs are still usable.
+        assert_close(K.volume(&b).unwrap(), 6000.0);
+        assert_close(K.volume(&c).unwrap(), 90.0 * PI);
+    }
+
+    /// The lateral (non-planar) face of a cylinder.
+    fn lateral_face(c: &OcctShape) -> SubShape {
+        (0..K.sub_shape_count(c, TopoKind::Face).unwrap())
+            .map(|i| sub(TopoKind::Face, i))
+            .find(|&f| K.face_plane(c, f).is_err())
+            .expect("lateral face")
+    }
+
+    #[test]
+    fn work_plane_tangent_to_a_cylinder_face() {
+        let c = K.make_cylinder([5.0, 5.0, 0.0], 3.0, 10.0).unwrap();
+        let side = lateral_face(&c);
+        let p = K.work_plane_tangent(&c, side, [1.0, 0.0, 0.0]).unwrap();
+        assert_vec9(p.origin, [8.0, 0.0, 0.0]);
+        assert_vec9(p.normal, [1.0, 0.0, 0.0]);
+        assert_vec9(p.x_dir, [0.0, 1.0, 0.0]);
+        let p = K.work_plane_tangent(&c, side, [0.0, -1.0, 0.0]).unwrap();
+        assert_vec9(p.origin, [0.0, 2.0, 0.0]);
+        assert_vec9(p.normal, [0.0, -1.0, 0.0]);
+        let s = 0.5f64.sqrt();
+        let p = K.work_plane_tangent(&c, side, [1.0, 1.0, 0.0]).unwrap();
+        assert_vec9(p.normal, [s, s, 0.0]);
+        assert_vec9(p.origin, [5.0 + 3.0 * s, 5.0 + 3.0 * s, 0.0]);
+        assert!((p.origin[0] - 7.121_320_3).abs() <= 1e-7);
+        // The axial part of toward is ignored.
+        let q = K.work_plane_tangent(&c, side, [1.0, 0.0, 5.0]).unwrap();
+        assert_vec9(q.origin, [8.0, 0.0, 0.0]);
+        assert_vec9(q.normal, [1.0, 0.0, 0.0]);
+        assert_vec9(q.x_dir, [0.0, 1.0, 0.0]);
+        // The input is unchanged.
+        assert_close(K.volume(&c).unwrap(), 90.0 * PI);
+        assert_eq!(K.face_count(&c).unwrap(), 3);
+    }
+
+    #[test]
+    fn edge_midpoints_at_half_the_arc_length() {
+        let b = K.make_box([0.0; 3], [10.0, 20.0, 30.0]).unwrap();
+        let edge = sub_with_bbox(&b, TopoKind::Edge, [0.0, 20.0, 30.0], [10.0, 20.0, 30.0]);
+        assert_vec9(K.edge_midpoint(&b, edge).unwrap(), [5.0, 20.0, 30.0]);
+
+        let half_disc = K
+            .make_face(
+                &Workplane::XY,
+                &ProfileLoop {
+                    segments: vec![
+                        line([-5.0, 0.0], [5.0, 0.0]),
+                        Segment2::Arc {
+                            center: [0.0, 0.0],
+                            radius: 5.0,
+                            start_angle: 0.0,
+                            end_angle: PI,
+                        },
+                    ],
+                },
+                &[],
+            )
+            .unwrap();
+        assert_eq!(K.sub_shape_count(&half_disc, TopoKind::Edge).unwrap(), 2);
+        let arc = (0..2)
+            .map(|i| sub(TopoKind::Edge, i))
+            .find(|&e| K.work_axis_on(&half_disc, e).is_err())
+            .expect("arc edge");
+        assert_vec9(K.edge_midpoint(&half_disc, arc).unwrap(), [0.0, 5.0, 0.0]);
+
+        let c = K.make_cylinder([5.0, 5.0, 0.0], 3.0, 10.0).unwrap();
+        let top = sub_with_bbox(&c, TopoKind::Edge, [2.0, 2.0, 10.0], [8.0, 8.0, 10.0]);
+        let m = K.edge_midpoint(&c, top).unwrap();
+        assert!((m[2] - 10.0).abs() <= 1e-9, "{m:?}");
+        let r = ((m[0] - 5.0).powi(2) + (m[1] - 5.0).powi(2)).sqrt();
+        assert!((r - 3.0).abs() <= 1e-9, "{m:?} is {r} from the axis");
+        // The inputs are unchanged.
+        assert_close(K.volume(&b).unwrap(), 6000.0);
+        assert_eq!(K.face_count(&b).unwrap(), 6);
+        assert_close(K.volume(&c).unwrap(), 90.0 * PI);
+        assert_eq!(K.face_count(&c).unwrap(), 3);
+    }
+
+    #[test]
+    fn tangent_plane_and_edge_midpoint_reject_bad_inputs() {
+        let invalid = |r: Result<(), KernelError>, what: &str| {
+            assert!(
+                matches!(r, Err(KernelError::InvalidInput(_))),
+                "{what}: {r:?}"
+            );
+        };
+        let b = K.make_box([0.0; 3], [10.0, 20.0, 30.0]).unwrap();
+        let c = K.make_cylinder([5.0, 5.0, 0.0], 3.0, 10.0).unwrap();
+        let side = lateral_face(&c);
+        let x = [1.0, 0.0, 0.0];
+        // Tangent: wrong face type, wrong kind, index out of range.
+        invalid(
+            K.work_plane_tangent(&b, face_with_normal(&b, [0.0, 0.0, 1.0]), x)
+                .map(drop),
+            "tangent on box face",
+        );
+        invalid(
+            K.work_plane_tangent(&c, sub(TopoKind::Edge, 0), x)
+                .map(drop),
+            "tangent on edge",
+        );
+        invalid(
+            K.work_plane_tangent(&c, sub(TopoKind::Vertex, 0), x)
+                .map(drop),
+            "tangent on vertex",
+        );
+        invalid(
+            K.work_plane_tangent(&c, sub(TopoKind::Face, 3), x)
+                .map(drop),
+            "tangent face 3",
+        );
+        // Tangent: bad toward.
+        for (toward, what) in [
+            ([0.0; 3], "zero toward"),
+            ([f64::NAN, 0.0, 0.0], "NaN toward"),
+            ([f64::INFINITY, 0.0, 0.0], "infinite toward"),
+            ([0.0, 0.0, 1.0], "toward along the axis"),
+        ] {
+            invalid(K.work_plane_tangent(&c, side, toward).map(drop), what);
+        }
+        // Midpoint: wrong kind, index out of range.
+        invalid(
+            K.edge_midpoint(&b, sub(TopoKind::Face, 0)).map(drop),
+            "midpoint of face",
+        );
+        invalid(
+            K.edge_midpoint(&b, sub(TopoKind::Vertex, 0)).map(drop),
+            "midpoint of vertex",
+        );
+        invalid(
+            K.edge_midpoint(&b, sub(TopoKind::Edge, 12)).map(drop),
+            "edge 12",
         );
         // The inputs are still usable.
         assert_close(K.volume(&b).unwrap(), 6000.0);

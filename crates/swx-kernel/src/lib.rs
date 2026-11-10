@@ -421,6 +421,28 @@ pub trait Kernel {
     /// range are [`KernelError::InvalidInput`].
     fn vertex_point(&self, s: &Self::Shape, vertex: SubShape) -> Result<Point3, KernelError>;
 
+    /// A work plane tangent to the cylindrical face `face` of `s`, on the
+    /// side `toward` points to. Only the part of `toward` perpendicular to
+    /// the cylinder's axis is used; normalized, it is the plane's `normal`.
+    /// `origin` is the projection of the model origin onto the plane, and
+    /// `x_dir` follows [`Workplane::from_point_normal`].
+    ///
+    /// A `face` whose kind isn't [`TopoKind::Face`], an index out of range,
+    /// a face that isn't cylindrical, and a `toward` that is zero,
+    /// non-finite or parallel to the axis are [`KernelError::InvalidInput`].
+    fn work_plane_tangent(
+        &self,
+        s: &Self::Shape,
+        face: SubShape,
+        toward: [f64; 3],
+    ) -> Result<Workplane, KernelError>;
+
+    /// The work point at half the arc length of the edge `edge` of `s`.
+    ///
+    /// An `edge` whose kind isn't [`TopoKind::Edge`] and an index out of
+    /// range are [`KernelError::InvalidInput`].
+    fn edge_midpoint(&self, s: &Self::Shape, edge: SubShape) -> Result<Point3, KernelError>;
+
     /// Tight axis-aligned bounding box of one sub-shape of `s`. An index out
     /// of range for `of.kind` is [`KernelError::InvalidInput`], checked
     /// before anything reaches the backend.
