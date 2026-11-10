@@ -9,13 +9,14 @@ use crate::hole::{perpendicular, prepare_hole, HoleCylinder};
 use crate::loft::check_section_count;
 use crate::profile::{check_revolve_profile, prepare_face, prepare_path, prepare_revolve};
 use crate::topo::{
-    validate_adjacent, validate_edges, validate_edges_on_faces, validate_faces, validate_index,
+    compose_images, validate_adjacent, validate_edges, validate_edges_on_faces, validate_faces,
+    validate_index,
 };
 use crate::{
     input_file_cstring, path_to_cstring, validate_point, validate_size, Axis, BooleanOp,
-    BoundingBox, ChamferSize, EdgeOnFace, Extent, ExtrudeHistory, HoleDepth, HoleKind, Kernel,
-    KernelError, Mesh, OpHistory, Operand, Point3, ProfileLoop, Segment2, SubShape, TopoKind,
-    Workplane, EMPTY_VOLUME_TOLERANCE, LOOP_GAP_TOLERANCE,
+    BoundingBox, ChamferSize, CombineHistory, EdgeOnFace, Extent, ExtrudeHistory, HoleDepth,
+    HoleKind, Kernel, KernelError, Mesh, OpHistory, Operand, Point3, ProfileLoop, Segment2,
+    SubShape, TopoKind, Workplane, EMPTY_VOLUME_TOLERANCE, LOOP_GAP_TOLERANCE,
 };
 
 /// [`Kernel`] backed by the system OpenCascade libraries.
@@ -49,6 +50,46 @@ fn face_sub(index: usize) -> SubShape {
     SubShape {
         kind: TopoKind::Face,
         index,
+    }
+}
+
+impl OcctKernel {
+    /// The input checks of [`Kernel::combine`], before the backend: at
+    /// least one tool, and a solid body in the target and every tool.
+    fn check_combine_inputs(
+        &self,
+        target: &OcctShape,
+        tools: &[OcctShape],
+    ) -> Result<(), KernelError> {
+        if tools.is_empty() {
+            return Err(KernelError::InvalidInput(
+                "combine needs at least one tool body".to_string(),
+            ));
+        }
+        if self.body_count(target)? == 0 {
+            return Err(KernelError::InvalidInput(
+                "the combine target has no solid body".to_string(),
+            ));
+        }
+        for (i, tool) in tools.iter().enumerate() {
+            if self.body_count(tool)? == 0 {
+                return Err(KernelError::InvalidInput(format!(
+                    "combine tool {i} has no solid body"
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    /// Checked after every combine step: once a cut or intersect is empty it
+    /// stays empty, and an empty shape is no valid operand for the next step.
+    fn check_combine_step(&self, r: OcctShape) -> Result<OcctShape, KernelError> {
+        if self.volume(&r)?.abs() <= EMPTY_VOLUME_TOLERANCE {
+            return Err(KernelError::EmptyResult(
+                "the combined result encloses no volume".to_string(),
+            ));
+        }
+        Ok(r)
     }
 }
 
@@ -536,40 +577,56 @@ impl Kernel for OcctKernel {
         target: &OcctShape,
         tools: &[OcctShape],
     ) -> Result<OcctShape, KernelError> {
-        if tools.is_empty() {
-            return Err(KernelError::InvalidInput(
-                "combine needs at least one tool body".to_string(),
-            ));
-        }
-        if self.body_count(target)? == 0 {
-            return Err(KernelError::InvalidInput(
-                "the combine target has no solid body".to_string(),
-            ));
-        }
-        for (i, tool) in tools.iter().enumerate() {
-            if self.body_count(tool)? == 0 {
-                return Err(KernelError::InvalidInput(format!(
-                    "combine tool {i} has no solid body"
-                )));
-            }
-        }
-        // Checked after every step: once a cut or intersect is empty it stays
-        // empty, and an empty shape is no valid operand for the next step.
+        self.check_combine_inputs(target, tools)?;
         let step = |a: &OcctShape, tool: &OcctShape| -> Result<OcctShape, KernelError> {
             let r = ffi::boolean(op, &a.0, &tool.0)
                 .map(OcctShape)
                 .ok_or_else(|| backend("combine"))?;
-            if self.volume(&r)?.abs() <= EMPTY_VOLUME_TOLERANCE {
-                return Err(KernelError::EmptyResult(
-                    "the combined result encloses no volume".to_string(),
-                ));
-            }
-            Ok(r)
+            self.check_combine_step(r)
         };
         let first = step(target, &tools[0])?;
         tools[1..]
             .iter()
             .try_fold(first, |acc, tool| step(&acc, tool))
+    }
+
+    fn combine_tracked(
+        &self,
+        op: BooleanOp,
+        target: &OcctShape,
+        tools: &[OcctShape],
+    ) -> Result<(OcctShape, CombineHistory), KernelError> {
+        self.check_combine_inputs(target, tools)?;
+        // Before the first step every target face is its own image.
+        let mut history = CombineHistory {
+            target: (0..self.face_count(target)?)
+                .map(|i| vec![face_sub(i)])
+                .collect(),
+            tools: Vec::with_capacity(tools.len()),
+        };
+        let mut acc: Option<OcctShape> = None;
+        for tool in tools {
+            let a = acc.as_ref().unwrap_or(target);
+            let (r, h) = self.boolean_tracked(op, a, tool)?;
+            let r = self.check_combine_step(r)?;
+            // `modified` lists every face of `a`, then every face of `tool`,
+            // each in face index order (`Kernel::boolean_tracked`).
+            let (from_a, from_tool): (Vec<_>, Vec<_>) = h
+                .modified
+                .into_iter()
+                .partition(|(operand, _, _)| *operand == Operand::A);
+            let next: Vec<Vec<SubShape>> = from_a.into_iter().map(|(_, _, imgs)| imgs).collect();
+            history.target = compose_images(&history.target, &next)?;
+            for t in &mut history.tools {
+                *t = compose_images(t, &next)?;
+            }
+            history
+                .tools
+                .push(from_tool.into_iter().map(|(_, _, imgs)| imgs).collect());
+            acc = Some(r);
+        }
+        let result = acc.ok_or_else(|| backend("combine_tracked"))?;
+        Ok((result, history))
     }
 
     fn volume(&self, s: &OcctShape) -> Result<f64, KernelError> {
@@ -2330,6 +2387,182 @@ mod tests {
             }
             (p, t) => panic!("untracked {p:?} vs tracked {:?}", t.map(|(_, h)| h)),
         }
+    }
+
+    // ---- M3-10b: tracked combine ----
+
+    /// Runs `combine_tracked` and checks what holds for every case: the same
+    /// solid as `combine` (volume, body count, face count), one entry per
+    /// input face, and every image a sorted, distinct, in-range result face.
+    fn combined(
+        op: BooleanOp,
+        target: &OcctShape,
+        tools: &[OcctShape],
+    ) -> (OcctShape, CombineHistory) {
+        let (r, h) = K.combine_tracked(op, target, tools).unwrap();
+        let plain = K.combine(op, target, tools).unwrap();
+        assert_close(K.volume(&r).unwrap(), K.volume(&plain).unwrap());
+        assert_eq!(K.body_count(&r).unwrap(), K.body_count(&plain).unwrap());
+        let n = K.face_count(&r).unwrap();
+        assert_eq!(n, K.face_count(&plain).unwrap());
+        assert_eq!(h.target.len(), K.face_count(target).unwrap());
+        assert_eq!(h.tools.len(), tools.len());
+        for (t, tool) in h.tools.iter().zip(tools) {
+            assert_eq!(t.len(), K.face_count(tool).unwrap());
+        }
+        for imgs in h.target.iter().chain(h.tools.iter().flatten()) {
+            assert!(imgs.windows(2).all(|w| w[0].index < w[1].index), "{imgs:?}");
+            assert!(imgs.iter().all(|f| f.kind == TopoKind::Face && f.index < n));
+        }
+        (r, h)
+    }
+
+    /// Bounding boxes of `imgs` in `r`, sorted by minimum x.
+    fn image_boxes(r: &OcctShape, imgs: &[SubShape]) -> Vec<BoundingBox> {
+        let mut boxes: Vec<BoundingBox> = imgs
+            .iter()
+            .map(|&f| K.sub_shape_bounding_box(r, f).unwrap())
+            .collect();
+        boxes.sort_by(|p, q| p.min[0].total_cmp(&q.min[0]));
+        boxes
+    }
+
+    fn assert_box_tol(b: &BoundingBox, min: Point3, max: Point3, tol: f64) {
+        for k in 0..3 {
+            assert!(
+                (b.min[k] - min[k]).abs() <= tol && (b.max[k] - max[k]).abs() <= tol,
+                "{b:?} != {min:?}..{max:?}"
+            );
+        }
+    }
+
+    /// The lateral face of a cylinder: the one face not on either end plane.
+    fn cylinder_wall(cyl: &OcctShape, z0: f64, z1: f64) -> usize {
+        let ends = [face_on(cyl, 2, z0), face_on(cyl, 2, z1)];
+        let sides: Vec<usize> = (0..K.face_count(cyl).unwrap())
+            .filter(|i| !ends.contains(i))
+            .collect();
+        assert_eq!(sides.len(), 1);
+        sides[0]
+    }
+
+    #[test]
+    fn combine_tracked_with_one_tool_matches_boolean_tracked() {
+        let a = unit_box([0.0; 3], 10.0);
+        let b = unit_box([5.0, 0.0, 0.0], 10.0);
+        let (r, h) = combined(BooleanOp::Cut, &a, std::slice::from_ref(&b));
+        let (r1, h1) = K.boolean_tracked(BooleanOp::Cut, &a, &b).unwrap();
+        assert_eq!(K.face_count(&r).unwrap(), K.face_count(&r1).unwrap());
+        for (i, imgs) in h.target.iter().enumerate() {
+            assert_eq!(
+                imgs.as_slice(),
+                images(&h1, Operand::A, i),
+                "target face {i}"
+            );
+        }
+        for (i, imgs) in h.tools[0].iter().enumerate() {
+            assert_eq!(imgs.as_slice(), images(&h1, Operand::B, i), "tool face {i}");
+        }
+    }
+
+    #[test]
+    fn combine_tracked_join_follows_the_outer_end_faces() {
+        let target = unit_box([0.0; 3], 10.0);
+        let tools = [
+            unit_box([10.0, 0.0, 0.0], 10.0),
+            unit_box([20.0, 0.0, 0.0], 10.0),
+        ];
+        let (r, h) = combined(BooleanOp::Union, &target, &tools);
+        assert_close(K.volume(&r).unwrap(), 3000.0);
+        let start = image_boxes(&r, &h.target[face_on(&target, 0, 0.0)]);
+        assert_eq!(start.len(), 1);
+        assert_box_tol(&start[0], [0.0; 3], [0.0, 10.0, 10.0], 1e-6);
+        assert!(h.target[face_on(&target, 0, 10.0)].is_empty());
+        assert!(h.tools[0][face_on(&tools[0], 0, 10.0)].is_empty());
+        assert!(h.tools[0][face_on(&tools[0], 0, 20.0)].is_empty());
+        let end = image_boxes(&r, &h.tools[1][face_on(&tools[1], 0, 30.0)]);
+        assert_eq!(end.len(), 1);
+        assert_box_tol(&end[0], [30.0, 0.0, 0.0], [30.0, 10.0, 10.0], 1e-6);
+        // The inputs are unchanged.
+        assert_close(K.volume(&target).unwrap(), 1000.0);
+    }
+
+    #[test]
+    fn combine_tracked_cut_follows_each_cylinder_wall() {
+        let bar = K.make_box([0.0; 3], [30.0, 10.0, 10.0]).unwrap();
+        let pins = [
+            K.make_cylinder([5.0, 5.0, 0.0], 2.0, 10.0).unwrap(),
+            K.make_cylinder([25.0, 5.0, 0.0], 2.0, 10.0).unwrap(),
+        ];
+        let (r, h) = combined(BooleanOp::Cut, &bar, &pins);
+        assert_close(K.volume(&r).unwrap(), 3000.0 - 80.0 * PI);
+        let top = image_boxes(&r, &h.target[face_on(&bar, 2, 10.0)]);
+        assert_eq!(top.len(), 1);
+        assert_box_tol(&top[0], [0.0, 0.0, 10.0], [30.0, 10.0, 10.0], 1e-6);
+        for (i, x) in [5.0, 25.0].into_iter().enumerate() {
+            let wall = image_boxes(&r, &h.tools[i][cylinder_wall(&pins[i], 0.0, 10.0)]);
+            assert_eq!(wall.len(), 1, "pin {i}");
+            assert_box_tol(&wall[0], [x - 2.0, 3.0, 0.0], [x + 2.0, 7.0, 10.0], 1e-3);
+            for z in [0.0, 10.0] {
+                assert!(
+                    h.tools[i][face_on(&pins[i], 2, z)].is_empty(),
+                    "pin {i} end {z}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn combine_tracked_cut_that_splits_the_target() {
+        let bar = K.make_box([0.0; 3], [30.0, 10.0, 10.0]).unwrap();
+        let slab = K.make_box([10.0, -1.0, -1.0], [10.0, 12.0, 12.0]).unwrap();
+        let (r, h) = combined(BooleanOp::Cut, &bar, std::slice::from_ref(&slab));
+        assert_eq!(K.body_count(&r).unwrap(), 2);
+        let top = image_boxes(&r, &h.target[face_on(&bar, 2, 10.0)]);
+        assert_eq!(top.len(), 2);
+        assert_box_tol(&top[0], [0.0, 0.0, 10.0], [10.0, 10.0, 10.0], 1e-6);
+        assert_box_tol(&top[1], [20.0, 0.0, 10.0], [30.0, 10.0, 10.0], 1e-6);
+        for x in [10.0, 20.0] {
+            let wall = image_boxes(&r, &h.tools[0][face_on(&slab, 0, x)]);
+            assert_eq!(wall.len(), 1, "slab face x = {x}");
+            assert_box_tol(&wall[0], [x, 0.0, 0.0], [x, 10.0, 10.0], 1e-6);
+        }
+    }
+
+    #[test]
+    fn combine_tracked_rejects_bad_inputs_and_empty_results() {
+        let target = unit_box([0.0; 3], 10.0);
+        let tool = unit_box([5.0, 0.0, 0.0], 10.0);
+        let square = polygon(&[[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]]);
+        let face = K.make_face(&Workplane::XY, &square, &[]).unwrap();
+        let face_tool = K.make_face(&Workplane::XY, &square, &[]).unwrap();
+        let kind = |r: Result<(OcctShape, CombineHistory), KernelError>| r.map(|_| ()).unwrap_err();
+        let invalid = |e: KernelError, what: &str| {
+            assert!(matches!(e, KernelError::InvalidInput(_)), "{what}: {e:?}");
+        };
+        invalid(
+            kind(K.combine_tracked(BooleanOp::Union, &target, &[])),
+            "no tools",
+        );
+        invalid(
+            kind(K.combine_tracked(BooleanOp::Cut, &face, std::slice::from_ref(&tool))),
+            "face target",
+        );
+        invalid(
+            kind(K.combine_tracked(BooleanOp::Union, &target, &[tool, face_tool])),
+            "face tool",
+        );
+        let far = unit_box([50.0, 0.0, 0.0], 10.0);
+        let e = kind(K.combine_tracked(BooleanOp::Intersect, &target, std::slice::from_ref(&far)));
+        assert!(matches!(e, KernelError::EmptyResult(_)), "{e:?}");
+        let tools = [
+            unit_box([5.0, 0.0, 0.0], 10.0),
+            unit_box([-20.0, 0.0, 0.0], 10.0),
+        ];
+        let e = kind(K.combine_tracked(BooleanOp::Intersect, &target, &tools));
+        assert!(matches!(e, KernelError::EmptyResult(_)), "{e:?}");
+        assert_close(K.volume(&target).unwrap(), 1000.0);
+        assert_close(K.volume(&far).unwrap(), 1000.0);
     }
 
     /// The face of `s` that lies in the plane `axis = value` (both ends of

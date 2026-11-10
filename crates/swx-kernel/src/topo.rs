@@ -101,6 +101,60 @@ pub struct OpHistory {
     pub generated: Vec<(Operand, SubShape, Vec<SubShape>)>,
 }
 
+/// Where the faces of every input of a combine went, as returned by
+/// [`Kernel::combine_tracked`](crate::Kernel::combine_tracked).
+///
+/// Every listed [`SubShape`] is a face of the final result. Each image list
+/// is sorted by index with no duplicates: one entry if the face is
+/// unchanged, several if it was split, none if it was deleted. Faces only,
+/// as in [`OpHistory`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CombineHistory {
+    /// For each face of the target, in face index order, its images.
+    pub target: Vec<Vec<SubShape>>,
+    /// For each tool in order, and each of its faces in face index order,
+    /// its images.
+    pub tools: Vec<Vec<Vec<SubShape>>>,
+}
+
+/// Carries face images through one more operation.
+///
+/// `prev[f]` lists the images of some input face `f` in an intermediate
+/// shape; `next[i]` lists the images of that intermediate shape's face `i`
+/// in the next result. The images of `f` in the next result are the union of
+/// `next[i]` over every `i` in `prev[f]`: composition of the two image
+/// relations, as in history-based topological naming (Kripac, "A mechanism
+/// for persistently naming topological entities in history-based parametric
+/// solid models", Computer-Aided Design 29(2), 1997). Each returned list is
+/// sorted by index with no duplicates.
+///
+/// An image index in `prev` that is not below `next.len()` is
+/// [`KernelError::InvalidInput`].
+#[cfg_attr(not(feature = "occt"), allow(dead_code))]
+pub(crate) fn compose_images(
+    prev: &[Vec<SubShape>],
+    next: &[Vec<SubShape>],
+) -> Result<Vec<Vec<SubShape>>, KernelError> {
+    prev.iter()
+        .map(|images| {
+            let mut out = Vec::new();
+            for img in images {
+                let further = next.get(img.index).ok_or_else(|| {
+                    KernelError::InvalidInput(format!(
+                        "face image {} is out of range: the next step maps {} faces",
+                        img.index,
+                        next.len()
+                    ))
+                })?;
+                out.extend_from_slice(further);
+            }
+            out.sort_unstable();
+            out.dedup();
+            Ok(out)
+        })
+        .collect()
+}
+
 /// Checks an adjacency query before it reaches the backend: `kind` must
 /// differ from `of.kind`, and `of.index` must be below `count`, the number
 /// of sub-shapes of `of.kind` in the shape.
@@ -411,6 +465,40 @@ mod tests {
             };
             assert!(invalid(validate_edges_on_faces(&[e], 12, 6)));
         }
+    }
+
+    #[test]
+    fn composed_images_follow_splits_and_deletions() {
+        let f = |index| SubShape {
+            kind: TopoKind::Face,
+            index,
+        };
+        // Step 1: face 0 is split into intermediate faces 1 and 3; face 1 is
+        // kept as intermediate face 0; face 2 is deleted.
+        let prev = vec![vec![f(1), f(3)], vec![f(0)], vec![]];
+        // Step 2: intermediate face 1 is split again into 4 and 2, face 3 is
+        // deleted, face 0 becomes 5, face 2 becomes 0.
+        let next = vec![vec![f(5)], vec![f(2), f(4)], vec![f(0)], vec![]];
+        let got = compose_images(&prev, &next).unwrap();
+        assert_eq!(got, vec![vec![f(2), f(4)], vec![f(5)], vec![]]);
+        // Two images that land on the same face count once, sorted.
+        let merged = compose_images(&[vec![f(1), f(0)]], &[vec![f(3)], vec![f(3), f(1)]]);
+        assert_eq!(merged.unwrap(), vec![vec![f(1), f(3)]]);
+        // Nothing to compose.
+        assert_eq!(compose_images(&[], &next).unwrap(), Vec::<Vec<_>>::new());
+    }
+
+    #[test]
+    fn composed_image_out_of_range_is_invalid() {
+        let f = |index| SubShape {
+            kind: TopoKind::Face,
+            index,
+        };
+        let err = compose_images(&[vec![f(0)], vec![f(2)]], &[vec![f(0)], vec![]]).unwrap_err();
+        assert!(
+            matches!(&err, KernelError::InvalidInput(m) if m.contains("face image 2 is out of range")),
+            "{err}"
+        );
     }
 
     #[test]
