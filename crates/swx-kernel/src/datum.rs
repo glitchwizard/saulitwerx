@@ -165,6 +165,32 @@ impl Workplane {
             normal: rotate(n),
         })
     }
+
+    /// The plane halfway between the parallel planes `a` and `b`: `normal`
+    /// is `a`'s unit normal, `x_dir` is `a`'s unit `x_dir` (made
+    /// perpendicular to the normal), and `origin` is the midpoint between
+    /// `a.origin` and its orthogonal projection onto `b`,
+    /// `a.origin − ½ ((a.origin − b.origin) · n_b) n_b`. Coincident planes
+    /// give a plane equal to `a`.
+    ///
+    /// `a` and `b` must be parallel: their unit normals equal or opposite,
+    /// with a cross product at most [`DATUM_TOLERANCE`] long. Non-parallel
+    /// and invalid planes are [`KernelError::InvalidInput`].
+    pub fn midplane(a: &Workplane, b: &Workplane) -> Result<Workplane, KernelError> {
+        let (oa, xa, na) = frame(a)?;
+        let (ob, _, nb) = frame(b)?;
+        if norm(cross(na, nb)) > DATUM_TOLERANCE {
+            return Err(invalid(
+                "the planes are not parallel: they have no midplane",
+            ));
+        }
+        let gap = dot(sub(oa, ob), nb);
+        Ok(Workplane {
+            origin: sub(oa, scale(nb, 0.5 * gap)),
+            x_dir: xa,
+            normal: na,
+        })
+    }
 }
 
 /// The work point where `axis` crosses `plane`.
@@ -212,6 +238,44 @@ pub(crate) fn axis_nearest_origin(point: Point3, dir: [f64; 3]) -> Result<Axis, 
         origin: sub(point, scale(d, dot(point, d))),
         dir: d,
     })
+}
+
+/// The plane tangent to the cylinder of radius `radius` about the line
+/// through `axis_point` along `axis_dir`, on the side `toward` points to.
+///
+/// Only the part of `toward` perpendicular to the axis counts,
+/// `t − (t · d) d` for unit `t` and `d`; normalized, it is the plane's
+/// `normal`. The plane touches the cylinder along the line through
+/// `axis_point + radius · n` parallel to the axis, and is placed as in
+/// [`plane_nearest_origin`]. (Tangent plane of a surface of revolution:
+/// do Carmo, *Differential Geometry of Curves and Surfaces*, §2-4.)
+///
+/// Non-finite inputs, a zero `axis_dir` or `toward`, a `toward` parallel to
+/// the axis (its perpendicular part at most [`DATUM_TOLERANCE`] long on unit
+/// vectors) and a radius that isn't finite and positive are
+/// [`KernelError::InvalidInput`].
+#[cfg_attr(not(feature = "occt"), allow(dead_code))]
+pub(crate) fn plane_tangent_to_cylinder(
+    axis_point: Point3,
+    axis_dir: [f64; 3],
+    radius: f64,
+    toward: [f64; 3],
+) -> Result<Workplane, KernelError> {
+    finite("cylinder axis point", &axis_point)?;
+    finite("cylinder radius", &[radius])?;
+    if radius <= 0.0 {
+        return Err(invalid("the cylinder radius must be positive"));
+    }
+    let d = unit("cylinder axis direction", axis_dir)?;
+    let t = unit("tangent side (toward)", toward)?;
+    let side = sub(t, scale(d, dot(t, d)));
+    if norm(side) <= DATUM_TOLERANCE {
+        return Err(invalid(
+            "toward is parallel to the cylinder axis: it picks no side",
+        ));
+    }
+    let n = scale(side, 1.0 / norm(side));
+    plane_nearest_origin(add(axis_point, scale(n, radius)), n)
 }
 
 /// A checked plane: finite origin, unit normal and a unit `x_dir`
@@ -508,5 +572,96 @@ mod tests {
             [0.0, f64::INFINITY, 0.0],
             [1.0, 0.0, 0.0],
         ));
+    }
+
+    #[test]
+    fn midplane_between_parallel_planes() {
+        let z = [0.0, 0.0, 1.0];
+        let x = [1.0, 0.0, 0.0];
+        let p = Workplane::midplane(&Workplane::XY, &Workplane::XY.offset(30.0).unwrap()).unwrap();
+        assert_plane(&p, [0.0, 0.0, 15.0], x, z);
+        // Opposite normals: the result keeps a's normal.
+        let top = Workplane::XY.offset(30.0).unwrap();
+        let bottom = Workplane {
+            normal: [0.0, 0.0, -1.0],
+            ..Workplane::XY
+        };
+        let p = Workplane::midplane(&top, &bottom).unwrap();
+        assert_plane(&p, [0.0, 0.0, 15.0], x, z);
+        // a's origin is kept in-plane: (3, 4, 0) and z = 10 → (3, 4, 5).
+        let a = Workplane {
+            origin: [3.0, 4.0, 0.0],
+            ..Workplane::XY
+        };
+        let p = Workplane::midplane(&a, &Workplane::XY.offset(10.0).unwrap()).unwrap();
+        assert_plane(&p, [3.0, 4.0, 5.0], x, z);
+        // b's origin may be anywhere on b.
+        let b = Workplane {
+            origin: [-7.0, 2.0, 10.0],
+            ..Workplane::XY
+        };
+        let p = Workplane::midplane(&a, &b).unwrap();
+        assert_vec(p.origin, [3.0, 4.0, 5.0]);
+        // Coincident planes give a back; unnormalized inputs come out unit.
+        let a = Workplane {
+            origin: [1.0, 2.0, 3.0],
+            x_dir: [0.0, 2.0, 0.0],
+            normal: [5.0, 0.0, 0.0],
+        };
+        let p = Workplane::midplane(&a, &a).unwrap();
+        assert_plane(&p, [1.0, 2.0, 3.0], [0.0, 1.0, 0.0], [1.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn midplane_bad_inputs_are_invalid_input() {
+        assert_invalid(Workplane::midplane(&Workplane::XY, &Workplane::XZ));
+        let zero_normal = Workplane {
+            normal: [0.0; 3],
+            ..Workplane::XY
+        };
+        assert_invalid(Workplane::midplane(&zero_normal, &Workplane::XY));
+        assert_invalid(Workplane::midplane(&Workplane::XY, &zero_normal));
+        let nan_origin = Workplane {
+            origin: [f64::NAN, 0.0, 0.0],
+            ..Workplane::XY
+        };
+        assert_invalid(Workplane::midplane(&Workplane::XY, &nan_origin));
+    }
+
+    #[test]
+    fn plane_tangent_to_a_cylinder() {
+        let (c, d, r) = ([5.0, 5.0, 0.0], [0.0, 0.0, 1.0], 3.0);
+        let p = plane_tangent_to_cylinder(c, d, r, [1.0, 0.0, 0.0]).unwrap();
+        assert_plane(&p, [8.0, 0.0, 0.0], [0.0, 1.0, 0.0], [1.0, 0.0, 0.0]);
+        let p = plane_tangent_to_cylinder(c, d, r, [0.0, -1.0, 0.0]).unwrap();
+        assert_vec(p.origin, [0.0, 2.0, 0.0]);
+        assert_vec(p.normal, [0.0, -1.0, 0.0]);
+        let s = 0.5f64.sqrt();
+        let p = plane_tangent_to_cylinder(c, d, r, [1.0, 1.0, 0.0]).unwrap();
+        assert_vec(p.normal, [s, s, 0.0]);
+        assert_vec(p.origin, [5.0 + 3.0 * s, 5.0 + 3.0 * s, 0.0]);
+        // The axial part of toward is ignored; the axis direction's sign too.
+        let q = plane_tangent_to_cylinder(c, d, r, [1.0, 0.0, 5.0]).unwrap();
+        let p = plane_tangent_to_cylinder(c, [0.0, 0.0, -2.0], r, [1.0, 0.0, 0.0]).unwrap();
+        assert_plane(&q, p.origin, p.x_dir, p.normal);
+        assert_plane(&p, [8.0, 0.0, 0.0], [0.0, 1.0, 0.0], [1.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn plane_tangent_bad_inputs_are_invalid_input() {
+        let (c, d) = ([5.0, 5.0, 0.0], [0.0, 0.0, 1.0]);
+        assert_invalid(plane_tangent_to_cylinder(c, d, 3.0, [0.0; 3]));
+        assert_invalid(plane_tangent_to_cylinder(c, d, 3.0, [f64::NAN, 0.0, 0.0]));
+        assert_invalid(plane_tangent_to_cylinder(
+            c,
+            d,
+            3.0,
+            [f64::INFINITY, 0.0, 0.0],
+        ));
+        assert_invalid(plane_tangent_to_cylinder(c, d, 3.0, [0.0, 0.0, 1.0]));
+        assert_invalid(plane_tangent_to_cylinder(c, d, 3.0, [0.0, 0.0, -4.0]));
+        assert_invalid(plane_tangent_to_cylinder(c, [0.0; 3], 3.0, [1.0, 0.0, 0.0]));
+        assert_invalid(plane_tangent_to_cylinder(c, d, 0.0, [1.0, 0.0, 0.0]));
+        assert_invalid(plane_tangent_to_cylinder(c, d, f64::NAN, [1.0, 0.0, 0.0]));
     }
 }
