@@ -41,7 +41,8 @@ pub use profile::{
     PERPENDICULAR_TOLERANCE, REVOLVE_AXIS_TOLERANCE,
 };
 pub use topo::{
-    BooleanOp, ChamferSize, EdgeOnFace, ExtrudeHistory, OpHistory, Operand, SubShape, TopoKind,
+    BooleanOp, ChamferSize, CombineHistory, EdgeOnFace, ExtrudeHistory, OpHistory, Operand,
+    SubShape, TopoKind,
 };
 
 /// A point or vector in model space, `[x, y, z]`.
@@ -376,6 +377,19 @@ pub trait Kernel {
         target: &Self::Shape,
         tools: &[Self::Shape],
     ) -> Result<Self::Shape, KernelError>;
+
+    /// The same solid as [`Kernel::combine`], plus its [`CombineHistory`]:
+    /// for each face of `target`, and of each tool in order, its face images
+    /// in the result. Each step is a [`Kernel::boolean_tracked`]; the images
+    /// of earlier inputs are carried through the later steps by composing
+    /// the per-step histories. Errors are those of [`Kernel::combine`]. The
+    /// inputs are unchanged.
+    fn combine_tracked(
+        &self,
+        op: BooleanOp,
+        target: &Self::Shape,
+        tools: &[Self::Shape],
+    ) -> Result<(Self::Shape, CombineHistory), KernelError>;
 
     /// Enclosed volume.
     fn volume(&self, s: &Self::Shape) -> Result<f64, KernelError>;
