@@ -47,7 +47,7 @@ Tools the Builder uses for the visuals in its QA reports (FACTORY §6b).
 - [ ] M3-07 Full rebuild pipeline: parameter edit → dirty features → regenerate → regression test.
 - [x] M3-08 Part origin (3 planes, 3 axes, center point) and work features: work planes, axes, points.
 - [x] M3-09 End-of-part marker: roll back and insert features above it.
-- [ ] M3-10 Multi-body parts and combine (join/cut/intersect between bodies).
+- [x] M3-10 Multi-body parts and combine (join/cut/intersect between bodies).
 - [x] M3-11 Sweep and loft.
 - [ ] M3-12 Hole feature v2: countersink, tapped, thread table data.
 
