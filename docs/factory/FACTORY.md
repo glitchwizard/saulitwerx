@@ -32,7 +32,7 @@ The owner wants **slow, steady progress on a tight token budget**. When in doubt
 | `needs-human` | Requires an owner decision. The factory skips these until the label is removed. |
 | `owner-merge` | PR changes `.github/`; only the owner merges it. |
 | `priority` | Builder takes this before roadmap order. |
-| `size:S` / `size:M` | S is about ≤150 changed lines, M about ≤400. Nothing larger exists: split it. |
+| `size:S` / `size:M` | S is about ≤150 changed lines, M about ≤400. Count added plus deleted lines outside tests: leave out `#[cfg(test)]` modules, `tests/` and `examples/`. Nothing larger exists: split it (§3 step 8). |
 | `M0`…`M9`, `MB`, `QA` | Roadmap section (milestone). |
 
 Issue title format: `M2-03: Solver constraints: coincident, horizontal, …`. The body must contain **Context**, **Acceptance criteria** (a checklist), **Test plan**, and **Out of scope**. The acceptance criteria end with `- [ ] QA report (FACTORY §6b) posted on the PR.`
@@ -44,7 +44,7 @@ Issue title format: `M2-03: Solver constraints: coincident, horizontal, …`. Th
 **Night, cap and time box.** A night is the America/Los_Angeles date on which a run starts. Times in this file are Pacific time (PT), which follows daylight saving. `issues_per_night` in `STATE.md` caps how many items the Builder takes per night, across all its runs. Note the time when the run starts (`TZ=America/Los_Angeles date`). Start no new item after 40 minutes, and wrap up by 60. An item that isn't done by then: push its branch, open its PR as a draft if it has none, label the issue `factory:changes`, comment what's left, and record it as `partial`. The next run continues it and marks the PR ready for review when it's done.
 
 1. Kill-switch check (§0). Read `CLAUDE.md`, `docs/ARCHITECTURE.md` and `CLEAN_ROOM.md`.
-2. **Nightly cap.** Count tonight's non-idle Builder outcome comments on the run log (§6a posts one per item). If the count has reached `issues_per_night`, post an `idle (nightly cap reached)` run-log comment and stop. Otherwise this run may take up to `min(2, issues_per_night − count)` items.
+2. **Finish tonight's PRs, then the nightly cap.** First look at every PR a Builder run opened tonight. If one has no QA report (§6b) for its head, or its issue has no outcome comment (§6a), finish it before anything else: record its gates (§6c), post the report and the outcome comment, and label the issue `factory:review`. This isn't a new item and replaces an `idle` run. Then count tonight's non-idle Builder outcome comments on the run log (§6a posts one per item). If the count has reached `issues_per_night`, post an `idle (nightly cap reached)` run-log comment and stop. Otherwise this run may take up to `min(2, issues_per_night − count)` items.
 3. Pick work in this order. Skip any issue labeled `needs-human` or `factory:blocked`, and any issue whose `Depends on:` line names an issue that is still open (§2).
    1. If `main` CI is red, fix `main`. This is the only case where work starts without an issue: open a `fix:` PR. It is the run's only item.
    2. The oldest open issue labeled both `priority` and `factory:ready`.
@@ -76,6 +76,7 @@ For each open PR whose issue is labeled `factory:review`, oldest first:
    - every acceptance criterion is met and tested, and every box the Builder checked is actually true (uncheck any that aren't and send the PR back);
    - the PR has a QA report (§6b) for its current head commit, with all six sections. Open every image it embeds and check that it shows what the report claims (§6b, *Reviewer checks*);
    - no test was weakened, deleted, or `#[ignore]`d to get green;
+   - the change fits its size label (§2): a PR more than 1.5× over (S 225, M 600 lines) that doesn't split off the rest as §3 step 8 says is a fail;
    - the `ARCHITECTURE.md` dependency direction and allowed licenses are respected, and any new dependency is in the register;
    - `CLEAN_ROOM.md` is respected (no vendor names or assets, no proprietary formats);
    - there is no AI attribution;
