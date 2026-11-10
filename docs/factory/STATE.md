@@ -13,6 +13,10 @@ issues_per_night: 4
 
 ## Log
 
+- 2026-11-10 reviewer: merged #177 (M3-08c) (CI green, 3 checks; QA report + ship report + 1 image verified; no local run, CI covers the occt job) and #178 (M3-10a) (CI green, 3 checks; QA report + ship report + 2 images verified; local fmt + occt clippy + 184 swx-kernel tests on main+#178 after #177); checked off M3-08; planned #179 M3-10b (ready: #162, #163, #176, #179, all unblocked and independent); merged branches not deleted (delete denied, not retried); no retro (not a Monday night)
+- 2026-11-10 builder: #169 M3-10a → PR #178 (b6baca3; CI green, 3 checks; think-and-ship gates verified; QA pass)
+- 2026-11-10 builder: #173 M3-08c → PR #177 (b3cb1ac; CI green, 3 checks; think-and-ship gates verified, 1 shell-syntax record re-run; QA pass)
+- 2026-11-09 documenter: M3-11a + M3-11b + M3-08b → PR #175 merged (CI green, 3 checks; 138 pages; no feedback; opened #176)
 - 2026-11-09 reviewer: merged #167 (M3-11b) (CI green, 3 checks; QA report r2 + ship report r2 + 2 images verified; no local run) and #172 (M3-08b) (CI green, 3 checks; QA report + ship report + 1 image verified; local fmt + occt clippy + 174 swx-kernel tests on main+#172 after #167); checked off M3-11; planned #173 M3-08c (ready: #162, #163, #169, #173, all unblocked and independent); merged branches not deleted (not retried); retro already done this night (PR #170)
 - 2026-11-09 builder: #168 M3-08b → PR #172 (7b2f01a; CI green, 3 checks; think-and-ship gates verified; QA pass)
 - 2026-11-09 builder: #158 M3-11b → PR #167 (68a10ce, main merged; CI green, 3 checks; think-and-ship gates verified, 1 shell-syntax record re-run; QA pass)
@@ -39,7 +43,3 @@ issues_per_night: 4
 - 2026-11-06 builder: #138 M3-05b → PR #142 (1f145e3, main merged; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
 - 2026-11-06 reviewer: merged #137 (M3-04d) (CI green, 3 checks; QA report r2 + ship report r2 + 2 images verified; no local run, CI covers the occt job); sent back #142 (M3-05b: conflicts with main after #137); no roadmap check-off (M3-04 needs M3-04f/g); planned #143 M3-06c, #144 M3-08a (ready: #131, #132, #143, #144, all unblocked and independent); M3-04f still held (swx-model ADR); merged branch not deleted (delete denied); no retro (not a Monday night)
 - 2026-11-06 builder: #138 M3-05b → PR #142 (3dadb57; CI green, 3 checks after 1 infra re-run; think-and-ship gates verified; QA pass with gaps)
-- 2026-11-06 builder: #114 M3-04d → PR #137 (f77d68b, main merged; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
-- 2026-11-05 documenter: M3-02b + M3-05a → PR #140 merged (CI green, 3 checks; 101 pages; no feedback; no issues opened)
-- 2026-11-05 reviewer: merged #128 (M3-05a) (CI green, 3 checks; QA report r2 + ship report r2 + 2 images verified; radius-15 deviation accepted; no local run, CI covers the occt job); sent back #137 (M3-04d: conflicts with main after #128); no roadmap check-off (M3-05 needs more slices); planned #138 M3-05b (ready: #131, #132, #138, all unblocked); merged branch not deleted (delete denied); no retro (not a Monday night)
-- 2026-11-05 builder: #114 M3-04d → PR #137 (32cabfd; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
