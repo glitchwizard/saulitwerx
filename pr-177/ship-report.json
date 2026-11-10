@@ -1,0 +1,120 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "PR #177 head",
+      "ref": "b3cb1ac",
+      "task_id": "gates-173",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-173",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-173",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-173",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "clippy swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-173",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "test swx-kernel occt",
+      "passed": false,
+      "required": true,
+      "task_id": "gates-173",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "test swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-173",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "clippy swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-173",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "test swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-173",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`Workplane::midplane(a: &Workplane, b: &Workplane) -> Result<Workplane, KernelError>`, kernel-free in `datum.rs`, documented: `a` and `b` must be parallel (normals equal or opposite within `DATUM_TOLERANCE`); the result's `normal` is `a`'s unit normal, its `origin` is the midpoint between `a.origin` and its projection onto `b`, and its `x_dir` is `a`'s `x_dir` (unit, perpendicular to the normal). Coincident planes return a plane equal to `a`.",
+      "`Kernel::work_plane_tangent(&self, s, face: SubShape, toward: [f64; 3]) -> Result<Workplane, KernelError>`, documented and implemented for `OcctKernel`: for a cylindrical face, the plane tangent to the cylinder on the side `toward` points to. Only the component of `toward` perpendicular to the cylinder's axis is used; it becomes the plane's unit `normal`. `origin` is the projection of the model origin onto the plane; `x_dir` follows the `Workplane::from_point_normal` rule.",
+      "`Kernel::edge_midpoint(&self, s, edge: SubShape) -> Result<Point3, KernelError>`, documented and implemented for `OcctKernel`: the point at half the edge's arc length (doc comment cites OCCT's reference documentation for the length method used, e.g. `GCPnts_AbscissaPoint`).",
+      "New shim code is `noexcept` and catches C++ exceptions; every new `unsafe` call is in `ffi` with a SAFETY comment.",
+      "Tests, points and directions within 1e-9: midplane (no OCCT), tangent (behind occt) on make_cylinder([5, 5, 0], 3, 10), edge midpoint (behind occt) on box edge, half-disc arc and cylinder top circle; the input solids are unchanged afterwards (same volume and face count).",
+      "Errors, each with a test and never a panic, all `InvalidInput`: midplane of non-parallel planes (`Workplane::XY` and `Workplane::XZ`) or of an invalid plane (zero normal); `work_plane_tangent` on a non-cylindrical face (a box face), on an edge or vertex, with an index out of range, or with `toward` zero, non-finite, or parallel to the axis ((0, 0, 1)); `edge_midpoint` on a face or vertex, or with an index out of range.",
+      "No new dependencies. `swx-kernel` still has no workspace dependencies.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and so do the CI `swx-kernel (occt)` job commands.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-10T08:26:58.465381400+00:00",
+    "constraints": [],
+    "created_at": "2026-11-10T08:26:09.434779759+00:00",
+    "description": "M3-08c: Work midplane, tangent plane on a cylindrical face, and point at an edge's midpoint",
+    "project_id": "saulitwerx",
+    "scope": "swx-kernel only (issue #173, PR #177)",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 8,
+      "estimate": "small",
+      "id": "gates-173",
+      "status": "completed",
+      "title": "Run the FACTORY gates for PR #177",
+      "type": "test"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
