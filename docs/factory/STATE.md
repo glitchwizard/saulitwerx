@@ -13,6 +13,9 @@ issues_per_night: 4
 
 ## Log
 
+- 2026-11-11 reviewer: merged #192 (M3-12c) (CI green, 3 checks; QA report + ship report + 1 image verified; no local run, CI covers the occt job); #193 (M4-01a) not merged, labeled needs-human with #184 (Unicode-3.0 license of the unbuilt `unicode-ident` in Cargo.lock and its register row; owner decides); checked off M3-12; planned #194 MB-03b (ready: #189, #190, #194; #190, #194 unblocked and independent; #189 waits on #184; M3-01/04/05/07 wait on the #106 swx-model ADR); merged branch not deleted (not retried); no retro (not a Monday night)
+- 2026-11-11 builder: #184 M4-01a → PR #193 (b722eb1; CI green, 3 checks; think-and-ship gates verified, 1 shell-syntax record re-run; QA pass with gaps)
+- 2026-11-11 builder: #183 M3-12c → PR #192 (d9a49e7; CI green, 3 checks; think-and-ship gates verified; QA pass)
 - 2026-11-11 reviewer: merged #187 (M3-12a) (CI green, 3 checks; QA report + ship report + 1 image verified; no local run, CI covers the occt job) and #188 (M3-12b) (CI green, 3 checks; QA report + ship report verified, nothing visual; local fmt + occt clippy + 202 swx-kernel tests on main+#188 after #187); no roadmap check-off (M3-12 needs #183); planned #189 M4-01b (depends on #184), #190 MB-03a (ready: #183, #184, #189, #190; #183, #184, #190 unblocked and independent); merged branches not deleted (not retried); no retro (not a Monday night)
 - 2026-11-11 builder: #163 M3-12b → PR #188 (13d7a49; CI green, 3 checks; think-and-ship gates verified; QA pass)
 - 2026-11-11 builder: #162 M3-12a → PR #187 (524da52; CI green, 3 checks; think-and-ship gates verified, 1 shell-syntax record re-run; QA pass)
@@ -40,6 +43,3 @@ issues_per_night: 4
 - 2026-11-07 documenter: M3-06a + M3-09a → PR #156 merged (CI green, 3 checks; 113 pages; no feedback; no issues opened)
 - 2026-11-07 reviewer: merged #153 (M3-09a) (CI green, 3 checks; QA report + ship report verified, nothing visual; no local run); checked off M3-09; sent back #150 (M3-05c: intermittent failure of fillet_variable_too_large_is_an_error_and_keeps_the_input on the input-still-usable call, criterion 4 unchecked); planned #154 M3-11a (ready: #132, #143, #144, #154, all unblocked and independent); merged branch not deleted (not retried); no retro (not a Monday night)
 - 2026-11-07 builder: #151 M3-09a → PR #153 (2b44946; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
-- 2026-11-07 builder: #147 M3-05c → PR #150 (8415f7d, main merged; CI green, 3 checks; think-and-ship gates verified, 1 flaky occt test record re-run; QA pass with gaps)
-- 2026-11-07 reviewer: merged #146 (M3-06a) (CI green, 3 checks; QA report r2 + ship report r2 + 2 images verified; no local run, CI covers the occt job); sent back #150 (M3-05c: conflicts with main after #146); no roadmap check-off (M3-06 needs #132, #143); planned #151 M3-09a (ready: #132, #143, #144, #151, all unblocked and independent); merged branch not deleted (not retried); no retro (not a Monday night)
-- 2026-11-07 builder: #147 M3-05c → PR #150 (0125bf8; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
