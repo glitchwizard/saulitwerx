@@ -302,11 +302,15 @@ pub trait Kernel {
     /// counterbore's depth, are measured from `at.origin` along the drill
     /// direction to a flat bottom (no drill point). [`HoleDepth::ThroughAll`]
     /// cuts through the whole solid along the direction from `at.origin`.
+    /// A countersink's cone starts at `at.origin` with `csk_diameter` and
+    /// narrows to `diameter` (see [`HoleKind::Countersink`]).
     ///
     /// It is [`KernelError::InvalidInput`], checked before the backend, when
-    /// a diameter, blind depth, `cb_diameter` or `cb_depth` is not finite or
-    /// ≤ 0, when `cb_diameter` ≤ `diameter`, when a blind depth ≤ `cb_depth`,
-    /// when `at.dir` is zero-length or not finite, or when `at.origin` is not
+    /// a diameter, blind depth, `cb_diameter`, `cb_depth` or `csk_diameter`
+    /// is not finite or ≤ 0, when `cb_diameter` or `csk_diameter` ≤
+    /// `diameter`, when `csk_angle` is not finite or not strictly between 0
+    /// and π, when a blind depth ≤ `cb_depth` or ≤ the countersink's cone
+    /// depth, when `at.dir` is zero-length or not finite, or when `at.origin` is not
     /// finite. A hole that removes nothing (its axis misses the solid) is
     /// `InvalidInput` too, and a result the backend finds invalid is an
     /// error. `s` is unchanged either way.

@@ -372,7 +372,9 @@ impl Kernel for OcctKernel {
     /// plane through the start point normal to the drill direction, extruded
     /// along it ([`Kernel::make_face`], [`Kernel::extrude`], [`Kernel::cut`]).
     /// A through hole's cylinder runs past the far side of the solid's
-    /// bounding box. The result is checked with OCCT's shape checker
+    /// bounding box. A countersink then also cuts its cone, a trapezoid
+    /// revolved about the drill axis ([`Kernel::revolve`]). The result is
+    /// checked with OCCT's shape checker
     /// (`BRepCheck_Analyzer`, via [`ffi::is_valid`]).
     fn hole(
         &self,
@@ -425,6 +427,45 @@ impl Kernel for OcctKernel {
         let mut result = self.cut(s, &tool(first)?)?;
         for c in rest {
             result = self.cut(&result, &tool(c)?)?;
+        }
+        if let Some(cone) = plan.cone {
+            // The countersink cone: the trapezoid (0, 0), (R, 0), (r, h),
+            // (0, h) on a plane through the drill axis, with v along the
+            // drill direction, revolved a full turn about that axis
+            // ([`Kernel::revolve`], OCCT `BRepPrimAPI_MakeRevol`). It is the
+            // frustum from radius R at the start point to r at depth h.
+            let x_dir = perpendicular(plan.dir);
+            let d = plan.dir;
+            let axial = Workplane {
+                origin: plan.origin,
+                x_dir,
+                normal: [
+                    x_dir[1] * d[2] - x_dir[2] * d[1],
+                    x_dir[2] * d[0] - x_dir[0] * d[2],
+                    x_dir[0] * d[1] - x_dir[1] * d[0],
+                ],
+            };
+            let corners = [
+                [0.0, 0.0],
+                [cone.top_radius, 0.0],
+                [cone.bottom_radius, cone.length],
+                [0.0, cone.length],
+            ];
+            let trapezoid = ProfileLoop {
+                segments: (0..4)
+                    .map(|i| Segment2::Line {
+                        start: corners[i],
+                        end: corners[(i + 1) % 4],
+                    })
+                    .collect(),
+            };
+            let face = self.make_face(&axial, &trapezoid, &[])?;
+            let axis = Axis {
+                origin: plan.origin,
+                dir: plan.dir,
+            };
+            let cone_solid = self.revolve(&face, axis, std::f64::consts::TAU)?;
+            result = self.cut(&result, &cone_solid)?;
         }
         if !ffi::is_valid(&result.0) {
             return Err(KernelError::Backend(
@@ -2935,6 +2976,70 @@ mod tests {
             find_by_box(&h, TopoKind::Face, [10.0, 12.0, 7.0], [10.0, 18.0, 13.0]).is_some(),
             "the hole bottom should be the disk at x = 10"
         );
+    }
+
+    /// Ø6 hole with a Ø12 × 90° countersink: cone depth 3, cone volume 63π.
+    const CSK: HoleKind = HoleKind::Countersink {
+        diameter: 6.0,
+        csk_diameter: 12.0,
+        csk_angle: std::f64::consts::FRAC_PI_2,
+    };
+
+    #[test]
+    fn hole_countersink_through_and_blind() {
+        let b = hole_box();
+        let through = K.hole(&b, HOLE_DOWN, CSK, HoleDepth::ThroughAll).unwrap();
+        // 180π hole + 63π cone − 27π overlap.
+        assert_hole(&through, 24000.0 - 216.0 * PI, 8);
+        let blind = K.hole(&b, HOLE_DOWN, CSK, HoleDepth::Blind(10.0)).unwrap();
+        // 90π hole + 63π cone − 27π overlap.
+        assert_hole(&blind, 24000.0 - 126.0 * PI, 9);
+        // The input solid is unchanged.
+        assert_close(K.volume(&b).unwrap(), 24000.0);
+        assert_eq!(K.face_count(&b).unwrap(), 6);
+    }
+
+    #[test]
+    fn hole_countersink_on_a_side_face() {
+        let b = hole_box();
+        let at = Axis {
+            origin: [0.0, 15.0, 10.0],
+            dir: [1.0, 0.0, 0.0],
+        };
+        let h = K.hole(&b, at, CSK, HoleDepth::Blind(10.0)).unwrap();
+        assert_hole(&h, 24000.0 - 126.0 * PI, 9);
+        assert!(
+            find_by_box(&h, TopoKind::Face, [10.0, 12.0, 7.0], [10.0, 18.0, 13.0]).is_some(),
+            "the hole bottom should be the disk at x = 10"
+        );
+    }
+
+    #[test]
+    fn hole_countersink_rejects_bad_inputs() {
+        let b = hole_box();
+        let csk = |diameter, csk_diameter, csk_angle| HoleKind::Countersink {
+            diameter,
+            csk_diameter,
+            csk_angle,
+        };
+        let through = HoleDepth::ThroughAll;
+        for (kind, depth) in [
+            (csk(0.0, 12.0, PI / 2.0), through),
+            (csk(6.0, f64::NAN, PI / 2.0), through),
+            (csk(6.0, 6.0, PI / 2.0), through),
+            (csk(6.0, 12.0, PI), through),
+            (csk(6.0, 12.0, 0.0), through),
+            (csk(6.0, 12.0, f64::INFINITY), through),
+            (csk(6.0, 12.0, PI / 2.0), HoleDepth::Blind(3.0)),
+        ] {
+            assert!(
+                matches!(
+                    K.hole(&b, HOLE_DOWN, kind, depth),
+                    Err(KernelError::InvalidInput(_))
+                ),
+                "{kind:?} {depth:?} should be InvalidInput"
+            );
+        }
     }
 
     #[test]
