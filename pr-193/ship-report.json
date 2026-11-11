@@ -1,0 +1,89 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(io): swx-io crate with manifest.json and the canonical JSON writer",
+      "ref": "b722eb1",
+      "task_id": "m4-01a",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-01a",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-01a",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": false,
+      "required": true,
+      "task_id": "m4-01a",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-01a",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "New crate `crates/swx-io` (`publish = false`, workspace lints, MIT OR Apache-2.0). Its only dependencies are `serde` (feature `derive`) and `serde_json`. Each one, and every new transitive crate in `Cargo.lock`, gets a row with its license in the `ARCHITECTURE.md` dependency register, and the ADR log gets one appended line for the new crate. No other change to `ARCHITECTURE.md`.",
+      "A documented `Manifest` type with the fields of FILE_FORMAT.md's example: `format`, `format_version`, `kind` (an enum `Part | Assembly | Drawing`, written `\"part\"`, `\"assembly\"`, `\"drawing\"`), `document_id`, `units` (`length`, `angle`, `mass`), `created_by`, `saved_by`, and `model_hash` (`Option`). Unknown fields at the top level and inside `units` are kept and written back unchanged.",
+      "`pub fn read_manifest(json: &str) -> Result<Manifest, FormatError>` and `pub fn write_manifest(m: &Manifest) -> String`. `FormatError` is a documented enum that never panics, with at least a JSON-syntax variant, an invalid-field variant naming the field, and an unsupported-version variant.",
+      "Canonical writer, `pub fn to_canonical_json<T: Serialize>(v: &T) -> String`, documented: object keys in ascending byte order at every level, 2-space indent, one array element per line, UTF-8, and exactly one trailing `\\n`. Tests: a golden file `crates/swx-io/tests/golden/manifest-v0.1.json`, written in canonical form from FILE_FORMAT.md's example (with a real 64-hex-digit `model_hash`), is reproduced byte for byte by `write_manifest(&read_manifest(golden)?)`; a manifest with an extra top-level field `\"x_future\": [1, 2]` and an extra `units.temperature` round-trips with both fields unchanged; keys given in a different order on input come out in canonical order.",
+      "Validation in `read_manifest`, each case with a test returning the right `FormatError` variant: `format` other than `\"sltwx\"`; `format_version` that isn't `MAJOR.MINOR.PATCH` with decimal numbers; a major version other than 0 (unsupported); an unknown `kind`; a `document_id` that isn't a UUID in 8-4-4-4-12 hex form (either case accepted); a `model_hash` that isn't `sha256:` plus 64 lowercase hex digits; a missing required field; malformed JSON (`\"{\"`). A newer minor version (`0.2.0`) with an extra field is accepted.",
+      "`swx-io` has no `unsafe` and no workspace dependencies; `swx-core`, `swx-sketch` and `swx-kernel` are unchanged.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-11T10:32:55.723863824+00:00",
+    "constraints": [
+      "Deviation: serde without the derive feature (derive pulls unicode-ident, Unicode-3.0, not on the allowed-license list)."
+    ],
+    "created_at": "2026-11-11T10:32:24.175129858+00:00",
+    "description": "M4-01a: swx-io crate: read and write manifest.json with the canonical JSON writer",
+    "project_id": "saulitwerx",
+    "scope": "",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 4,
+      "estimate": "medium",
+      "id": "m4-01a",
+      "status": "completed",
+      "title": "swx-io crate with manifest.json and canonical JSON writer (PR #193)",
+      "type": "implement"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
