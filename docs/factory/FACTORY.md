@@ -82,7 +82,7 @@ For each open PR whose issue is labeled `factory:review`, oldest first:
    - no unrelated changes.
 3. **Pass** → make sure every box in the issue is checked, squash-merge with the PR title as the commit subject, delete the branch, remove all `factory:*` workflow labels from the issue (it closes via `Closes #N`), and check off the roadmap item in `docs/ROADMAP.md`. Commit that roadmap change through a small `docs/` PR merged in the same run. Combine all roadmap check-offs from this run into one PR. The same PR carries the STATE lines (§6).
 4. **Fail** → leave a review comment with a numbered list of required changes, then label the issue `factory:changes`. A missing, incomplete or false QA report is a fail.
-5. Anything legally or architecturally ambiguous → label it `needs-human`, comment the question, and don't merge.
+5. Anything legally or architecturally ambiguous → label it `needs-human`, comment the question, and don't merge. A dependency whose license isn't on the allowed list follows §8a.
 
 ### Plan
 
@@ -344,6 +344,19 @@ Changes under `.github/` are **owner-merge only**:
 - The Reviewer reviews `owner-merge` PRs like any other and comments its verdict, but **never merges them**. The owner merges.
 
 **Why:** CI is the factory's judge. The Reviewer merges only what CI passes, and workflows can hold write tokens and secrets. A factory that could change CI could make any change pass, or use a workflow's token to do what this file forbids. So the factory never merges a change to its own judge.
+
+## 8a. Licenses
+
+`docs/ARCHITECTURE.md` lists the licenses a dependency may have. When something you need carries a license that isn't on that list:
+
+1. **Read the license.** If it is a permissive open-source license the list doesn't name yet, label the issue or PR `needs-human` and say which license it is. The owner decides whether to add it. Don't write workaround code in the meantime.
+2. **Otherwise** (GPL, AGPL, a proprietary license, or no license at all), look for a permissively licensed alternative that does the same job. Use it, with a row in the dependency register.
+3. **If there is none, build our own, clean-room:**
+   - Work only from public specifications, standards, papers and documentation.
+   - Never copy, translate or port the restricted code, and don't read its source while writing ours.
+   - Cite the sources in doc comments, as `CLAUDE.md` requires.
+   - Size it like any other work. A replacement bigger than one `size:M` issue gets a `docs/specs/<id>.md` spec and roadmap items from the Planner first, and the run-log comment names it.
+4. **Still out of bounds:** proprietary file formats, patented methods, and other products' names and assets (`CLEAN_ROOM.md`). Building our own doesn't make those acceptable. Label them `needs-human`.
 
 ## 9. Hard stops (every role, every run)
 

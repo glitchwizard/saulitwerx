@@ -40,7 +40,7 @@ Dependency direction: `app → render, io → kernel, sketch → core`. `core` a
 
 - Saulitwerx code: MIT OR Apache-2.0.
 - OCCT: LGPL-2.1 with the OCCT exception. It is used as a separately, dynamically linked library. Binary releases ship OCCT as shared libraries alongside its license and a pointer to its source. This keeps Saulitwerx itself permissive.
-- Allowed dependency licenses: MIT, Apache-2.0, BSD, Zlib, ISC, MPL-2.0 (file-level), and LGPL (dynamic only). GPL and AGPL are forbidden.
+- Allowed dependency licenses: MIT, Apache-2.0, BSD (2- and 3-clause), 0BSD, ISC, Zlib, BSL-1.0, Unicode-3.0, Unicode-DFS-2016, CC0-1.0, MPL-2.0 (file-level), and LGPL (dynamic only). GPL, AGPL, proprietary licenses and unlicensed code are forbidden; FACTORY §8a says what to do instead.
 
 ### Third-party dependency register
 
