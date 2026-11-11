@@ -5,7 +5,7 @@
 //! solid: the drilled hole and, for a counterbore, the wider recess at its
 //! mouth. A countersink adds a coaxial cone (a frustum) at the mouth instead.
 
-use crate::{validate_point, validate_size, Axis, KernelError, Point3};
+use crate::{validate_point, validate_size, Axis, KernelError, MetricThread, Point3};
 
 /// How deep a hole goes.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -48,6 +48,13 @@ pub enum HoleKind {
         /// (e.g. π/2 for a 90° countersink).
         csk_angle: f64,
     },
+    /// A hole for a metric coarse thread. The cut is a plain cylinder of the
+    /// thread's tap-drill diameter ([`MetricThread::tap_drill_diameter`],
+    /// `D − P`); the thread itself is not modeled.
+    Tapped {
+        /// The thread size, e.g. from [`metric_coarse`](crate::metric_coarse).
+        thread: MetricThread,
+    },
 }
 
 /// The conical recess of a countersink: a frustum on the drill axis from
@@ -82,7 +89,8 @@ pub(crate) struct HolePlan {
 /// Checks hole inputs and returns the cylinders (and cone) to cut.
 ///
 /// Every check is [`KernelError::InvalidInput`]: a diameter, blind depth,
-/// `cb_diameter`, `cb_depth` or `csk_diameter` that is not finite or ≤ 0;
+/// `cb_diameter`, `cb_depth`, `csk_diameter`, thread `nominal` or thread
+/// `pitch` that is not finite or ≤ 0; a thread `pitch` ≥ its `nominal`;
 /// `cb_diameter` or `csk_diameter` ≤ `diameter`; a `csk_angle` that is not
 /// finite or not strictly between 0 and π; a blind depth ≤ `cb_depth` or ≤
 /// the countersink's cone depth; a zero-length or non-finite `at.dir`; a
@@ -172,6 +180,20 @@ pub(crate) fn prepare_hole(
                 top_radius: csk_diameter / 2.0,
                 bottom_radius: diameter / 2.0,
                 length: cone_depth,
+            });
+        }
+        HoleKind::Tapped { thread } => {
+            validate_size("thread nominal diameter", thread.nominal)?;
+            validate_size("thread pitch", thread.pitch)?;
+            if thread.pitch >= thread.nominal {
+                return Err(KernelError::InvalidInput(format!(
+                    "thread pitch {} must be smaller than the nominal diameter {}",
+                    thread.pitch, thread.nominal
+                )));
+            }
+            cylinders.push(HoleCylinder {
+                radius: thread.tap_drill_diameter() / 2.0,
+                length: blind,
             });
         }
     }
@@ -354,6 +376,36 @@ mod tests {
         assert_invalid(DOWN, csk(6.0, 12.0, RIGHT), HoleDepth::Blind(3.0));
         assert_invalid(DOWN, csk(6.0, 12.0, RIGHT), HoleDepth::Blind(2.0));
         assert!(prepare_hole(DOWN, csk(6.0, 12.0, RIGHT), HoleDepth::Blind(3.5)).is_ok());
+    }
+
+    fn tapped(nominal: f64, pitch: f64) -> HoleKind {
+        HoleKind::Tapped {
+            thread: MetricThread { nominal, pitch },
+        }
+    }
+
+    #[test]
+    fn tapped_cuts_the_tap_drill_diameter() {
+        let m6 = HoleKind::Tapped {
+            thread: crate::metric_coarse("M6").unwrap(),
+        };
+        for depth in [HoleDepth::Blind(10.0), HoleDepth::ThroughAll] {
+            let p = prepare_hole(DOWN, m6, depth).unwrap();
+            assert_eq!(p, prepare_hole(DOWN, simple(5.0), depth).unwrap());
+        }
+    }
+
+    #[test]
+    fn tapped_bad_threads_are_invalid_input() {
+        let blind = HoleDepth::Blind(10.0);
+        for bad in [0.0, -1.0, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert_invalid(DOWN, tapped(bad, 1.0), blind);
+            assert_invalid(DOWN, tapped(6.0, bad), blind);
+            assert_invalid(DOWN, tapped(bad, 1.0), HoleDepth::ThroughAll);
+        }
+        assert_invalid(DOWN, tapped(6.0, 6.0), blind);
+        assert_invalid(DOWN, tapped(6.0, 7.0), HoleDepth::ThroughAll);
+        assert!(prepare_hole(DOWN, tapped(6.0, 5.9), blind).is_ok());
     }
 
     #[test]
