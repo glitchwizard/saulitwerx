@@ -3042,6 +3042,90 @@ mod tests {
         }
     }
 
+    fn tapped(designation: &str) -> HoleKind {
+        HoleKind::Tapped {
+            thread: crate::metric_coarse(designation).unwrap(),
+        }
+    }
+
+    #[test]
+    fn hole_tapped_through_and_blind() {
+        let b = hole_box();
+        let m6 = tapped("M6");
+        // M6 tap drill Ø5.
+        let through = K.hole(&b, HOLE_DOWN, m6, HoleDepth::ThroughAll).unwrap();
+        assert_hole(&through, 24000.0 - 125.0 * PI, 7);
+        let blind = K.hole(&b, HOLE_DOWN, m6, HoleDepth::Blind(10.0)).unwrap();
+        assert_hole(&blind, 24000.0 - 62.5 * PI, 8);
+        assert!(
+            find_by_box(
+                &blind,
+                TopoKind::Face,
+                [17.5, 12.5, 10.0],
+                [22.5, 17.5, 10.0]
+            )
+            .is_some(),
+            "the hole bottom should be the Ø5 disk at z = 10"
+        );
+        // M10 tap drill Ø8.5: 24000 − 361.25π ≈ 22865.0997.
+        let m10 = K
+            .hole(&b, HOLE_DOWN, tapped("M10"), HoleDepth::ThroughAll)
+            .unwrap();
+        assert_hole(&m10, 24000.0 - 361.25 * PI, 7);
+        assert!((K.volume(&m10).unwrap() - 22865.0997).abs() < 1e-3);
+        // The input solid is unchanged.
+        assert_close(K.volume(&b).unwrap(), 24000.0);
+        assert_eq!(K.face_count(&b).unwrap(), 6);
+    }
+
+    #[test]
+    fn hole_tapped_equals_simple_of_tap_drill_diameter() {
+        let b = hole_box();
+        for name in ["M6", "M10"] {
+            let thread = crate::metric_coarse(name).unwrap();
+            let simple = HoleKind::Simple {
+                diameter: thread.tap_drill_diameter(),
+            };
+            for depth in [HoleDepth::Blind(10.0), HoleDepth::ThroughAll] {
+                let t = K
+                    .hole(&b, HOLE_DOWN, HoleKind::Tapped { thread }, depth)
+                    .unwrap();
+                let s = K.hole(&b, HOLE_DOWN, simple, depth).unwrap();
+                let (vt, vs) = (K.volume(&t).unwrap(), K.volume(&s).unwrap());
+                assert!(
+                    (vt - vs).abs() <= 1e-9 * vs,
+                    "{name} {depth:?}: {vt} vs {vs}"
+                );
+                assert_eq!(K.face_count(&t).unwrap(), K.face_count(&s).unwrap());
+            }
+        }
+    }
+
+    #[test]
+    fn hole_tapped_rejects_bad_threads() {
+        let b = hole_box();
+        let t = |nominal, pitch| HoleKind::Tapped {
+            thread: crate::MetricThread { nominal, pitch },
+        };
+        for kind in [
+            t(0.0, 1.0),
+            t(-6.0, 1.0),
+            t(f64::NAN, 1.0),
+            t(6.0, 0.0),
+            t(6.0, f64::INFINITY),
+            t(6.0, 6.0),
+            t(6.0, 7.0),
+        ] {
+            assert!(
+                matches!(
+                    K.hole(&b, HOLE_DOWN, kind, HoleDepth::ThroughAll),
+                    Err(KernelError::InvalidInput(_))
+                ),
+                "{kind:?} should be InvalidInput"
+            );
+        }
+    }
+
     #[test]
     fn hole_rejects_bad_inputs_and_misses() {
         let b = hole_box();
