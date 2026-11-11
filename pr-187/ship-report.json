@@ -1,0 +1,118 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "countersink hole",
+      "ref": "524da52",
+      "task_id": "gates-162",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-162",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-162",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-162",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "clippy swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-162",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "test swx-kernel occt",
+      "passed": false,
+      "required": true,
+      "task_id": "gates-162",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "test swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-162",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "clippy swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-162",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "test swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-162",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "New documented variant `HoleKind::Countersink { diameter: f64, csk_diameter: f64, csk_angle: f64 }`. `csk_angle` is the included cone angle in radians (e.g. π/2 for 90°). The cone runs from `csk_diameter` at `at.origin` down to `diameter`, so its depth along the drill direction is `(csk_diameter − diameter) / 2 / tan(csk_angle / 2)`. Blind depth is still measured from `at.origin` to the flat hole bottom.",
+      "`OcctKernel::hole` cuts the countersink for `Blind` and `ThroughAll`, and the existing `Simple` and `Counterbore` tests still pass unchanged. Any new shim function is `noexcept`, catches C++ exceptions, and the result is rejected when `BRepCheck_Analyzer` finds it invalid.",
+      "Tests (behind `occt`), box `make_box((0, 0, 0), (40, 30, 20))`, volumes within a relative 1e-6, boxes within 1e-6. Countersink Ø6 / Ø12 at 90° (cone depth 3, cone volume 63π): through all, at (20, 15, 20) along −Z: volume 24000 − 216π ≈ 23321.4160; 8 faces; bounding box unchanged. blind 10, same axis: volume 24000 − 126π ≈ 23604.1593; 9 faces. blind 10 on a side face, at (0, 15, 10) along +X: volume ≈ 23604.1593; the hole bottom face's box is (10, 12, 7)–(10, 18, 13). the input solid is unchanged (volume 24000, 6 faces).",
+      "Errors, each with a test and never a panic, all `InvalidInput` checked before the backend (kernel-free tests without `occt` where possible): `diameter` or `csk_diameter` zero, negative or not finite; `csk_diameter` ≤ `diameter`; `csk_angle` not finite or not strictly between 0 and π; a blind depth ≤ the cone depth.",
+      "No new dependencies. Every new `unsafe` block is in `ffi` and documented; any new doc comment for the cone construction cites its source (OCCT reference documentation of the calls used).",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and so do the CI `swx-kernel (occt)` job commands.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-11T08:25:04.152226493+00:00",
+    "constraints": [],
+    "created_at": "2026-11-11T08:24:14.612459708+00:00",
+    "description": "M3-12a: Kernel countersink hole (blind or through all, on any axis)",
+    "project_id": "saulitwerx",
+    "scope": "swx-kernel only (hole.rs, occt.rs, lib.rs docs); PR #187",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 8,
+      "estimate": "small",
+      "id": "gates-162",
+      "status": "completed",
+      "title": "Run quality gates for PR #187",
+      "type": "test"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
