@@ -1,0 +1,45 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(kernel): tapped hole cut at the metric coarse tap-drill diameter",
+      "ref": "d9a49e7",
+      "task_id": "m3-12c",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {"name": "cargo fmt", "passed": true, "required": true, "task_id": "m3-12c", "type": "lint", "verified": true},
+    {"name": "cargo clippy", "passed": true, "required": true, "task_id": "m3-12c", "type": "lint", "verified": true},
+    {"name": "cargo test", "passed": true, "required": true, "task_id": "m3-12c", "type": "test", "verified": true},
+    {"name": "clippy swx-kernel occt", "passed": true, "required": true, "task_id": "m3-12c", "type": "lint", "verified": true},
+    {"name": "test swx-kernel occt", "passed": true, "required": true, "task_id": "m3-12c", "type": "test", "verified": true},
+    {"name": "clippy swx-qa occt", "passed": true, "required": true, "task_id": "m3-12c", "type": "lint", "verified": true},
+    {"name": "test swx-qa occt", "passed": true, "required": true, "task_id": "m3-12c", "type": "test", "verified": true}
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "New documented variant `HoleKind::Tapped { thread: MetricThread }`. `MetricThread` derives `Clone, Copy, Debug, PartialEq` if it doesn't already. The doc comment says the cut is the tap-drill diameter (`MetricThread::tap_drill_diameter`) and that the thread is not modeled.",
+      "`OcctKernel::hole` cuts it for `Blind` and `ThroughAll`. The result equals `HoleKind::Simple { diameter: thread.tap_drill_diameter() }` with the same `at` and `depth`: same volume within 1e-9 relative, same face count. The existing `Simple`, `Counterbore` and `Countersink` tests still pass unchanged.",
+      "Tests (behind `occt`). Box `make_box((0, 0, 0), (40, 30, 20))`. Volumes within 1e-6 relative, boxes within 1e-6: M6 (tap drill Ø5), through all at (20, 15, 20) along −Z: volume 24000 − 125π ≈ 23607.3009; 7 faces; bounding box unchanged. M6, blind 10, same axis: volume 24000 − 62.5π ≈ 23803.6505; 8 faces; the hole bottom face's box is (17.5, 12.5, 10)–(22.5, 17.5, 10). `metric_coarse(\"M10\")` (tap drill Ø8.5), through all, same axis: volume ≈ 22865.0997. The input solid is unchanged (volume 24000, 6 faces).",
+      "Errors, each with a test and never a panic, all `InvalidInput` and checked before the backend, with kernel-free tests without `occt` in `hole.rs`: a hand-built `MetricThread` whose `nominal` or `pitch` is zero, negative or not finite, or whose `pitch` ≥ `nominal`.",
+      "No new dependencies, no new `unsafe`, and `swx-kernel` still has no workspace dependencies.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and so do the CI `swx-kernel (occt)` job commands.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-11T10:23:59.209273757+00:00",
+    "constraints": [],
+    "created_at": "2026-11-11T10:23:17.288487791+00:00",
+    "description": "M3-12c: Kernel tapped hole: drill the tap-drill diameter of a metric coarse thread",
+    "project_id": "saulitwerx",
+    "scope": "",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {"actions_count": 0, "artifacts_count": 1, "checks_count": 7, "estimate": "small", "id": "m3-12c", "status": "completed", "title": "HoleKind::Tapped in swx-kernel with tests (PR #192)", "type": "implement"}
+  ],
+  "tasks": {"active": 0, "blocked": 0, "completed": 1, "planned": 0, "skipped": 0, "total": 1},
+  "think_refs": []
+}
