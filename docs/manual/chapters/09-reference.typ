@@ -94,6 +94,8 @@ Success and errors work as for `render`. `--step` and `--crease` belong to `rend
   [`cargo run -p swx-kernel --features occt --example shell_parts -- <dir>`], [Shells a block into a tray and a frame, and a cylinder into a cup (@ch-shell). STEP files in `<dir>`.],
   [`cargo run -p swx-kernel --features occt --example fillet_variable -- <dir>`], [Rounds one edge of a block from 2 mm to 8 mm (@sec-fillet-variable). STEP files in `<dir>`.],
   [`cargo run -p swx-kernel --features occt --example hole_plate -- <dir>`], [Drills four holes in a plate (@ch-hole). A STEP file in `<dir>`.],
+  [`cargo run -p swx-kernel --features occt --example hole_screw -- <dir>`], [Drills a countersunk hole and two tapped holes in a plate (@sec-hole-tapped). A STEP file in `<dir>`.],
+  [`cargo run -p swx-kernel --example thread_table`], [Prints the metric coarse thread table and looks up sizes by name (@sec-hole-tapped). Needs no OpenCascade.],
   [`cargo run -p swx-kernel --features occt --example draft_block -- <dir>`], [Drafts the sides of a block three ways (@ch-draft). STEP files in `<dir>`.],
   [`cargo run -p swx-kernel --features occt --example loft_sections -- <dir>`], [Lofts a square into a circle, and a vase through three circles, ruled and smooth (@ch-loft). STEP files in `<dir>`.],
   [`cargo run -p swx-kernel --features occt --example sweep_pipe -- <dir>`], [Sweeps a circle and a rectangle along a bent path, and shows the errors, a too-tight bend among them (@ch-sweep). STEP files in `<dir>`.],
@@ -162,12 +164,33 @@ All positions must be finite numbers; all sizes finite and greater than zero.
   [`ChamferSize::DistanceAngle { distance, angle }`], [`distance` on the reference face, finite and > 0, in mm. `angle` between the reference face and the new face, in radians, strictly between 0 and π/2.],
   [`HoleKind::Simple { diameter }`], [A plain round hole. Diameter > 0, in mm.],
   [`HoleKind::Counterbore { diameter, cb_diameter, cb_depth }`], [A hole with a wider, flat-bottomed recess at its mouth. All > 0, in mm; `cb_diameter` larger than `diameter`.],
-  [`HoleDepth::Blind(depth)`], [Stops `depth` mm from the start point, with a flat bottom. Depth > 0, and larger than a counterbore's `cb_depth`.],
+  [`HoleKind::Countersink { diameter, csk_diameter, csk_angle }`], [A hole with a cone-shaped recess at its mouth, from `csk_diameter` at the start point down to `diameter`. Diameters > 0, in mm; `csk_diameter` larger than `diameter`. `csk_angle` is the angle across the cone, in radians, strictly between 0 and π (π/2 is 90°). The cone is (`csk_diameter` − `diameter`) ÷ 2 ÷ tan(`csk_angle` ÷ 2) deep.],
+  [`HoleKind::Tapped { thread }`], [A hole for a screw thread, drilled at the thread's tap-drill diameter. The thread itself isn't modeled. `thread` is a `MetricThread` (@sec-ref-threads).],
+  [`HoleDepth::Blind(depth)`], [Stops `depth` mm from the start point, with a flat bottom. Depth > 0, and larger than a counterbore's `cb_depth` or a countersink's cone depth.],
   [`HoleDepth::ThroughAll`], [Through the whole solid, along the direction from the start point.],
   [`BooleanOp`], [`Union`, `Cut` or `Intersect`.],
   [`CombineHistory { target, tools }`], [`target`: for each face of the target, in index order, the result's faces it became. `tools`: the same for each tool, in order. Each list sorted: one face if it lives on, several if split, none if deleted. Faces only.],
   [`OpHistory { modified, generated }`], [`modified`: one entry `(operand, face, images)` for each face of `a` (`Operand::A`), then of `b` (`Operand::B`), in index order. `images` are the result's faces it became, sorted: one if it lives on (perhaps trimmed), several if split, none if deleted. `generated` is empty for a Boolean. Faces only.],
 )
+
+== Thread sizes <sec-ref-threads>
+
+#idx("thread")
+`metric_coarse(name)` looks up a size by name, such as `"M6"`: an `M` (small or capital) and the size, with spaces around it ignored. It gives a `MetricThread { nominal, pitch }`, in mm. `designation()` gives its name back, `minor_diameter()` the inside of the thread's ridges (the diameter minus 1.082532 × the pitch, from the ISO basic profile), and `tap_drill_diameter()` the diameter minus the pitch. `METRIC_COARSE` is the whole table, smallest first. Pitches are the ISO metric coarse series (ISO 261).
+
+#ref-table(
+  columns: (1fr, 1fr, 1fr, 1fr, 1fr, 1fr, 1fr, 1fr),
+  header: ("Size", "Pitch", "Minor", "Tap drill", "Size", "Pitch", "Minor", "Tap drill"),
+  [M2], [0.40], [1.57], [1.60], [M6], [1.00], [4.92], [5.00],
+  [M2.5], [0.45], [2.01], [2.05], [M8], [1.25], [6.65], [6.75],
+  [M3], [0.50], [2.46], [2.50], [M10], [1.50], [8.38], [8.50],
+  [M4], [0.70], [3.24], [3.30], [M12], [1.75], [10.11], [10.25],
+  [M5], [0.80], [4.13], [4.20], [M16], [2.00], [13.83], [14.00],
+  [], [], [], [], [M20], [2.50], [17.29], [17.50],
+  [], [], [], [], [M24], [3.00], [20.75], [21.00],
+)
+
+All sizes in mm, as printed by `thread_table` (@sec-hole-tapped). Any other name is an error.
 
 == Profiles, extrude and revolve <sec-ref-extrude>
 

@@ -74,6 +74,12 @@ Every message starts with `swx-qa: `. No picture is written when there is an err
   [`invalid input: a variable fillet needs an edge and a vertex, got Face 0 and Vertex 2`], [The first sub-shape must be an edge, the second a vertex (@sec-fillet-variable).],
   [`invalid input: counterbore diameter 5 must be larger than the hole diameter 6`], [A counterbore's recess must be wider than its hole (@sec-hole-mistakes).],
   [`invalid input: hole depth 4 must be larger than the counterbore depth 6`], [A blind hole must go deeper than its recess. Make it deeper, or go through all.],
+  [`invalid input: countersink diameter 6 must be larger than the hole diameter 6.4`], [A countersink's cone must be wider than its hole (@sec-hole-mistakes).],
+  [`invalid input: countersink angle <v> must be strictly between 0 and π radians`], [The angle across the cone is 0, 180° or more, not a number, or given in degrees. Give radians: `90f64.to_radians()` (@sec-hole-tapped).],
+  [`invalid input: hole depth 2 must be larger than the countersink depth 2.8000000000000003`], [A blind hole must go deeper than its cone. The depth may print with many digits. Make the hole deeper, or go through all.],
+  [`invalid input: no metric coarse thread of size M7 (sizes: M2 to M24)`], [The size isn't in the thread table (@sec-ref-threads). Pick one that is.],
+  [`invalid input: thread designation "6" must be M followed by a size, e.g. "M6"`], [The name is missing its `M`, or isn't a number after it.],
+  [`invalid input: thread pitch 6 must be smaller than the nominal diameter 6`], [A thread typed by hand has a pitch as large as its size. Take sizes from `metric_coarse`.],
   [`invalid input: hole direction must be finite and non-zero, got …`], [The hole's direction is missing or not a number. Point it into the material.],
   [`invalid input: the hole misses the solid: it removes nothing`], [The hole's line misses the part, or points away from it (@sec-hole-mistakes).],
   [`kernel failure: hole failed: the result is not a valid solid`], [The geometry engine made the hole, but the result isn't a sound solid. Try a slightly different position or size.],
@@ -239,7 +245,7 @@ For an unknown entity, `infer` and `add_inferred` give the sketch messages above
 - A shell has one wall thickness for every wall, and needs at least one open face (@ch-shell). A part hollow inside with no opening, or with walls of different thicknesses, can't be made yet.
 - A revolve turns one way from the outline's plane by an angle; it can't yet turn both ways or symmetrically.
 - An extrude's or a revolve's target is a solid you hold in your program. Faces and edges can be counted and numbered (@sec-topology), a plain extrude says which face each piece of the outline became (@sec-extrude-history), and a Boolean what became of each face (@sec-boolean-history), but they can't be picked, and their numbers don't last through a change; so the outline's workplane is given by its numbers (@sec-extrude-modes).
-- Holes have flat bottoms and are simple or counterbored: no drill points, countersinks or threads yet (@ch-hole).
+- Holes have flat bottoms, with no drill points. A tapped hole is drilled at its tap-drill size, but its thread isn't modeled, and only metric coarse sizes from M2 to M24 are built in (@sec-hole-tapped).
 - A draft tilts flat faces by one angle about one neutral plane; it can't split a face or step its neutral line (@ch-draft).
 - A part with several bodies (@sec-bodies) is one shape: its bodies can be counted and taken apart, but not named, moved or kept apart in a part's history.
 - Work planes, axes and points can be taken from a part's faces, edges and corners only by their numbers, not picked; an axis taken from the part may point either way (@sec-work-part).
