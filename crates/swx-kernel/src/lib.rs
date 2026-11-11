@@ -19,6 +19,7 @@ mod hole;
 mod loft;
 mod mesh;
 mod profile;
+mod thread;
 mod topo;
 
 #[cfg(feature = "occt")]
@@ -40,6 +41,7 @@ pub use profile::{
     Axis, Extent, ProfileLoop, Segment2, ThroughDirection, Workplane, LOOP_GAP_TOLERANCE,
     PERPENDICULAR_TOLERANCE, REVOLVE_AXIS_TOLERANCE,
 };
+pub use thread::{metric_coarse, MetricThread, METRIC_COARSE};
 pub use topo::{
     BooleanOp, ChamferSize, CombineHistory, EdgeOnFace, ExtrudeHistory, OpHistory, Operand,
     SubShape, TopoKind,
