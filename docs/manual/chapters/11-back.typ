@@ -24,6 +24,11 @@
     ("Conflicting", [Said of a sketch whose rules contradict each other, so no shape can meet them all.]),
     ("Constraint", [A rule about a sketch's shape, such as "horizontal" or "these points touch".]),
     ("Counterbore", [A wider, flat-bottomed recess at the mouth of a hole, so a screw head sits flush or below the surface.]),
+    ("Countersink", [A cone-shaped recess at the mouth of a hole, so a screw with a cone-shaped head sits flush with the surface.]),
+    ("Pitch", [The distance from one ridge of a screw thread to the next.]),
+    ("Tap drill", [The drill a hole is made with before a thread is cut in it: narrower than the screw, so there is material for the thread.]),
+    ("Tapped hole", [A hole with a screw thread cut inside it, or drilled ready for one.]),
+    ("Thread", [The spiral ridge on a screw, or the matching groove inside a hole. Metric threads are named M and the diameter in mm, such as M6.]),
     ("Cut", [A Boolean operation that removes one solid from another.]),
     ("Degree of freedom (DOF)", [One way a piece of a sketch can still move. A free point has two.]),
     ("Dependency order", [The order formulas are worked out in: each parameter after the parameters its formula uses.]),
@@ -119,6 +124,13 @@
 }
 
 = What's new
+
+== 2026-11-11: countersunk and tapped holes, and a thread table
+
+- *New:* drill a countersunk hole for a flat-head screw, and a tapped hole at the right drill size for a metric screw thread, blind or through all (@sec-hole-tapped).
+- *New:* look up metric coarse thread sizes from M2 to M24 by name, with their pitch, minor diameter and tap drill (@sec-ref-threads).
+- *Pictures:* a plate with a countersunk hole and two tapped holes.
+- Reference: the new hole shapes and the thread table. Help: six new error messages, new common mistakes, and the known limitations updated. Glossary: five new terms, from countersink to thread.
 
 == 2026-11-10: several bodies, midplanes and tangent planes, safer sweeps
 
@@ -264,7 +276,6 @@ These are the next items on the public roadmap. None of them works yet. When one
   header: ("Soon", "What you'll be able to do"),
   [Extrude from a sketch], [Hand a sketch's region straight to the extrude and the revolve.],
   [More part features], [Shells with walls of different thicknesses; fillets, chamfers, shells, holes, drafts, lofts, sweeps and work features kept in a part's history.],
-  [Hole feature v2], [Countersunk and tapped holes, with sizes from a thread table.],
   [Threads], [Model real screw threads, outside on a shaft or inside a hole, along a helix.],
   [Lasting references], [A feature built on a face or an edge keeps finding it when earlier features change.],
   [Part files], [Save a part with its full history, and open it again.],
@@ -331,7 +342,8 @@ Later milestones add assemblies, 2D drawings and exploded views. The full plan i
         [`chamfer_asymmetric`], [bevel by 2 sizes],
         [`shell`], [hollow, open at faces],
         [`fillet_variable`], [round, 2 radii],
-        [`hole`], [simple or counterbore],
+        [`hole`], [drill any kind of hole],
+        [`metric_coarse`], [thread size by name],
         [`draft`], [tilt faces for a mold],
         [`loft` · `sweep`], [blend / follow a path],
         [`offset` · `midplane`], [work planes],

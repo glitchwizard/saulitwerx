@@ -89,6 +89,13 @@ name = "hole_plate"
 required-features = ["occt"]
 
 [[example]]
+name = "hole_screw"
+required-features = ["occt"]
+
+[[example]]
+name = "thread_table"
+
+[[example]]
 name = "tilted_post"
 required-features = ["occt"]
 
