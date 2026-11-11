@@ -1,0 +1,18 @@
+[package]
+name = "swx-io"
+version = "0.0.1"
+description = "Saulitwerx file I/O: the native .sltwx family (manifest.json and the canonical JSON writer)."
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+# No `derive` feature: it pulls in `unicode-ident` (Unicode-3.0), which is not
+# on the ARCHITECTURE.md allowed-license list.
+serde = "1"
+serde_json = "1"
+
+[lints]
+workspace = true

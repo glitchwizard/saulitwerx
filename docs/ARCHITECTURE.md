@@ -62,6 +62,15 @@ Dependency direction: `app → render, io → kernel, sketch → core`. `core` a
 | `cfg-if` 1.x | MIT OR Apache-2.0 | swx-qa | Transitive (via `crc32fast`). |
 | Typst 0.15.1 (release binary, SHA-256 pinned) | Apache-2.0 | docs/manual (build tool) | Typesets the user manual; fetched by `docs/manual/build.sh`, not vendored. |
 | Inter 4.0 font (Regular, Italic, SemiBold, Bold) | OFL-1.1 | docs/manual | Headings and labels; files and license in `docs/manual/fonts/`. |
+| `serde` 1.x | MIT OR Apache-2.0 | swx-io | Serialization traits; without the `derive` feature. |
+| `serde_core` 1.x | MIT OR Apache-2.0 | swx-io | Transitive (via `serde`). |
+| `serde_json` 1.x | MIT OR Apache-2.0 | swx-io | JSON parsing and values for `.sltwx` files. |
+| `itoa` 1.x | MIT OR Apache-2.0 | swx-io | Transitive (via `serde_json`). |
+| `memchr` 2.x | Unlicense OR MIT (used under MIT) | swx-io | Transitive (via `serde_json`). |
+| `zmij` 1.x | MIT | swx-io | Transitive (via `serde_json`). |
+| `serde_derive` 1.x | MIT OR Apache-2.0 | none (Cargo.lock only) | Optional dependency of `serde`, recorded in `Cargo.lock` but not built: the `derive` feature is off. |
+| `syn` 3.x, `quote` 1.x, `proc-macro2` 1.x | MIT OR Apache-2.0 | none (Cargo.lock only) | Transitive (via `serde_derive`); not built. |
+| `unicode-ident` 1.x | (MIT OR Apache-2.0) AND Unicode-3.0 | none (Cargo.lock only) | Transitive (via `proc-macro2`); not built. Unicode-3.0 is not on the allowed list, which is why `swx-io` leaves `serde`'s `derive` feature off. |
 
 ## ADR log
 
@@ -71,3 +80,4 @@ Dependency direction: `app → render, io → kernel, sketch → core`. `core` a
 - 2026-10-18 (QA-01): new crate `swx-qa` (binary `swx-qa`, `publish = false`): headless CPU renderer for QA evidence. Depends only on `swx-kernel` among workspace crates (feature `occt` forwards to `swx-kernel/occt` for STEP input); pure-Rust PNG output via `png`, no GPU or system graphics libraries.
 - 2026-10-23 (QA-02): `swx-qa` gains a path dependency on `swx-sketch` (both workspace crates; `swx-sketch` stays kernel-free) for `swx-qa sketch`, which plots solved sketches to PNG. No new third-party dependencies: dimension text uses a small bitmap font written in `swx-qa`.
 - 2026-10-27 (M2-07b): `swx-sketch` gains a path dependency on `swx-core` (`sketch → core`, allowed direction; neither depends on `swx-kernel`) so sketch dimensions can be bound to the document parameter table (`swx_sketch::params`). No new third-party dependencies.
+- 2026-11-11 (M4-01a): new crate `swx-io` (`publish = false`) for the `.sltwx` family, starting with `manifest.json` and the canonical JSON writer. No workspace dependencies. Third-party: `serde` (without `derive`) and `serde_json`, so the manifest is built as a `serde_json::Value` by hand rather than derived.
