@@ -55,6 +55,7 @@
 #include "chapters/06g-work.typ"
 #include "chapters/07-pictures.typ"
 #include "chapters/08-history.typ"
+#include "chapters/08a-files.typ"
 
 #part("Reference", [Every command, option, operation and setting that exists today, with its default and its allowed values.])
 #include "chapters/09-reference.typ"

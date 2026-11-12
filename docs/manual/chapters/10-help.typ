@@ -75,8 +75,8 @@ Every message starts with `swx-qa: `. No picture is written when there is an err
   [`invalid input: counterbore diameter 5 must be larger than the hole diameter 6`], [A counterbore's recess must be wider than its hole (@sec-hole-mistakes).],
   [`invalid input: hole depth 4 must be larger than the counterbore depth 6`], [A blind hole must go deeper than its recess. Make it deeper, or go through all.],
   [`invalid input: countersink diameter 6 must be larger than the hole diameter 6.4`], [A countersink's cone must be wider than its hole (@sec-hole-mistakes).],
-  [`invalid input: countersink angle <v> must be strictly between 0 and π radians`], [The angle across the cone is 0, 180° or more, not a number, or given in degrees. Give radians: `90f64.to_radians()` (@sec-hole-tapped).],
-  [`invalid input: hole depth 2 must be larger than the countersink depth 2.8000000000000003`], [A blind hole must go deeper than its cone. The depth may print with many digits. Make the hole deeper, or go through all.],
+  [`invalid input: countersink angle <v> (<d>°) must be strictly between 0 and π radians`], [The angle across the cone is 0, 180° or more, not a number, or given in degrees. `<d>` is your angle in degrees. Give radians: `90f64.to_radians()` (@sec-hole-tapped).],
+  [`invalid input: hole depth 2 must be larger than the countersink depth 2.8`], [A blind hole must go deeper than its cone. The cone depth is rounded to 6 decimal places. Make the hole deeper, or go through all.],
   [`invalid input: no metric coarse thread of size M7 (sizes: M2 to M24)`], [The size isn't in the thread table (@sec-ref-threads). Pick one that is.],
   [`invalid input: thread designation "6" must be M followed by a size, e.g. "M6"`], [The name is missing its `M`, or isn't a number after it.],
   [`invalid input: thread pitch 6 must be smaller than the nominal diameter 6`], [A thread typed by hand has a pitch as large as its size. Take sizes from `metric_coarse`.],
@@ -97,6 +97,12 @@ Every message starts with `swx-qa: `. No picture is written when there is an err
   [`invalid input: sweep profile is not a single planar face`, `sweep profile has a hole; profiles with holes are not supported`], [The profile is a solid, or has a hole. Pass one face from `make_face`; for a tube, cut an inner sweep from an outer one.],
   [`invalid input: sweep path: arc segment 1 has radius 4, not larger than the profile's distance 5.000000232604544 from the path's start; the swept solid would pass through itself`], [A bend of the path is tighter than the profile is wide: the inside of the part would fold through itself. Make the bend's radius larger than the distance shown, or the profile smaller (@sec-sweep-mistakes).],
   [`empty result: the sweep encloses no volume`], [The path runs along the profile's own plane, so the profile sweeps out nothing. Draw the path on a plane that crosses the profile's.],
+  [`invalid input: helix pitch must be finite and > 0, got 0`, `helix turns must be finite and > 0, got …`], [A helical sweep was given a pitch or a number of turns of 0 or less, or not a number (@sec-helix).],
+  [`invalid input: helix axis direction must be non-zero`, `helix axis direction must be finite, got …`, `helix axis origin must be finite, got …`], [The helix axis has no direction (all zeros), or a value that isn't a number.],
+  [`invalid input: helix axis (origin …, direction …) is not in the profile's plane (through …, normal …)`], [The axis must lie in the profile's plane. Draw the profile on a plane that holds the axis (@sec-sweep-mistakes).],
+  [`invalid input: the profile crosses the helix axis: its distance from the axis spans [-1, 1]`, `the profile touches the helix axis: …`], [The profile isn't wholly on one side of the axis. Move it away from the axis.],
+  [`invalid input: the profile's extent along the helix axis (2) must be less than the pitch (1.5), or neighboring turns overlap`], [The profile is as tall as the pitch or taller, along the axis, so each turn would run into the next. Raise the pitch.],
+  [`invalid input: helical sweep profile is not a single planar face`, `helical sweep profile has a hole; profiles with holes are not supported`], [Pass one flat face without holes from `make_face`.],
   [`invalid input: work_axis_on needs an edge or a face, got a vertex`], [A work axis was asked of a corner. Give a straight edge or a round face (@sec-work-part).],
   [`invalid input: Edge 13 is not a straight edge or a cylindrical face` (or `Face …`)], [The edge is curved, or the face isn't round like a cylinder, so it has no single line.],
   [`invalid input: vertex_point needs a vertex, got a Edge sub-shape` (or `Face`)], [A work point was asked of an edge or a face. Give a vertex.],
@@ -224,13 +230,32 @@ For an unknown entity, `infer` and `add_inferred` give the sketch messages above
   [`solve did not converge (residual r)`], [From `add_inferred` only. The suggested constraints were added, but couldn't all be met. Check the degrees of freedom for a conflict (@sec-check-dof). A constraint can't be removed yet, so build the sketch again and add only the suggestions you want (@sec-infer).],
 )
 
+#block(breakable: false)[
+=== From document files
+
+`swx-io` messages have no prefix (@ch-files). Fields are named by their path, such as `units.length`.
+
+#ref-table(
+  columns: (1fr, 1fr),
+  header: ("Message", "Meaning and fix"),
+  [`invalid JSON: model.json: expected value at line 1 column 17`], [The file isn't valid JSON. The message names the file (not for `read_manifest` alone) and where reading stopped.],
+  [#raw("missing required field `units.length`")], [A required manifest field is missing (@sec-ref-files).],
+  [#raw("invalid field `kind`: must be \"part\", \"assembly\" or \"drawing\", got \"widget\"")], [A manifest field has a value that isn't allowed, or the wrong type. The reason names what is allowed. The same form covers `format`, `format_version`, `document_id`, `model_hash` and `units`.],
+  [#raw("invalid field `model.json`: must be a JSON object")], [The model or the properties isn't a JSON object (also `properties.json`, and `manifest` for a manifest that isn't an object).],
+  [`unsupported format_version "1.0.0": only major version 0 is supported`], [The document comes from a newer major version. Use a newer Saulitwerx.],
+  [#raw("missing required file `model.json`")], [The folder has no `model.json` or no `manifest.json` (@sec-files-mistakes).],
+  [#raw("folder extension `.sltwxa` does not match the manifest kind `part` (expected `.sltwx`)"), #raw("folder has no extension; the manifest kind `part` needs `.sltwx`")], [Name the folder for its kind: `.sltwx` for a part, `.sltwxa` for an assembly, `.sltwxd` for a drawing.],
+  [`files/missing.sltwx: No such file or directory (os error 2)`, `…: not a directory`], [The folder or a file can't be read, written or removed. The message starts with the path and ends with the system's reason.],
+)
+]
+
 == Questions
 
 *Is there a version with windows and buttons?* Not yet. The desktop app is a later milestone; see *Coming next*.
 
 *Can I open files from other CAD programs?* Yes, if you save them as STEP first. Saulitwerx doesn't read any program's own native file format, and won't.
 
-*Can I save my design and edit it later?* Not yet. Today you can save solids as STEP, which keeps the shape but not the history. Saulitwerx part files come later.
+*Can I save my design and edit it later?* Not yet. Today you can save solids as STEP, which keeps the shape but not the history. Saulitwerx can write and read its own document folders (@ch-files), but can't yet store a part's history in them or rebuild a part from one.
 
 *Does it cost anything?* No. Saulitwerx is free and open source, under the MIT or Apache-2.0 license, at your choice.
 
@@ -250,9 +275,9 @@ For an unknown entity, `infer` and `add_inferred` give the sketch messages above
 - A part with several bodies (@sec-bodies) is one shape: its bodies can be counted and taken apart, but not named, moved or kept apart in a part's history.
 - Work planes, axes and points can be taken from a part's faces, edges and corners only by their numbers, not picked; an axis taken from the part may point either way (@sec-work-part).
 - A loft goes through flat sections without holes, in the order given, with no guide curves and no control over how the sections line up (@ch-loft).
-- A sweep moves one flat profile without holes along an open path of lines and arcs in one plane: no closed, 3D or spline paths, no twist or change of size. A bend must be wider than the profile: the check uses the profile's farthest point from the path's start, so it can refuse a bend that would just fit on the profile's narrow side (@ch-sweep).
+- A sweep moves one flat profile without holes along an open path of lines and arcs in one plane, or around a helix of one radius and one pitch: no closed, spline or other 3D paths, no twist or change of size. A bend must be wider than the profile: the check uses the profile's farthest point from the path's start, so it can refuse a bend that would just fit on the profile's narrow side (@ch-sweep).
 - Extrudes, revolves, lofts, sweeps, fillets, chamfers, shells, holes, drafts and work features aren't recorded in a part's history, so they don't rebuild when a parameter changes.
-- No native part files; work can't be saved with its history.
+- Document files exist only in the unpacked (folder) form, and `model.json` isn't yet filled from a part or read back into one, so work can't be saved with its history (@ch-files). There is no single-file form and no `sltwx` command yet.
 - `swx-qa sketch` draws only its two built-in sketches. Your own sketches need a short program (@sec-picture-sketch). Sketch pictures show no dimension arrows and no marks for constraints such as horizontal.
 - A parameter's unit is free text. Only the seven units of @sec-ref-expr are understood by formulas; any other unit counts as none.
 - When a new value breaks a formula that depends on it, the formula keeps its old value without an error (@sec-param-formulas).

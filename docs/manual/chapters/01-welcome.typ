@@ -35,10 +35,11 @@ Saulitwerx is built in small, tested steps, in the order of a public plan (the _
   [Shell], [Hollow a solid into walls of one thickness, open at the faces you choose.], [#now],
   [Holes], [Drill simple, counterbored, countersunk and tapped holes, blind or through all, in any direction.], [#now],
   [Draft], [Tilt the sides of a part so it comes out of a mold.], [#now],
-  [Loft, sweep], [Blend a solid through several outlines, such as a square into a circle; move an outline along a bent path, such as a rod with an elbow.], [#now],
+  [Loft, sweep], [Blend a solid through several outlines, such as a square into a circle; move an outline along a bent path, such as a rod with an elbow, or around a helix, such as a coil spring.], [#now],
   [Work features], [Build work planes, axes and points to place features on, from numbers, halfway between two planes, or from a part's faces, edges and corners.], [#now],
+  [Document files], [Write and read Saulitwerx document folders and check their manifest; the design itself can't be stored in them yet.], [#now],
   [Desktop app], [Windows, menus, a 3D view and mouse control.], [#later],
-  [Part files], [Saving your design with its full history in a Saulitwerx part file.], [#later],
+  [Part files], [Saving your design with its full history in a Saulitwerx part file, and opening it again.], [#later],
   [Features], [Extrude and revolve driven by sketches and recorded in the history; modeled screw threads, and more.], [#later],
   [Assemblies, drawings], [Putting parts together, and making 2D shop drawings.], [#later],
 )
