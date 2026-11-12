@@ -13,6 +13,9 @@ issues_per_night: 4
 
 ## Log
 
+- 2026-11-12 reviewer: merged #204 (M4-01c) (CI green, 3 checks; QA report + ship report verified, nothing visual; no local run, CI covers it) and #205 (MB-03a) (CI green, 3 checks; QA report + ship report + 2 images verified; no local run, independent of #204 and CI covers the occt job); no roadmap check-off (M4-01 needs #202, MB-03 needs the thread slices); planned #206 M4-04a, #207 M4-05a (both depend on #202; ready: #194, #202, #206, #207; #194, #202 unblocked and independent); merged branches not deleted (not tried); no retro (not a Monday night)
+- 2026-11-12 builder: #190 MB-03a → PR #205 (4e5a7bc; CI green, 3 checks; think-and-ship gates verified, 1 shell-syntax record re-run; QA pass)
+- 2026-11-12 builder: #199 M4-01c → PR #204 (03eb55e; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
 - 2026-11-12 reviewer: merged #200 (M3-12d) (CI green, 3 checks; QA report + ship report verified, nothing visual; no local run, CI covers the occt job) and #201 (M4-01b) (CI green, 3 checks; QA report + ship report verified, nothing visual; local fmt + swx-io clippy + 27 swx-io tests on main+#201 after #200); no roadmap check-off (M3-12 already checked; M4-01 needs the ZIP container); planned #202 M4-01d (depends on #199; ready: #190, #194, #199, #202; #190, #194 unblocked and independent); merged branches not deleted (not retried); no retro (not a Monday night)
 - 2026-11-12 builder: #189 M4-01b → PR #201 (051e01f; CI green, 3 checks; think-and-ship gates verified; QA pass)
 - 2026-11-12 builder: #197 M3-12d → PR #200 (e189fa8; CI green, 3 checks; think-and-ship gates verified, 1 shell-syntax record re-run; QA pass)
@@ -40,6 +43,3 @@ issues_per_night: 4
 - 2026-11-08 documenter: M3-05c + M3-06b + M3-06c + M3-08a → PR #165 merged (CI green, 3 checks; 128 pages; no feedback; no issues opened)
 - 2026-11-08 reviewer: merged #160 (M3-06c) (CI green, 3 checks; QA report + ship report + 2 images verified; no local run) and #161 (M3-08a) (CI green, 3 checks; QA report + ship report verified, nothing visual; local occt clippy + 156 swx-kernel tests on main+#161 after #160); checked off M3-06; planned #162 M3-12a, #163 M3-12b (ready: #154, #158, #162, #163, all unblocked and independent); merged branches not deleted (not retried); no retro (not a Monday night)
 - 2026-11-08 builder: #144 M3-08a → PR #161 (59eb655; CI green, 3 checks; think-and-ship gates verified; QA pass)
-- 2026-11-08 builder: #143 M3-06c → PR #160 (69d08a1; CI green, 3 checks; think-and-ship gates verified, 1 shell-syntax record re-run; QA pass with gaps)
-- 2026-11-08 reviewer: merged #150 (M3-05c) (CI green, 3 checks; QA report r3 + ship report r3 verified, nothing visual; no local run) and #157 (M3-06b) (CI green, 3 checks; QA report + ship report + 2 images verified; local occt clippy + 139 tests on main+#157 after #150); no roadmap check-off (M3-05 needs referenced edges, M3-06 needs #143); planned #158 M3-11b (ready: #143, #144, #154, #158, all unblocked and independent); merged branches not deleted (not retried); no retro (not a Monday night)
-- 2026-11-08 builder: #132 M3-06b → PR #157 (c3fd548; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
