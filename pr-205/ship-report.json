@@ -1,0 +1,118 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(kernel): helical sweep of a planar profile about an axis",
+      "ref": "4e5a7bc",
+      "task_id": "mb-03a-gates",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "mb-03a-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "passed": true,
+      "required": true,
+      "task_id": "mb-03a-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": false,
+      "required": true,
+      "task_id": "mb-03a-gates",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "required": true,
+      "task_id": "mb-03a-gates",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "clippy swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "mb-03a-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "test swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "mb-03a-gates",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "clippy swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "mb-03a-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "test swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "mb-03a-gates",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "New documented trait method `Kernel::helical_sweep(&self, profile: &Self::Shape, axis: Axis, pitch: f64, turns: f64) -> Result<Self::Shape, KernelError>`. The helix is right-handed about `axis.dir` (counterclockwise seen from the tip of `axis.dir`) and advances `pitch` along `axis.dir` per turn; it starts at the profile's position. The doc comment cites the OCCT reference documentation of the calls used and the Pappus–Guldin volume rule.",
+      "`OcctKernel` implements it. Any new shim function is `noexcept` and catches C++ exceptions; every new `unsafe` block is in `ffi` and documented; the result must pass `BRepCheck_Analyzer` and be one solid, or it is an error.",
+      "Tests (behind `occt`), axis origin (0, 0, 0), dir (0, 0, 1), profiles on the XZ plane (`Workplane` with `x_dir` (1, 0, 0), normal (0, −1, 0)), volumes within a relative 1e-3, boxes within 1e-2: rectangle x ∈ [5, 6], z ∈ [0, 0.5], pitch 2, 3 turns: volume 16.5π ≈ 51.8363; one solid; bounding box z from 0 to 6.5, x and y within [−6, 6]; 6 faces (4 helical sides and 2 end faces). triangle (5, 0), (6, 0.5), (5, 1), pitch 1.5, 2 turns: volume 32π/3 ≈ 33.5103. handedness: the rectangle with 0.25 turns has a bounding box with x ≥ −1e-2, y ≥ −1e-2, y max ≈ 6 and z max ≈ 1.0. the input profile is unchanged (still one face, same area).",
+      "Errors, each with a test and never a panic, all `InvalidInput` checked before the sweep (kernel-free tests without `occt` where possible): `pitch` or `turns` zero, negative or not finite; a zero-length or non-finite `axis.dir`; a profile that is not a single planar face, or has a hole; a profile whose plane does not contain the axis (within `PERPENDICULAR_TOLERANCE` / `LOOP_GAP_TOLERANCE`); a profile that touches or crosses the axis; a profile whose extent along the axis is ≥ `pitch` (the turns would overlap).",
+      "No new dependencies; `swx-kernel` still has no workspace dependencies.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and so do the CI `swx-kernel (occt)` job commands.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-12T10:31:48.711635891+00:00",
+    "constraints": [],
+    "created_at": "2026-11-12T10:30:58.260605568+00:00",
+    "description": "MB-03a: Kernel helical sweep of a profile about an axis (constant pitch)",
+    "project_id": "saulitwerx",
+    "scope": "crates/swx-kernel (PR #205)",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 8,
+      "estimate": "small",
+      "id": "mb-03a-gates",
+      "status": "completed",
+      "title": "Verify gates for PR #205 (MB-03a)",
+      "type": "test"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
