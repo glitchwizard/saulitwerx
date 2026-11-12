@@ -3,6 +3,7 @@
 
 use std::collections::BTreeMap;
 
+use serde::Serialize;
 use serde_json::{Map, Value};
 
 use crate::{to_canonical_json, FormatError};
@@ -14,7 +15,8 @@ const FORMAT: &str = "sltwx";
 const SUPPORTED_MAJOR: u64 = 0;
 
 /// Which kind of document the container holds.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum DocumentKind {
     /// A part (`.sltwx`), written `"part"`.
     Part,
@@ -25,7 +27,7 @@ pub enum DocumentKind {
 }
 
 /// The document's units, by unit name (e.g. `"mm"`, `"deg"`, `"kg"`).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Units {
     /// Length unit.
     pub length: String,
@@ -34,6 +36,7 @@ pub struct Units {
     /// Mass unit.
     pub mass: String,
     /// Fields this reader does not know, kept and written back unchanged.
+    #[serde(flatten)]
     pub extra: BTreeMap<String, Value>,
 }
 
@@ -43,7 +46,7 @@ pub struct Units {
 /// are kept in `extra` and written back unchanged, so a file from a newer
 /// minor version round-trips without data loss (FILE_FORMAT.md,
 /// "Versioning").
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Manifest {
     /// Always `"sltwx"`.
     pub format: String,
@@ -61,8 +64,10 @@ pub struct Manifest {
     pub saved_by: String,
     /// `sha256:` plus 64 lowercase hex digits: the hash of the canonical
     /// `model.json`. `None` is written by omitting the field.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub model_hash: Option<String>,
     /// Fields this reader does not know, kept and written back unchanged.
+    #[serde(flatten)]
     pub extra: BTreeMap<String, Value>,
 }
 
@@ -149,25 +154,11 @@ pub fn read_manifest(json: &str) -> Result<Manifest, FormatError> {
 }
 
 /// Writes `m` as canonical JSON ([`to_canonical_json`]), extra fields
-/// included.
+/// included. The JSON shape comes from the derived `Serialize`: `kind` in
+/// lowercase, `extra` flattened into its object, and `model_hash` omitted
+/// when `None`.
 pub fn write_manifest(m: &Manifest) -> String {
-    let s = |v: &str| Value::String(v.to_string());
-    let mut units: Map<String, Value> = m.units.extra.clone().into_iter().collect();
-    units.insert("length".into(), s(&m.units.length));
-    units.insert("angle".into(), s(&m.units.angle));
-    units.insert("mass".into(), s(&m.units.mass));
-    let mut top: Map<String, Value> = m.extra.clone().into_iter().collect();
-    top.insert("format".into(), s(&m.format));
-    top.insert("format_version".into(), s(&m.format_version));
-    top.insert("kind".into(), s(m.kind.as_str()));
-    top.insert("document_id".into(), s(&m.document_id));
-    top.insert("units".into(), Value::Object(units));
-    top.insert("created_by".into(), s(&m.created_by));
-    top.insert("saved_by".into(), s(&m.saved_by));
-    if let Some(h) = &m.model_hash {
-        top.insert("model_hash".into(), s(h));
-    }
-    to_canonical_json(&Value::Object(top))
+    to_canonical_json(m)
 }
 
 impl DocumentKind {
@@ -474,6 +465,24 @@ mod tests {
         let mut v = golden_value();
         v["units"]["angle"] = serde_json::json!(null);
         assert_eq!(invalid_field(&v.to_string()), "units.angle");
+    }
+
+    #[test]
+    fn derived_serialize_matches_the_format() {
+        for kind in [
+            DocumentKind::Part,
+            DocumentKind::Assembly,
+            DocumentKind::Drawing,
+        ] {
+            assert_eq!(serde_json::to_value(kind).unwrap(), kind.as_str());
+        }
+        let mut m = read_manifest(GOLDEN).unwrap();
+        m.model_hash = None;
+        m.units.extra.insert("temperature".into(), "K".into());
+        let v = serde_json::to_value(&m).unwrap();
+        assert!(v.get("model_hash").is_none());
+        assert!(v.get("extra").is_none() && v["units"].get("extra").is_none());
+        assert_eq!(v["units"]["temperature"], "K");
     }
 
     #[test]
