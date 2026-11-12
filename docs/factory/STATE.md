@@ -13,6 +13,10 @@ issues_per_night: 4
 
 ## Log
 
+- 2026-11-12 reviewer: merged #200 (M3-12d) (CI green, 3 checks; QA report + ship report verified, nothing visual; no local run, CI covers the occt job) and #201 (M4-01b) (CI green, 3 checks; QA report + ship report verified, nothing visual; local fmt + swx-io clippy + 27 swx-io tests on main+#201 after #200); no roadmap check-off (M3-12 already checked; M4-01 needs the ZIP container); planned #202 M4-01d (depends on #199; ready: #190, #194, #199, #202; #190, #194 unblocked and independent); merged branches not deleted (not retried); no retro (not a Monday night)
+- 2026-11-12 builder: #189 M4-01b → PR #201 (051e01f; CI green, 3 checks; think-and-ship gates verified; QA pass)
+- 2026-11-12 builder: #197 M3-12d → PR #200 (e189fa8; CI green, 3 checks; think-and-ship gates verified, 1 shell-syntax record re-run; QA pass)
+- 2026-11-11 documenter: M3-12a + M3-12b + M3-12c → PR #196 merged (CI green, 3 checks; 153 pages; no feedback; opened #197)
 - 2026-11-11 reviewer: merged #192 (M3-12c) (CI green, 3 checks; QA report + ship report + 1 image verified; no local run, CI covers the occt job); #193 (M4-01a) not merged, labeled needs-human with #184 (Unicode-3.0 license of the unbuilt `unicode-ident` in Cargo.lock and its register row; owner decides); checked off M3-12; planned #194 MB-03b (ready: #189, #190, #194; #190, #194 unblocked and independent; #189 waits on #184; M3-01/04/05/07 wait on the #106 swx-model ADR); merged branch not deleted (not retried); no retro (not a Monday night)
 - 2026-11-11 builder: #184 M4-01a → PR #193 (b722eb1; CI green, 3 checks; think-and-ship gates verified, 1 shell-syntax record re-run; QA pass with gaps)
 - 2026-11-11 builder: #183 M3-12c → PR #192 (d9a49e7; CI green, 3 checks; think-and-ship gates verified; QA pass)
@@ -39,7 +43,3 @@ issues_per_night: 4
 - 2026-11-08 builder: #143 M3-06c → PR #160 (69d08a1; CI green, 3 checks; think-and-ship gates verified, 1 shell-syntax record re-run; QA pass with gaps)
 - 2026-11-08 reviewer: merged #150 (M3-05c) (CI green, 3 checks; QA report r3 + ship report r3 verified, nothing visual; no local run) and #157 (M3-06b) (CI green, 3 checks; QA report + ship report + 2 images verified; local occt clippy + 139 tests on main+#157 after #150); no roadmap check-off (M3-05 needs referenced edges, M3-06 needs #143); planned #158 M3-11b (ready: #143, #144, #154, #158, all unblocked and independent); merged branches not deleted (not retried); no retro (not a Monday night)
 - 2026-11-08 builder: #132 M3-06b → PR #157 (c3fd548; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
-- 2026-11-08 builder: #147 M3-05c → PR #150 (a4b3b83, main merged; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
-- 2026-11-07 documenter: M3-06a + M3-09a → PR #156 merged (CI green, 3 checks; 113 pages; no feedback; no issues opened)
-- 2026-11-07 reviewer: merged #153 (M3-09a) (CI green, 3 checks; QA report + ship report verified, nothing visual; no local run); checked off M3-09; sent back #150 (M3-05c: intermittent failure of fillet_variable_too_large_is_an_error_and_keeps_the_input on the input-still-usable call, criterion 4 unchecked); planned #154 M3-11a (ready: #132, #143, #144, #154, all unblocked and independent); merged branch not deleted (not retried); no retro (not a Monday night)
-- 2026-11-07 builder: #151 M3-09a → PR #153 (2b44946; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
