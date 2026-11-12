@@ -155,8 +155,9 @@ pub(crate) fn prepare_hole(
             validate_size("hole diameter", diameter)?;
             validate_size("countersink diameter", csk_diameter)?;
             if !csk_angle.is_finite() || csk_angle <= 0.0 || csk_angle >= std::f64::consts::PI {
+                let degrees = rounded_for_message(csk_angle.to_degrees());
                 return Err(KernelError::InvalidInput(format!(
-                    "countersink angle {csk_angle} must be strictly between 0 and π radians"
+                    "countersink angle {csk_angle} ({degrees}°) must be strictly between 0 and π radians"
                 )));
             }
             if csk_diameter <= diameter {
@@ -167,8 +168,9 @@ pub(crate) fn prepare_hole(
             let cone_depth = (csk_diameter - diameter) / 2.0 / (csk_angle / 2.0).tan();
             if let Some(d) = blind {
                 if d <= cone_depth {
+                    let shown = rounded_for_message(cone_depth);
                     return Err(KernelError::InvalidInput(format!(
-                        "hole depth {d} must be larger than the countersink depth {cone_depth}"
+                        "hole depth {d} must be larger than the countersink depth {shown}"
                     )));
                 }
             }
@@ -212,6 +214,19 @@ pub(crate) fn prepare_hole(
         cylinders,
         cone,
     })
+}
+
+/// A computed value rounded to 6 decimal places for an error message, so
+/// floating-point noise (`2.8000000000000003`) doesn't reach the user.
+/// Values too large to scale, and non-finite ones, are returned unchanged.
+#[cfg_attr(not(feature = "occt"), allow(dead_code))]
+fn rounded_for_message(v: f64) -> f64 {
+    let r = (v * 1e6).round() / 1e6;
+    if r.is_finite() {
+        r
+    } else {
+        v
+    }
 }
 
 /// A unit vector perpendicular to the unit vector `n`: `n` crossed with the
@@ -376,6 +391,48 @@ mod tests {
         assert_invalid(DOWN, csk(6.0, 12.0, RIGHT), HoleDepth::Blind(3.0));
         assert_invalid(DOWN, csk(6.0, 12.0, RIGHT), HoleDepth::Blind(2.0));
         assert!(prepare_hole(DOWN, csk(6.0, 12.0, RIGHT), HoleDepth::Blind(3.5)).is_ok());
+    }
+
+    fn invalid_message(kind: HoleKind, depth: HoleDepth) -> String {
+        match prepare_hole(DOWN, kind, depth) {
+            Err(KernelError::InvalidInput(m)) => m,
+            other => panic!("expected InvalidInput, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn countersink_depth_message_has_no_float_noise() {
+        // (12 − 6.4) / 2 / tan(45°) is 2.8000000000000003 in f64.
+        let m = invalid_message(csk(6.4, 12.0, RIGHT), HoleDepth::Blind(2.0));
+        assert_eq!(
+            m,
+            "hole depth 2 must be larger than the countersink depth 2.8"
+        );
+        // The typed depth is shown as given.
+        let m = invalid_message(csk(6.4, 12.0, RIGHT), HoleDepth::Blind(2.125));
+        assert!(m.starts_with("hole depth 2.125 must"), "{m}");
+    }
+
+    #[test]
+    fn countersink_angle_message_gives_degrees() {
+        let m = invalid_message(csk(6.0, 12.0, std::f64::consts::PI), HoleDepth::ThroughAll);
+        assert_eq!(
+            m,
+            "countersink angle 3.141592653589793 (180°) must be strictly between 0 and π radians"
+        );
+        let m = invalid_message(csk(6.0, 12.0, -RIGHT), HoleDepth::ThroughAll);
+        assert!(
+            m.starts_with("countersink angle -1.5707963267948966 (-90°) must"),
+            "{m}"
+        );
+    }
+
+    #[test]
+    fn rounded_for_message_trims_noise_only() {
+        assert_eq!(rounded_for_message(2.8000000000000003), 2.8);
+        assert_eq!(rounded_for_message(3.0 * 3f64.sqrt()), 5.196152);
+        assert_eq!(rounded_for_message(f64::MAX), f64::MAX);
+        assert!(rounded_for_message(f64::NAN).is_nan());
     }
 
     fn tapped(nominal: f64, pitch: f64) -> HoleKind {
