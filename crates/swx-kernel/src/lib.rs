@@ -15,6 +15,7 @@ use std::path::Path;
 
 mod datum;
 mod feature;
+mod helix;
 mod hole;
 mod loft;
 mod mesh;
@@ -190,6 +191,43 @@ pub trait Kernel {
         profile: &Self::Shape,
         plane: &Workplane,
         path: &[Segment2],
+    ) -> Result<Self::Shape, KernelError>;
+    /// Solid swept by moving the planar `profile` face along a
+    /// constant-pitch helix about `axis`, with the profile staying in the
+    /// rotating plane through the axis (a screw motion).
+    ///
+    /// The helix is right-handed about `axis.dir` (counterclockwise seen from
+    /// the tip of `axis.dir`), advances `pitch` along `axis.dir` per turn and
+    /// makes `turns` turns; it starts at the profile's position, so the
+    /// profile is the start face. `axis.dir` is normalized first. With no
+    /// self-overlap, the volume is `turns · 2π · r_c · A` (A = the profile's
+    /// area, r_c = its centroid's distance from the axis), independent of the
+    /// pitch: the axial part of the motion lies in the profile's plane and
+    /// sweeps no volume (Pappus–Guldin centroid theorem; e.g. Weisstein,
+    /// "Pappus's Centroid Theorem", MathWorld). Method: OCCT reference
+    /// documentation, `Geom_CylindricalSurface`, `Geom2d_Line` and
+    /// `BRepBuilderAPI_MakeEdge` (the helix as a line on the cylinder's
+    /// parameter plane), `BRepLib::BuildCurves3d`, and
+    /// `BRepOffsetAPI_MakePipeShell` with `SetMode(gp_Dir)` (fixed binormal =
+    /// the axis), then `MakeSolid`.
+    ///
+    /// It is [`KernelError::InvalidInput`], checked before the sweep, when
+    /// `pitch` or `turns` is not finite or ≤ 0; when the axis origin is not
+    /// finite or its direction is zero or not finite; when `profile` is not a
+    /// single planar face, or has a hole; when the axis is not in the
+    /// profile's plane (within [`PERPENDICULAR_TOLERANCE`] for the direction
+    /// and [`LOOP_GAP_TOLERANCE`] for the origin); when the profile touches
+    /// or crosses the axis (within `LOOP_GAP_TOLERANCE`); or when the
+    /// profile's extent along the axis is ≥ `pitch` (the turns would
+    /// overlap). A sweep the backend can't build, or a result that is not
+    /// exactly one solid valid under OCCT's `BRepCheck_Analyzer`, is an
+    /// error. `profile` is unchanged either way.
+    fn helical_sweep(
+        &self,
+        profile: &Self::Shape,
+        axis: Axis,
+        pitch: f64,
+        turns: f64,
     ) -> Result<Self::Shape, KernelError>;
 
     /// Rounds `edges` of `s` with a constant-radius fillet.

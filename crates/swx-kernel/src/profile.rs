@@ -364,7 +364,7 @@ fn invalid(msg: String) -> KernelError {
     KernelError::InvalidInput(msg)
 }
 
-fn finite(name: &str, values: &[f64]) -> Result<(), KernelError> {
+pub(crate) fn finite(name: &str, values: &[f64]) -> Result<(), KernelError> {
     if values.iter().all(|v| v.is_finite()) {
         Ok(())
     } else {
@@ -372,7 +372,7 @@ fn finite(name: &str, values: &[f64]) -> Result<(), KernelError> {
     }
 }
 
-fn normalized(name: &str, v: [f64; 3]) -> Result<[f64; 3], KernelError> {
+pub(crate) fn normalized(name: &str, v: [f64; 3]) -> Result<[f64; 3], KernelError> {
     finite(name, &v)?;
     let len = v.iter().map(|c| c * c).sum::<f64>().sqrt();
     if len <= f64::MIN_POSITIVE {

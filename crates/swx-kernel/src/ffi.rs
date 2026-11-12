@@ -132,6 +132,11 @@ extern "C" {
         edges: *const c_double,
         out: *mut *mut RawShape,
     ) -> c_int;
+    fn swx_occt_helical_sweep(
+        s: *const RawShape,
+        params: *const c_double,
+        out: *mut *mut RawShape,
+    ) -> c_int;
     fn swx_occt_fillet_chamfer(
         op: c_int,
         s: *const RawShape,
@@ -780,6 +785,21 @@ pub(crate) fn sweep(s: &ShapeHandle, plane: &[f64; 9], edges: &[f64]) -> Option<
             &mut raw,
         )
     };
+    take(status, raw)
+}
+
+/// Sweeps the planar face `s` along a right-handed constant-pitch helix.
+/// `params` (13 doubles, already validated): axis origin (3), unit axis
+/// direction (3), unit radial direction towards the profile (3), radius,
+/// start height along the axis, pitch, turns. `None` on any failure,
+/// including a result that is invalid or not exactly one solid.
+pub(crate) fn helical_sweep(s: &ShapeHandle, params: &[f64; 13]) -> Option<ShapeHandle> {
+    let mut raw = ptr::null_mut();
+    // SAFETY: `s` is a live handle read-only for the call and not retained;
+    // `params` points to the 13 readable doubles the shim reads during the
+    // call only; `raw` is a valid out-pointer that receives a new,
+    // independently owned handle.
+    let status = unsafe { swx_occt_helical_sweep(s.0.as_ptr(), params.as_ptr(), &mut raw) };
     take(status, raw)
 }
 
