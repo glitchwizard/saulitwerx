@@ -1,0 +1,78 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(io): write manifest.json through derived serde Serialize",
+      "ref": "03eb55e",
+      "task_id": "m4-01c-gates",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-01c-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-01c-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-01c-gates",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`crates/swx-io/Cargo.toml`: `serde = { version = \"1\", features = [\"derive\"] }`; the comment about Unicode-3.0 is removed.",
+      "`write_manifest` (and `read_manifest` where it makes the code simpler) uses derived `Serialize`/`Deserialize` types instead of building `serde_json::Value` by hand: `DocumentKind` with `#[serde(rename_all = \"lowercase\")]`, unknown fields kept through `#[serde(flatten)] extra` at the top level and in `units`, `model_hash` skipped when `None`. Every `FormatError` variant and field path from #184 stays exactly as it is.",
+      "All 18 existing `swx-io` tests pass unchanged (the golden file is still reproduced byte for byte), and no test is weakened or removed.",
+      "`docs/ARCHITECTURE.md`: one appended ADR line saying `swx-io` now builds `serde` with `derive`, so `serde_derive`, `syn`, `quote`, `proc-macro2` and `unicode-ident` (rows already in the register) are now built, and that Unicode-3.0 has been allowed since #198. Existing register rows are left as they are (FACTORY §8 allows only appended rows and ADR lines). Any other new transitive crate gets a new appended row with its license.",
+      "No `unsafe`, and `swx-io` still has no workspace dependencies.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-12T10:22:24.169214912+00:00",
+    "constraints": [],
+    "created_at": "2026-11-12T10:21:54.687922319+00:00",
+    "description": "M4-01c: swx-io: turn on serde derive for Manifest now that Unicode-3.0 is allowed",
+    "project_id": "saulitwerx",
+    "scope": "crates/swx-io, Cargo.lock, docs/ARCHITECTURE.md (PR #204)",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 3,
+      "estimate": "small",
+      "id": "m4-01c-gates",
+      "status": "completed",
+      "title": "Verify gates for PR #204 (M4-01c)",
+      "type": "test"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
