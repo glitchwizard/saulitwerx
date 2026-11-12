@@ -108,6 +108,10 @@ name = "sweep_pipe"
 required-features = ["occt"]
 
 [[example]]
+name = "helical_spring"
+required-features = ["occt"]
+
+[[example]]
 name = "work_on_part"
 required-features = ["occt"]
 

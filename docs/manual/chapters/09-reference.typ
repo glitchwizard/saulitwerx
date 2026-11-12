@@ -99,6 +99,8 @@ Success and errors work as for `render`. `--step` and `--crease` belong to `rend
   [`cargo run -p swx-kernel --features occt --example draft_block -- <dir>`], [Drafts the sides of a block three ways (@ch-draft). STEP files in `<dir>`.],
   [`cargo run -p swx-kernel --features occt --example loft_sections -- <dir>`], [Lofts a square into a circle, and a vase through three circles, ruled and smooth (@ch-loft). STEP files in `<dir>`.],
   [`cargo run -p swx-kernel --features occt --example sweep_pipe -- <dir>`], [Sweeps a circle and a rectangle along a bent path, and shows the errors, a too-tight bend among them (@ch-sweep). STEP files in `<dir>`.],
+  [`cargo run -p swx-kernel --features occt --example helical_spring -- <dir>`], [Winds a circle into a coil spring and a rectangle into a square ridge around a helix, and shows the errors (@sec-helix). STEP files in `<dir>`.],
+  [`cargo run -p swx-io --example unpacked_document -- <dir>`], [Writes a part document folder `<dir>/plate.sltwx`, reads it back, and shows the errors (@sec-files). Needs no OpenCascade.],
   [`cargo run -p swx-kernel --example work_features`], [Builds work planes, axes and a point, and prints them (@sec-work). Needs no OpenCascade.],
   [`cargo run -p swx-kernel --features occt --example tilted_post -- <dir>`], [Stands a post at 30° on a plate, from a tilted work plane (@sec-work-use). A STEP file in `<dir>`.],
   [`cargo run -p swx-kernel --features occt --example work_on_part -- <dir>`], [Takes work features from a block's faces, edges and a corner, then uses two of them (@sec-work-part). A STEP file in `<dir>`.],
@@ -147,6 +149,7 @@ The `occt` feature switches on OpenCascade. It is off by default, so a plain bui
   [`draft(s, faces, neutral, angle)`], [Tilts every face in `faces` by `angle` radians about the line where it crosses the neutral plane (@ch-draft). `neutral` is an `Axis`: a point on the neutral plane, and the pull direction, which is the plane's normal. A positive angle makes the solid smaller along the pull direction. The angle not zero and less than π/2 either way; the list not empty, faces only, each in range; a face listed twice counts once. A face the engine can't draft, such as one parallel to the neutral plane, fails, and `s` is unchanged.],
   [`loft(sections, ruled)`], [A new solid through the flat `sections`, in the order given, capped with the first and last (@ch-loft). Each section a single flat face from `make_face`, without holes, on any plane; at least `MIN_LOFT_SECTIONS` (2). `ruled` true: straight surfaces between neighbors; false: one smooth surface through all. Sections the engine can't loft, such as two in the same place, fail. The sections are unchanged.],
   [`sweep(profile, plane, path)`], [A new solid made by moving the flat `profile` along the open `path`, a list of `Segment2` lines and arcs drawn on `plane` (@ch-sweep). The path runs from the first piece's start; each next piece must meet the end of the one before within `LOOP_GAP_TOLERANCE`, either way round. The path's start must lie on the profile's plane. The profile a single flat face without holes; no circles in the path. A sweep that encloses nothing is `EmptyResult`. Every arc of the path must have a radius larger than the profile's farthest point from the path's start, measured in the profile's plane; a tighter bend is refused. The profile is unchanged.],
+  [`helical_sweep(profile, axis, pitch, turns)`], [A new solid made by moving the flat `profile` along a helix about `axis` (an `Axis`; its direction is normalized), rising `pitch` mm along the axis per turn, for `turns` turns (@sec-helix). Right-handed: counterclockwise seen from the tip of `axis.dir`. The helix starts at the profile, which stays in the plane through the axis as it turns. Pitch and turns finite and > 0 (turns needn't be whole). The profile a single flat face without holes; the axis in its plane (within `PERPENDICULAR_TOLERANCE` for the direction, `LOOP_GAP_TOLERANCE` for the point); the profile wholly on one side of the axis; its extent along the axis less than the pitch. Volume: turns × 2π × area × the distance of the profile's centroid from the axis, whatever the pitch. The profile is unchanged.],
   [`tessellate(s, deflection)`], [Breaks the surface into triangles, no farther than `deflection` (mm, > 0) from the true surface.],
   [`export_step(s, path)`], [Writes a STEP file in millimeters, replacing any existing file.],
   [`import_step(path)`], [Reads everything in a STEP file as one shape.],
@@ -585,7 +588,8 @@ A unit that is not one of the seven in @sec-ref-expr, including an empty one, co
   header: ("Format", "Read / write", "Notes"),
   [STEP (`.step`, `.stp`), ISO 10303-21], [Both], [Solids only. Written in millimeters.],
   [PNG (`.png`)], [Write], [Pictures from `swx-qa render` and `swx-qa sketch`.],
-  [Saulitwerx part (`.sltwx`)], [Not yet], [Planned: the part with its full history.],
+  [Saulitwerx document, unpacked form (a `.sltwx`, `.sltwxa` or `.sltwxd` folder)], [Both], [The manifest is checked in full; the model and properties are kept as JSON objects, not yet tied to a part (@ch-files, @sec-ref-files).],
+  [Saulitwerx document, one file (`.sltwx`, zipped)], [Not yet], [Planned: the part with its full history in one file.],
 )
 
 #ref-table(
@@ -595,6 +599,37 @@ A unit that is not one of the seven in @sec-ref-expr, including an empty one, co
   [Area, volume], [mm², mm³],
   [Angle], [degrees for feature parameters such as a revolve's sweep; radians for arc angles in sketches and for the geometry engine's `revolve` and `revolve_feature`],
 )
+
+== Document files <sec-ref-files>
+
+`swx-io` reads and writes Saulitwerx documents (@ch-files). Every call returns a `FormatError` on failure; reading never panics.
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("Call", "What it does"),
+  [`write_unpacked(dir, doc)`], [Writes `doc` to the folder `dir`, made if missing: `manifest.json`, `model.json`, and `properties.json` when `doc.properties` is `Some` (deleted when `None`). Other entries in `dir` are left alone. Nothing is written when `dir`'s extension doesn't match the manifest's kind, or the model or properties isn't a JSON object.],
+  [`read_unpacked(dir)`], [Reads the `Document` in the folder `dir`. `manifest.json` and `model.json` required, `properties.json` optional; other entries not read. Checks the manifest, then the extension against its kind, then that the model and properties are JSON objects.],
+  [`read_manifest(text)`], [Reads and checks the text of a `manifest.json` (rules below).],
+  [`write_manifest(m)`], [The text of a `manifest.json` for `m`, in canonical form, extra fields included, `model_hash` left out when `None`.],
+  [`to_canonical_json(v)`], [Any JSON-representable value as canonical JSON: names in byte order at every level, 2-space indent, one member or element per line, `": "` after each name, `{}` and `[]` for empty ones, other characters kept as UTF-8, one newline at the end. The same value always gives the same text.],
+  [`Document`], [`manifest` (a `Manifest`), `model` (a JSON object), `properties` (`Option`, a JSON object).],
+  [`DocumentKind`], [`Part` (`"part"`, `.sltwx`), `Assembly` (`"assembly"`, `.sltwxa`), `Drawing` (`"drawing"`, `.sltwxd`). `as_str()` gives the name.],
+)
+
+#ref-table(
+  columns: (auto, auto, 1fr),
+  header: ("Manifest field", "Required", "Allowed values"),
+  [`format`], [Yes], [`"sltwx"`.],
+  [`format_version`], [Yes], [`MAJOR.MINOR.PATCH` in decimal digits. Major must be 0; any minor or patch is read.],
+  [`kind`], [Yes], [`"part"`, `"assembly"` or `"drawing"`.],
+  [`document_id`], [Yes], [A UUID in 8-4-4-4-12 hexadecimal form, either case. Fixed for the document's life.],
+  [`units`], [Yes], [An object with `length`, `angle` and `mass` unit names (text, such as `"mm"`, `"deg"`, `"kg"`); other names kept in `Units::extra`.],
+  [`created_by`, `saved_by`], [Yes], [Text: the program and version that made, and last saved, the document.],
+  [`model_hash`], [No], [`sha256:` and 64 lowercase hexadecimal digits: the hash of the canonical `model.json`. Left out when `None`.],
+  [Any other field], [No], [Kept in `Manifest::extra` and written back unchanged.],
+)
+
+`FormatError` kinds: `Json` (not valid JSON; the message names the file), `MissingField` (a required field), `InvalidField` (a wrong value or type, or a model or properties that isn't an object), `UnsupportedVersion` (major version not 0), `Io` (a file or folder can't be read, written or removed, or isn't a folder), `MissingFile` (`manifest.json` or `model.json`), `ExtensionMismatch` (folder name and kind disagree). The messages are in @sec-errors.
 
 == Keyboard and mouse
 

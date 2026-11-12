@@ -25,7 +25,14 @@
     ("Constraint", [A rule about a sketch's shape, such as "horizontal" or "these points touch".]),
     ("Counterbore", [A wider, flat-bottomed recess at the mouth of a hole, so a screw head sits flush or below the surface.]),
     ("Countersink", [A cone-shaped recess at the mouth of a hole, so a screw with a cone-shaped head sits flush with the surface.]),
-    ("Pitch", [The distance from one ridge of a screw thread to the next.]),
+    ("Pitch", [How far a helix rises in one full turn; for a screw thread, the distance from one ridge to the next.]),
+    ("Helix", [A curve that circles an axis at a fixed distance while rising the same amount each turn, like the handrail of a spiral staircase.]),
+    ("Helical sweep", [A sweep whose path is a helix, for springs, coils and threads.]),
+    ("Document file", [A Saulitwerx file that keeps a design with everything needed to edit it: a part (`.sltwx`), an assembly (`.sltwxa`) or a drawing (`.sltwxd`).]),
+    ("JSON", [A plain-text way of writing down named values, readable by people and programs. Saulitwerx document files are written in it.]),
+    ("Manifest", [The small file in a Saulitwerx document, `manifest.json`, that says what the document is, which format version wrote it, its id and its units.]),
+    ("Unpacked form", [A Saulitwerx document kept as a folder of files, named like the document, rather than as one file.]),
+    ("UUID", [A 32-digit hexadecimal id, written in groups of 8, 4, 4, 4 and 12, made so that no two are ever the same.]),
     ("Tap drill", [The drill a hole is made with before a thread is cut in it: narrower than the screw, so there is material for the thread.]),
     ("Tapped hole", [A hole with a screw thread cut inside it, or drilled ready for one.]),
     ("Thread", [The spiral ridge on a screw, or the matching groove inside a hole. Metric threads are named M and the diameter in mm, such as M6.]),
@@ -124,6 +131,14 @@
 }
 
 = What's new
+
+== 2026-11-12: springs and coils, and Saulitwerx document files
+
+- *New:* sweep a flat profile around a helix, by pitch and number of turns, for coil springs, coils and thread-like ridges (@sec-helix).
+- *New:* write and read Saulitwerx document folders (`.sltwx`), with a checked manifest and files written the same way every time (@ch-files). The design itself can't be stored in them yet.
+- *Changed:* hole errors now print the countersink depth without stray digits (`2.8`, not `2.8000000000000003`), and a bad countersink angle in degrees as well as radians (@sec-hole-mistakes).
+- *Pictures:* a coil spring and a square ridge wound around a helix.
+- New chapter 18, Saulitwerx document files; Reference and Help are now chapters 19 and 20. Reference: `helical_sweep`, and the document file calls and manifest fields. Help: the helical sweep's and the document files' error messages, new common mistakes, and the known limitations updated. Glossary: seven new terms, from document file to UUID.
 
 == 2026-11-11: countersunk and tapped holes, and a thread table
 
@@ -276,9 +291,9 @@ These are the next items on the public roadmap. None of them works yet. When one
   header: ("Soon", "What you'll be able to do"),
   [Extrude from a sketch], [Hand a sketch's region straight to the extrude and the revolve.],
   [More part features], [Shells with walls of different thicknesses; fillets, chamfers, shells, holes, drafts, lofts, sweeps and work features kept in a part's history.],
-  [Threads], [Model real screw threads, outside on a shaft or inside a hole, along a helix.],
+  [Threads], [Model real screw threads, outside on a shaft or inside a hole, built on the helical sweep.],
   [Lasting references], [A feature built on a face or an edge keeps finding it when earlier features change.],
-  [Part files], [Save a part with its full history, and open it again.],
+  [Part files], [Save a part with its full history in a document file and open it again; one zipped file as well as a folder; the `sltwx pack` and `unpack` commands; stored previews.],
   [Desktop app], [A window with a 3D view, a model browser, sketch mode and property panels.],
 )
 
@@ -346,6 +361,7 @@ Later milestones add assemblies, 2D drawings and exploded views. The full plan i
         [`metric_coarse`], [thread size by name],
         [`draft`], [tilt faces for a mold],
         [`loft` · `sweep`], [blend / follow a path],
+        [`helical_sweep`], [spring, coil],
         [`offset` · `midplane`], [work planes],
         [`work_plane_on_face`], [plane on a flat face],
         [`work_axis_on`], [axis on edge or round face],

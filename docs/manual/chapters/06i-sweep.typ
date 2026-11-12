@@ -24,7 +24,7 @@ The profile keeps its size and shape all the way. Through each bend it turns wit
   caption: [Two profiles swept along one path: up 30 mm, a quarter circle of radius 20 mm, then 20 mm level. Left, a circle 10 mm across; right, a 12 × 6 mm rectangle.],
 ) <fig-sweep>
 
-*In Saulitwerx today:* the geometry engine can sweep one flat profile, with no holes, along an open path of lines and arcs that all lie in one plane. The path can't be a closed loop, a full circle, a spline or a curve in 3D yet, and the profile can't twist or change size along the way. A sweep makes a new solid; to add it to a part or cut it from one, use `union` or `cut` (@sec-feature). It isn't recorded in a part's history.
+*In Saulitwerx today:* the geometry engine can sweep one flat profile, with no holes, along an open path of lines and arcs that all lie in one plane, or around a helix (@sec-helix). The path can't be a closed loop, a full circle, a spline or any other curve in 3D yet, and the profile can't twist or change size along the way. A sweep makes a new solid; to add it to a part or cut it from one, use `union` or `cut` (@sec-feature). It isn't recorded in a part's history.
 
 == Sweep a profile along a path <sec-sweep>
 
@@ -81,6 +81,72 @@ The program is `crates/swx-kernel/examples/sweep_pipe.rs`. It does three things.
 
 #caution(title: [Keep bends wider than the profile])[Picture bending a thick rod round a tight corner: the inside of the bend gets squeezed until it would have to pass through itself. A sweep can't build that, so it refuses any arc whose radius isn't larger than the profile's reach: the distance from the path's start to the profile's farthest point, measured in the profile's plane. The message names the arc (pieces are counted from 0), its radius and that distance. In the sample, the rod's reach is its 5 mm radius (shown as 5.000000232604544, because it is measured on a fine mesh of the profile), so the 20 mm bend passes and the 4 mm bend is refused. For the 12 × 6 mm bar, the reach is its corner, √(6² + 3²) = 6.71 mm from the middle, so its bends must be wider than that. The check uses the farthest point in every direction, so it can refuse a bend that would just fit on the profile's narrow side. Make the bend wider, or the profile smaller.]
 
+== Sweep around a helix: springs and coils <sec-helix>
+
+#idx("helical sweep")
+A coil spring is a round wire wound round and round while it climbs. The line its middle follows is a #term[helix]: the shape of a spiral staircase's handrail, which circles a center post and rises the same amount each time it goes round. How far it rises in one full turn is its #term[pitch].
+
+A #term[helical sweep] moves a flat profile along such a helix. You don't draw the path: you give the axis the helix turns about, the pitch and the number of turns, and the profile itself says how far from the axis the helix runs. As it goes round, the profile turns with it and stays upright beside the axis, the way a door stays square to its hinge, so it doesn't twist. Springs, coils, and the winding ridge of a screw thread are all helical sweeps.
+
+#image-row(
+  (
+    // cargo run -p swx-kernel --features occt --example helical_spring -- helix
+    // swx-qa render --step helix/helix-<name>.step --size 900x700 -o docs/manual/img/helix-<name>.png
+    ("img/helix-spring.png", "Circle: a coil spring", "A round wire wound into a coil spring of six turns, standing upright, with a flat round cut at each end of the wire"),
+    ("img/helix-ridge.png", "Rectangle: a square ridge", "A flat rectangular strip wound into four close turns, like a squared-off screw thread with nothing inside it"),
+  ),
+  caption: [Two profiles swept around the upright Z axis. Left, a circle 2 mm across, 10 mm from the axis: six turns at 5 mm a turn. Right, a 2 × 1.5 mm rectangle, 8 to 10 mm from the axis: four turns at 3 mm a turn.],
+) <fig-helix>
+
+*In Saulitwerx today:* the helix keeps one radius and one pitch all the way, and always winds right-handed, like a common screw. The profile is one flat face without holes, beside the axis. A helical sweep makes a new solid; to add it to a part or cut it from one, use `union` or `cut` (@sec-feature). Real screw threads, on a shaft or in a hole, aren't built yet (*Coming next*).
+
+#task-intro(
+  goal: [Wind a spring and a square ridge, and see the errors.],
+  needs: [Saulitwerx built with OpenCascade, and `swx-qa` built with it too (@ch-install).],
+  time: [5 minutes.],
+)
+
+#steps(
+  [Run the sample program, and tell it to save its parts in a folder called `helix`:
+  #term-block("cargo run -p swx-kernel --features occt --example helical_spring -- helix")
+  It prints one line for each part, five errors on purpose, then the files it wrote:
+  #term-block(label: "Output", "spring   1184.35 mm³  3 faces  box 22 × 22 × 32.0 mm\nridge     678.58 mm³  6 faces  box 20 × 20 × 13.5 mm\npitch 0 -> error: invalid input: helix pitch must be finite and > 0, got 0\naxis along Y -> error: invalid input: helix axis (origin [0.0, 0.0, 0.0],\n    direction [0.0, 1.0, 0.0]) is not in the profile's plane (through\n    [0.0, 0.0, 0.0], normal [0.0, -1.0, 0.0])\non the axis -> error: invalid input: the profile crosses the helix axis:\n    its distance from the axis spans [-1, 1]\npitch 1.5 -> error: invalid input: the profile's extent along the helix\n    axis (2) must be less than the pitch (1.5), or neighboring turns overlap\ntube -> error: invalid input: helical sweep profile has a hole; profiles\n    with holes are not supported\n…  (the geometry engine's file reports)\nwrote helix/helix-spring.step\nwrote helix/helix-ridge.step")
+  Four long error lines are wrapped here to fit the page.],
+  [Read the `spring` line. The wire's middle is 10 mm from the axis, so one turn is about 2π × 10 = 62.83 mm long, and six turns about 377 mm. The wire's area is π × 1² = 3.14 mm², and 3.14 × 377 = 1184.35 mm³. The spring stands 6 × 5 = 30 mm tall, plus the wire's own 2 mm. It is 22 mm across: twice 10 mm, plus the wire.],
+  [Read the `ridge` line. The rectangle's middle is 9 mm from the axis and its area is 3 mm², so four turns hold 4~×~2π~×~9~×~3 = 678.58 mm³. It stands 4 × 3 + 1.5 = 13.5 mm tall.],
+  [Read the errors. The pitch must be more than 0. The axis must lie in the profile's plane: the profile is drawn on the XZ plane, which holds the Z axis but not the Y axis. The profile must sit to one side of the axis, not across it. It must be shorter, along the axis, than the pitch, or each turn would run into the next: the 2 mm wire can't climb only 1.5 mm a turn. And the profile can't have a hole.],
+  [#block(breakable: false)[Draw the spring:
+  #term-block("target/release/swx-qa render --step helix/helix-spring.step -o helix-spring.png")
+  Open `helix-spring.png`. You should see the left-hand part of @fig-helix.]],
+)
+
+#result[A coil spring and a winding ridge, each from one call.]
+
+#block(breakable: false)[
+=== How the sample is built
+
+The program is `crates/swx-kernel/examples/helical_spring.rs`. It does three things.
+
+#steps(
+  [*Choose the axis.* An `Axis` is a point and a direction (@sec-ref-work). Here it is the Z axis, through the origin and pointing up:
+  ```rust
+  let z_axis = Axis { origin: [0.0, 0.0, 0.0], dir: [0.0, 0.0, 1.0] };
+  ```],
+  [*Make the profile beside it.* The XZ plane holds the Z axis, with u running along X and v up along Z. A circle 2 mm across, centered 10 mm out along X, sits beside the axis:
+  ```rust
+  let wire = k.make_face(&Workplane::XZ, &circle([10.0, 0.0], 1.0), &[])?;
+  ```],
+  [*Sweep.* `helical_sweep` takes the profile, the axis, the pitch in mm and the number of turns:
+  ```rust
+  let spring = k.helical_sweep(&wire, z_axis, 5.0, 6.0)?;
+  ```],
+)
+]
+
+#tip(title: [Which way it winds])[The helix starts at the profile and turns counterclockwise as you look down the axis from its tip, climbing towards the tip: a right-hand helix. To wind the other way up, point the axis the other way (`dir: [0.0, 0.0, -1.0]`); the part then climbs downwards from the profile. The number of turns needn't be whole: `0.25` makes a quarter turn.]
+
+#note(title: [Why the pitch doesn't change the volume])[A spring with a steeper pitch has a longer wire, yet the same volume: 1184.35 mm³ for six turns whatever the pitch. The climb happens within the profile's own plane, so it sweeps out nothing; only going round the axis does. The volume is the number of turns, times 2π, times the profile's area, times the distance of its middle from the axis, as for a revolve.]
+
 == Common mistakes <sec-sweep-mistakes>
 
 #set par(justify: false)
@@ -93,3 +159,7 @@ The program is `crates/swx-kernel/examples/sweep_pipe.rs`. It does three things.
 - *A solid in place of the profile.* `invalid input: sweep profile is not a single planar face`. Pass the face from `make_face`.
 - *A path that starts along the profile's plane.* The profile slides within its own plane and sweeps out nothing: `empty result: the sweep encloses no volume`. Draw the path on a plane that crosses the profile's plane.
 - *A bend tighter than the profile.* The message names the arc, its radius and the profile's reach: `invalid input: sweep path: arc segment 1 has radius 4,` `not larger than the profile's distance 5.000000232604544 from the path's start;` `the swept solid would pass through itself`. Give the arc a radius larger than the distance shown (see the caution above).
+- *A helix axis that leaves the profile's plane.* `invalid input: helix axis (origin …, direction …) is not in the profile's plane (through …, normal …)`. Draw the profile on a plane that holds the axis: XZ or YZ for the Z axis.
+- *A profile across or touching the helix axis.* `invalid input: the profile crosses the helix axis: its distance from the axis spans [-1, 1]` (or `touches`). Move the profile to one side of the axis.
+- *A pitch no larger than the profile is tall.* `invalid input: the profile's extent along the helix axis (2)` `must be less than the pitch (1.5), or neighboring turns overlap`. Raise the pitch, or make the profile shorter along the axis.
+- *A pitch or a number of turns of 0 or less.* `invalid input: helix pitch must be finite and > 0, got 0` (or `helix turns`).
