@@ -1,0 +1,96 @@
+{
+  "bodies": [
+    {
+      "created_by": "ft-91c2",
+      "id": "b-1",
+      "name": "Solid1"
+    }
+  ],
+  "end_of_part": "ft-91c2",
+  "features": [
+    {
+      "extent": {
+        "direction": "positive",
+        "param": "thickness",
+        "type": "distance"
+      },
+      "id": "ft-91c2",
+      "name": "Extrusion1",
+      "op": "new_solid",
+      "profile": {
+        "regions": [
+          "*"
+        ],
+        "sketch": "sk-7f3a"
+      },
+      "suppressed": false,
+      "type": "extrude"
+    }
+  ],
+  "origin": {
+    "axes": [
+      "X",
+      "Y",
+      "Z"
+    ],
+    "planes": [
+      "XY",
+      "XZ",
+      "YZ"
+    ],
+    "point": "O"
+  },
+  "parameters": [
+    {
+      "expr": "40 mm",
+      "kind": "model",
+      "name": "d0"
+    },
+    {
+      "comment": "plate thickness",
+      "expr": "d0 / 8",
+      "kind": "user",
+      "name": "thickness"
+    }
+  ],
+  "sketches": [
+    {
+      "constraints": [
+        {
+          "id": "c1",
+          "of": [
+            "e1"
+          ],
+          "type": "horizontal"
+        },
+        {
+          "id": "c2",
+          "of": [
+            "e1"
+          ],
+          "param": "d0",
+          "type": "distance"
+        }
+      ],
+      "entities": [
+        {
+          "id": "e1",
+          "p1": [
+            0,
+            0
+          ],
+          "p2": [
+            40,
+            0
+          ],
+          "type": "line"
+        }
+      ],
+      "id": "sk-7f3a",
+      "placement": {
+        "ref": "origin:XY",
+        "type": "plane"
+      }
+    }
+  ]
+}

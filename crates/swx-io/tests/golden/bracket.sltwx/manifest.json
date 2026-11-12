@@ -1,0 +1,14 @@
+{
+  "created_by": "saulitwerx 0.3.0",
+  "document_id": "6f1c2e0a-7b7d-4c55-9d3e-2a1f0e4b9c11",
+  "format": "sltwx",
+  "format_version": "0.1.0",
+  "kind": "part",
+  "model_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "saved_by": "saulitwerx 0.4.1",
+  "units": {
+    "angle": "deg",
+    "length": "mm",
+    "mass": "kg"
+  }
+}
