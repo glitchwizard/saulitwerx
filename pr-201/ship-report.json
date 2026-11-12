@@ -1,0 +1,78 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(io): read and write the unpacked .sltwx folder form",
+      "ref": "051e01f",
+      "task_id": "m4-01b",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-01b",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-01b",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-01b",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "A documented `Document { manifest: Manifest, model: serde_json::Value, properties: Option<serde_json::Value> }` (fields public), and `pub fn read_unpacked(dir: &Path) -> Result<Document, FormatError>` and `pub fn write_unpacked(dir: &Path, doc: &Document) -> Result<(), FormatError>`, both documented with a reference to FILE_FORMAT.md.",
+      "`write_unpacked` creates `dir` if it is missing and writes each file with `to_canonical_json` (`manifest.json` via `write_manifest`). It writes `properties.json` only when `properties` is `Some`, and removes a stale `properties.json` when it is `None`. It never touches any other entry in `dir` (`cache/`, `thumbnail.png`, `attachments/`, unknown files stay byte for byte).",
+      "`FormatError` gains documented variants (never a panic) for: an I/O error (with the path), a missing required file (naming `manifest.json` or `model.json`), and a directory whose extension does not match the manifest's `kind` (`.sltwx` ↔ `part`, `.sltwxa` ↔ `assembly`, `.sltwxd` ↔ `drawing`). `model.json` or `properties.json` that is not a JSON object is the invalid-field variant naming the file.",
+      "Tests (each in a fresh directory under `std::env::temp_dir()` with a unique name, removed at the end; no new dev-dependencies): a committed fixture folder `crates/swx-io/tests/golden/bracket.sltwx/` (canonical `manifest.json` with kind `part`, a `model.json` copied from FILE_FORMAT.md's part example in canonical form, and a `properties.json` `{\"title\": \"Bracket\"}`) is read, written to a new `bracket.sltwx/`, and every written file equals the fixture byte for byte; unknown top-level fields in `model.json` (`\"x_future\": {\"a\": 1}`) round-trip unchanged; writing with `properties: None` over a folder that has `properties.json` removes it, and a pre-existing `cache/body-b-1.brep` (any bytes) and `thumbnail.png` are unchanged after the write; errors: missing `manifest.json`; missing `model.json`; `model.json` that is `[1, 2]`; a manifest of kind `assembly` in a folder named `x.sltwx`; a folder name with no extension; a path that is a file, not a directory. Each returns the right variant.",
+      "`swx-io` has no `unsafe` and still has no workspace dependencies; `swx-core`, `swx-sketch` and `swx-kernel` are unchanged; `Cargo.toml` dependencies unchanged from #184.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-12T08:29:54.064396362+00:00",
+    "constraints": [],
+    "created_at": "2026-11-12T08:29:21.004289564+00:00",
+    "description": "M4-01b: swx-io unpacked folder form: read and write manifest.json, model.json and properties.json",
+    "project_id": "saulitwerx",
+    "scope": "crates/swx-io; PR #201",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 3,
+      "estimate": "medium",
+      "id": "m4-01b",
+      "status": "completed",
+      "title": "Unpacked folder read/write; gates for PR #201",
+      "type": "implement"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
