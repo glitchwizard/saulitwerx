@@ -5,6 +5,7 @@ use std::path::Path;
 
 use crate::datum::{axis_nearest_origin, plane_nearest_origin, plane_tangent_to_cylinder};
 use crate::ffi::{self, ChamferMode, EdgeOp, FaceCylinder, FacePlane, ShapeHandle, SubShapeAxis};
+use crate::helix::{check_helix_profile, cross, prepare_helix};
 use crate::hole::{perpendicular, prepare_hole, HoleCylinder};
 use crate::loft::check_section_count;
 use crate::profile::{
@@ -262,6 +263,54 @@ impl Kernel for OcctKernel {
             ));
         }
         Ok(result)
+    }
+
+    fn helical_sweep(
+        &self,
+        profile: &OcctShape,
+        axis: Axis,
+        pitch: f64,
+        turns: f64,
+    ) -> Result<OcctShape, KernelError> {
+        let (origin, dir) = prepare_helix(axis.origin, axis.dir, pitch, turns)?;
+        let (_, _, wires) = ffi::sweep_profile(&profile.0).ok_or_else(|| {
+            KernelError::InvalidInput(
+                "helical sweep profile is not a single planar face".to_string(),
+            )
+        })?;
+        if wires != 1 {
+            return Err(KernelError::InvalidInput(
+                "helical sweep profile has a hole; profiles with holes are not supported"
+                    .to_string(),
+            ));
+        }
+        let not_planar = || backend("helical sweep profile measurement");
+        let side = ffi::revolve_profile(&profile.0, origin, dir).ok_or_else(not_planar)?;
+        // `revolve_profile` measures along `d × n`; with `d = n × dir` that
+        // is `(n × dir) × n = dir` (dir ⊥ n, both unit), the axial distance.
+        // Only meaningful once the axis is in the plane, which
+        // `check_helix_profile` checks first.
+        let axial_dir = cross(side.normal, dir);
+        let axial = ffi::revolve_profile(&profile.0, origin, axial_dir).ok_or_else(not_planar)?;
+        let start = check_helix_profile(origin, dir, pitch, &side, axial.side_min, axial.side_max)?;
+        let params = [
+            origin[0],
+            origin[1],
+            origin[2],
+            dir[0],
+            dir[1],
+            dir[2],
+            start.x_dir[0],
+            start.x_dir[1],
+            start.x_dir[2],
+            start.radius,
+            start.height,
+            pitch,
+            turns,
+        ];
+        ffi::helical_sweep(&profile.0, &params)
+            .map(OcctShape)
+            .ok_or_else(|| backend("helical sweep"))
     }
 
     fn fillet(
@@ -3622,5 +3671,134 @@ mod tests {
         // The inputs are still usable.
         assert_close(K.volume(&b).unwrap(), 6000.0);
         assert_close(K.volume(&c).unwrap(), 90.0 * PI);
+    }
+
+    const HELIX_AXIS: Axis = Axis {
+        origin: [0.0; 3],
+        dir: [0.0, 0.0, 1.0],
+    };
+
+    /// Polygon face on `Workplane::XZ` (u = x, v = z).
+    fn xz_face(points: &[[f64; 2]]) -> OcctShape {
+        K.make_face(&Workplane::XZ, &polygon(points), &[]).unwrap()
+    }
+
+    /// Rectangle x ∈ [5, 6], z ∈ [0, 0.5] on the XZ plane.
+    fn helix_rect() -> OcctShape {
+        xz_face(&[[5.0, 0.0], [6.0, 0.0], [6.0, 0.5], [5.0, 0.5]])
+    }
+
+    fn assert_rel(actual: f64, expected: f64, rel: f64) {
+        assert!(
+            (actual - expected).abs() <= rel * expected.abs(),
+            "expected {expected} within {rel} (relative), got {actual}"
+        );
+    }
+
+    fn assert_near(actual: f64, expected: f64, tol: f64, what: &str) {
+        assert!(
+            (actual - expected).abs() <= tol,
+            "{what}: expected {expected} ± {tol}, got {actual}"
+        );
+    }
+
+    #[test]
+    fn helical_sweep_of_a_rectangle() {
+        let p = helix_rect();
+        let s = K.helical_sweep(&p, HELIX_AXIS, 2.0, 3.0).unwrap();
+        // Pappus–Guldin: 3 turns · 2π · r_c 5.5 · area 0.5 = 16.5π.
+        assert_rel(K.volume(&s).unwrap(), 16.5 * PI, 1e-3);
+        assert_eq!(K.body_count(&s).unwrap(), 1);
+        assert_eq!(K.face_count(&s).unwrap(), 6);
+        let bb = K.bounding_box(&s).unwrap();
+        assert_near(bb.min[2], 0.0, 1e-2, "z min");
+        assert_near(bb.max[2], 6.5, 1e-2, "z max");
+        for k in 0..2 {
+            assert!(bb.min[k] >= -6.0 - 1e-2, "min[{k}] {}", bb.min[k]);
+            assert!(bb.max[k] <= 6.0 + 1e-2, "max[{k}] {}", bb.max[k]);
+        }
+        assert_profile_unchanged(&p, 0.5);
+    }
+
+    #[test]
+    fn helical_sweep_of_a_triangle() {
+        let p = xz_face(&[[5.0, 0.0], [6.0, 0.5], [5.0, 1.0]]);
+        let s = K.helical_sweep(&p, HELIX_AXIS, 1.5, 2.0).unwrap();
+        // 2 turns · 2π · r_c 16/3 · area 0.5 = 32π/3.
+        assert_rel(K.volume(&s).unwrap(), 32.0 * PI / 3.0, 1e-3);
+        assert_eq!(K.body_count(&s).unwrap(), 1);
+        assert_profile_unchanged(&p, 0.5);
+    }
+
+    #[test]
+    fn helical_sweep_is_right_handed() {
+        // A quarter turn from +X goes counterclockwise seen from +Z: to +Y.
+        let s = K
+            .helical_sweep(&helix_rect(), HELIX_AXIS, 2.0, 0.25)
+            .unwrap();
+        let bb = K.bounding_box(&s).unwrap();
+        assert!(bb.min[0] >= -1e-2, "x min {}", bb.min[0]);
+        assert!(bb.min[1] >= -1e-2, "y min {}", bb.min[1]);
+        assert_near(bb.max[1], 6.0, 1e-2, "y max");
+        assert_near(bb.max[2], 1.0, 1e-2, "z max");
+    }
+
+    #[test]
+    fn helical_sweep_rejects_bad_inputs_before_the_backend() {
+        let invalid = |r: Result<OcctShape, KernelError>, needle: &str| match r {
+            Err(KernelError::InvalidInput(m)) => assert!(m.contains(needle), "{m}"),
+            other => panic!("expected InvalidInput containing {needle:?}, got {other:?}"),
+        };
+        let p = helix_rect();
+        let a = HELIX_AXIS;
+        for bad in [0.0, -2.0, f64::NAN, f64::INFINITY] {
+            invalid(K.helical_sweep(&p, a, bad, 3.0), "pitch");
+            invalid(K.helical_sweep(&p, a, 2.0, bad), "turns");
+        }
+        for dir in [[0.0; 3], [0.0, f64::NAN, 1.0]] {
+            invalid(
+                K.helical_sweep(&p, Axis { dir, ..a }, 2.0, 3.0),
+                "direction",
+            );
+        }
+        let solid = K.make_box([5.0, 0.0, 0.0], [1.0, 1.0, 1.0]).unwrap();
+        invalid(
+            K.helical_sweep(&solid, a, 2.0, 3.0),
+            "not a single planar face",
+        );
+        let holed = K
+            .make_face(
+                &Workplane::XZ,
+                &polygon(&[[5.0, 0.0], [7.0, 0.0], [7.0, 1.0], [5.0, 1.0]]),
+                &[circle([6.0, 0.5], 0.25)],
+            )
+            .unwrap();
+        invalid(K.helical_sweep(&holed, a, 2.0, 3.0), "hole");
+        // Axis off the plane (parallel, 1 away), and tilted out of it.
+        let off = Axis {
+            origin: [0.0, 1.0, 0.0],
+            ..a
+        };
+        invalid(
+            K.helical_sweep(&p, off, 2.0, 3.0),
+            "not in the profile's plane",
+        );
+        let tilted = Axis {
+            dir: [0.0, 0.1, 1.0],
+            ..a
+        };
+        invalid(
+            K.helical_sweep(&p, tilted, 2.0, 3.0),
+            "not in the profile's plane",
+        );
+        let touching = xz_face(&[[0.0, 0.0], [1.0, 0.0], [1.0, 0.5], [0.0, 0.5]]);
+        invalid(K.helical_sweep(&touching, a, 2.0, 3.0), "touches");
+        let crossing = xz_face(&[[-1.0, 0.0], [1.0, 0.0], [1.0, 0.5], [-1.0, 0.5]]);
+        invalid(K.helical_sweep(&crossing, a, 2.0, 3.0), "crosses");
+        let tall = xz_face(&[[5.0, 0.0], [6.0, 0.0], [6.0, 2.5], [5.0, 2.5]]);
+        invalid(K.helical_sweep(&tall, a, 2.0, 3.0), "less than the pitch");
+        let exact = xz_face(&[[5.0, 0.0], [6.0, 0.0], [6.0, 2.0], [5.0, 2.0]]);
+        invalid(K.helical_sweep(&exact, a, 2.0, 3.0), "less than the pitch");
+        assert_profile_unchanged(&p, 0.5);
     }
 }

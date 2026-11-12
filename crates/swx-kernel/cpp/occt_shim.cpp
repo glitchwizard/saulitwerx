@@ -22,10 +22,12 @@
 #include <BRepFilletAPI_MakeChamfer.hxx>
 #include <BRepFilletAPI_MakeFillet.hxx>
 #include <BRepGProp.hxx>
+#include <BRepLib.hxx>
 #include <BRepLProp_SLProps.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRepOffsetAPI_DraftAngle.hxx>
 #include <BRepOffsetAPI_MakePipe.hxx>
+#include <BRepOffsetAPI_MakePipeShell.hxx>
 #include <BRepOffsetAPI_MakeThickSolid.hxx>
 #include <BRepOffsetAPI_ThruSections.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
@@ -38,6 +40,8 @@
 #include <Bnd_Box.hxx>
 #include <GCPnts_AbscissaPoint.hxx>
 #include <GProp_GProps.hxx>
+#include <Geom2d_Line.hxx>
+#include <Geom_CylindricalSurface.hxx>
 #include <Geom_Plane.hxx>
 #include <IFSelect_ReturnStatus.hxx>
 #include <Poly_Triangulation.hxx>
@@ -63,6 +67,9 @@
 #include <gp_Circ.hxx>
 #include <gp_Cylinder.hxx>
 #include <gp_Dir.hxx>
+#include <gp_Dir2d.hxx>
+#include <gp_Lin2d.hxx>
+#include <gp_Pnt2d.hxx>
 #include <gp_Lin.hxx>
 #include <gp_Pln.hxx>
 #include <gp_Pnt.hxx>
@@ -762,6 +769,88 @@ int swx_occt_sweep(const SwxShape* s, const double* plane, size_t n, const doubl
         }
         const TopoDS_Shape result = maker.Shape();
         if (result.IsNull() || !BRepCheck_Analyzer(result).IsValid()) {
+            return -1;
+        }
+        return emit(result, out);
+    } catch (...) {
+        return -1;
+    }
+}
+
+// Solid swept by the planar face `s` along a constant-pitch, right-handed
+// helix. `p` holds 13 doubles: the axis origin (3), its unit direction d (3),
+// the unit radial direction X from the axis towards the profile (3), the
+// helix radius, its start height along d, the pitch and the number of turns.
+// The caller validates them and has checked that the profile lies in the
+// plane through the axis spanned by d and X.
+//
+// The helix is a straight line on the parameter plane of the cylinder
+// P(u, v) = O + r (cos u X + sin u Y) + v d, Y = d x X (OCCT reference
+// documentation: Geom_CylindricalSurface, Geom2d_Line,
+// BRepBuilderAPI_MakeEdge(curve on surface), BRepLib::BuildCurves3d): from
+// (0, h) along (2 pi, pitch), for `turns` turns. It is swept with
+// BRepOffsetAPI_MakePipeShell in fixed-binormal mode (SetMode(gp_Dir), the
+// binormal = d), so the profile keeps its angle to the axis and moves by
+// rotation about the axis plus translation along it. The profile's outer
+// wire is used where it is (no contact, no correction), then MakeSolid.
+// Returns -1 on any failure, including a result that BRepCheck_Analyzer
+// rejects or that is not exactly one solid.
+int swx_occt_helical_sweep(const SwxShape* s, const double* p, SwxShape** out) noexcept {
+    if (s == nullptr || p == nullptr || out == nullptr) {
+        return -1;
+    }
+    try {
+        if (s->shape.IsNull() || s->shape.ShapeType() != TopAbs_FACE) {
+            return -1;
+        }
+        constexpr double kTwoPi = 2.0 * 3.14159265358979323846;
+        const gp_Pnt origin(p[0], p[1], p[2]);
+        const gp_Dir d(p[3], p[4], p[5]);
+        const gp_Dir x(p[6], p[7], p[8]);
+        const double radius = p[9];
+        const double height = p[10];
+        const double pitch = p[11];
+        const double turns = p[12];
+        if (!(radius > 0.0) || !(pitch > 0.0) || !(turns > 0.0)) {
+            return -1;
+        }
+
+        Handle(Geom_CylindricalSurface) cylinder =
+            new Geom_CylindricalSurface(gp_Ax3(origin, d, x), radius);
+        const gp_Lin2d line(gp_Pnt2d(0.0, height), gp_Dir2d(kTwoPi, pitch));
+        Handle(Geom2d_Line) line2d = new Geom2d_Line(line);
+        // The line's parameter is arc length in (u, v): one turn is
+        // sqrt((2 pi)^2 + pitch^2) long.
+        const double length = turns * std::hypot(kTwoPi, pitch);
+        BRepBuilderAPI_MakeEdge edge(line2d, cylinder, 0.0, length);
+        if (!edge.IsDone()) {
+            return -1;
+        }
+        TopoDS_Edge helix = edge.Edge();
+        if (!BRepLib::BuildCurves3d(helix, 1.0e-7, GeomAbs_C1, 14, 1000)) {
+            return -1;
+        }
+        BRepBuilderAPI_MakeWire spine(helix);
+        if (!spine.IsDone()) {
+            return -1;
+        }
+
+        BRepOffsetAPI_MakePipeShell pipe(spine.Wire());
+        pipe.SetMode(d);
+        pipe.Add(BRepTools::OuterWire(TopoDS::Face(s->shape)), false, false);
+        pipe.Build();
+        if (!pipe.IsDone() || !pipe.MakeSolid()) {
+            return -1;
+        }
+        const TopoDS_Shape result = pipe.Shape();
+        if (result.IsNull() || !BRepCheck_Analyzer(result).IsValid()) {
+            return -1;
+        }
+        int solids = 0;
+        for (TopExp_Explorer ex(result, TopAbs_SOLID); ex.More(); ex.Next()) {
+            ++solids;
+        }
+        if (solids != 1) {
             return -1;
         }
         return emit(result, out);
