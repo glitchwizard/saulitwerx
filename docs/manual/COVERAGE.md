@@ -1,4 +1,4 @@
-manual-synced-to: 1e89727e9e5030837293c7ad6d262282733f1e61
+manual-synced-to: f72947756d5489deed0505031c2482cfa28c7342
 
 # Manual coverage
 
@@ -21,10 +21,10 @@ Everything a user can do or set on `main`, found from the code, `docs/ROADMAP.md
 | Kernel: `tessellate` (deflection) | 16.1, 19.4 |
 | Kernel: `export_step`, `import_step` (mm) | 3.2, 6.1, 6.5, 19.4, 19.16 |
 | Kernel: `make_face`, `extrude`; `Workplane` (`XY`, `XZ`, `YZ`, custom), `Segment2` (Line, Arc, Circle), `ProfileLoop`, `Extent` (Distance, Symmetric), `LOOP_GAP_TOLERANCE`, `PERPENDICULAR_TOLERANCE` | 4.7, 4.9, 7, 19.6 |
-| Kernel: `make_face_tracked` (segment → edge, caller's order), `extrude_tracked`, `ExtrudeHistory` (start_cap, end_cap, sides); through-all refused | 7.5, 7.7, 19.6, 20.2 |
-| Kernel: `sub_shape_bounding_box` | 7.5, 19.4 |
-| Kernel: `face_plane` (point and unit outward normal of a planar face; kind, range and not-planar errors) | 7.6, 19.4, 20.2 |
-| Kernel: `Extent::ToFace`, `Extent::BetweenFaces` (planar faces parallel to the workplane, either side; join, cut and intersect only; refused by `extrude` and `extrude_tracked`), `Extent::FromTo`, `PARALLEL_FACE_TOLERANCE`, `FACE_DISTANCE_TOLERANCE`; every message | 7.6, 7.7, 19.6, 20.2, 20.4 |
+| Kernel: `make_face_tracked` (segment → edge, caller's order), `extrude_tracked`, `ExtrudeHistory` (start_cap, end_cap, sides); through-all refused | 7.6, 7.8, 19.6, 20.2 |
+| Kernel: `sub_shape_bounding_box` | 7.6, 19.4 |
+| Kernel: `face_plane` (point and unit outward normal of a planar face; kind, range and not-planar errors) | 7.7, 19.4, 20.2 |
+| Kernel: `Extent::ToFace`, `Extent::BetweenFaces` (planar faces parallel to the workplane, either side; join, cut and intersect only; refused by `extrude` and `extrude_tracked`), `Extent::FromTo`, `PARALLEL_FACE_TOLERANCE`, `FACE_DISTANCE_TOLERANCE`; every message | 7.7, 7.8, 19.6, 20.2, 20.4 |
 | Kernel: `fillet` (constant radius), `chamfer` (equal distance); edge-list checks (empty, not an edge, out of range), duplicates once, too-large size fails and keeps the input; every message | 9, 19.4, 20.2, 20.4 |
 | Kernel: `chamfer_asymmetric`, `EdgeOnFace` (edge, reference face), `ChamferSize` (TwoDistances d1/d2, DistanceAngle distance/angle in radians, (0, π/2)); face-bounds-edge and one-face-per-edge checks; every message | 9.2, 9.4, 19.4, 20.2 |
 | Kernel: `shell` (one inward wall thickness, outside size kept; open-face list: not empty, faces only, in range, duplicates once; thickness > 0; too thick fails and keeps the input); every message | 10, 19.4, 20.2, 20.4 |
@@ -39,14 +39,14 @@ Everything a user can do or set on `main`, found from the code, `docs/ROADMAP.md
 | Work features from geometry: `work_plane_on_face`, `work_axis_on` (straight edge or cylindrical face; either direction), `vertex_point`; origin nearest the part origin; every message | 15.3, 19.7, 20.2, 20.4 |
 | Work features between and around faces: `Workplane::midplane` (parallel planes, keeps `a`'s normal), `work_plane_tangent` (cylindrical face, side from `toward`), `edge_midpoint` (half the arc length); every message | 15.4, 19.7, 20.2 |
 | Kernel: multi-body shapes: `body_count`, `bodies` (ordered by bounding-box minimum), `combine` (target with several tools, in order; tool, solid and empty checks), `combine_tracked`, `CombineHistory` (target, tools); every message | 6.5, 19.4, 20.2, 20.4 |
-| Kernel: `extrude_feature`, `ExtrudeMode` (NewSolid, Join, Cut, Intersect), `EMPTY_VOLUME_TOLERANCE` | 7.3, 19.6 |
-| Kernel: `Extent::ThroughAll`, `ThroughDirection` (Normal, Reversed, Both); through-all only with `extrude_feature` and `Cut`; miss check | 7.4, 7.7, 19.6, 20.2 |
+| Kernel: `extrude_feature`, `ExtrudeMode` (NewSolid, Join, Cut, Intersect), `EMPTY_VOLUME_TOLERANCE` | 7.4, 19.6 |
+| Kernel: `Extent::ThroughAll`, `ThroughDirection` (Normal, Reversed, Both); through-all only with `extrude_feature` and `Cut`; miss check | 7.5, 7.8, 19.6, 20.2 |
 | Kernel: `revolve`, `revolve_feature`, `Axis` (origin, dir); angle in radians, (0, 2π]; right-hand rule; modes as extrude; axis-in-plane and profile-crossing checks, `REVOLVE_AXIS_TOLERANCE` | 8, 19.6, 19.16, 20.2, 20.4 |
-| Kernel errors (`InvalidInput`, `Backend`, `EmptyResult`), incl. every `make_face`, `extrude`, `extrude_feature`, through-all, `revolve` and `revolve_feature` message | 7.3, 7.7, 8.3, 20.2 |
+| Kernel errors (`InvalidInput`, `Backend`, `EmptyResult`), incl. every `make_face`, `extrude`, `extrude_feature`, through-all, `revolve` and `revolve_feature` message | 7.4, 7.8, 8.3, 20.2 |
 | Sketch entities: point, line, circle, arc (solving changes arc angles; sweep kept in (0, 2π]) | 4.3, 19.8 |
 | `PointRef`: Point, Start, End, Center, ArcStart, ArcEnd (arc ends in every point constraint) | 5.1, 5.6, 19.8 |
 | Constraints: coincident, horizontal, horizontal points, vertical, vertical points, fixed, distance, radius, diameter | 4.4, 4.5, 5, 19.8 |
-| Constraints: parallel, perpendicular, equal (lines; circles/arcs), midpoint, symmetric, tangent (line–circle/arc, circle/arc–circle/arc; side and internal/external rules; endpoint form when a line end is coincident with an arc end) | 4.4, 5.5, 5.6, 19.8 |
+| Constraints: parallel, perpendicular, equal (lines; circles/arcs), midpoint, symmetric, tangent (line–circle/arc, circle/arc–circle/arc; side and internal/external rules; endpoint form when a line end is coincident with an arc end) | 4.4, 5.5, 5.6, 5.8, 19.8 |
 | Profiles: `profiles`, `profile_report`, `ProfileOptions` (weld_tolerance), `ProfileReport` (regions, open_edges), `Region` (outer, holes, `area()`), `Loop` (edges, signed_area), `OrientedEdge`, nesting rules | 4.7, 5.7, 19.10 |
 | Profile errors (`InvalidTolerance`, `SelfIntersecting`, `Sketch`) | 5.7, 20.2 |
 | Solver: `SolveOptions` (tolerance, max_iterations, initial_damping), report, stop reasons | 5.1, 19.9 |
@@ -58,7 +58,7 @@ Everything a user can do or set on `main`, found from the code, `docs/ROADMAP.md
 | Parameter table: `add_model_param` (d0, d1, …), `add_user_param`, `rename_param` (features and formulas follow), `set_param_comment`, `parameters`, `is_valid_param_name`, `Parameter` (name, kind, value, unit, comment, expr), `ParamKind` | 4.8, 17.4, 19.14 |
 | Parameter formulas: `set_param_expr`, `evaluation_order` (dependency order), `set_param` drops a formula and re-evaluates dependents (old values kept on failure), unit handling (result in the parameter's unit; unitless taken in it), `dirty_after_param_change` through formulas | 4.8, 17.7, 19.14, 20.1, 20.4 |
 | Formula errors: `ModelError::Expr`, `ParameterCycle`, `ParameterDimension` | 17.7, 20.2 |
-| Inference: `swx_sketch::infer` `infer`, `add_inferred`, `InferOptions` (point_tol, angle_tol_deg, `for_sketch`), suggestion order and rules, `InferError` (Sketch, Solve, NotConverged) | 4.4, 5.8, 19.12, 20.1, 20.2 |
+| Inference: `swx_sketch::infer` `infer`, `add_inferred`, `InferOptions` (point_tol, angle_tol_deg, `for_sketch`), suggestion order and rules, `InferError` (Sketch, Solve, NotConverged) | 4.4, 5.9, 19.12, 20.1, 20.2 |
 | Document model errors (incl. `DuplicateParameter`, `InvalidParameterName`) | 17.5, 20.2 |
 | Sketch dimensions bound to parameters: `swx_sketch::params` `bind_dimension`, `apply_params`, `rename_bound`, `ParamError`; `Sketch::bindings`, `Sketch::set_dimension_value`; `SketchError::UnknownConstraint`, `NotADimension` | 4.8, 17.5, 19.14, 20.2 |
 | Expressions: `swx_core::expr` `parse`, `eval`, `Expr` (`names`), `Quantity` (`in_unit`), `Dim`, `Unit` (mm, cm, m, in, ft, deg, rad; `from_suffix`, `factor`, `dim`), `ExprError` kinds; grammar and limits | 4.8, 17.6, 19.15, 20.2 |
@@ -76,21 +76,23 @@ Everything a user can do or set on `main`, found from the code, `docs/ROADMAP.md
 | `swx-kernel` `plate_stages` (occt) | 4.9 figure |
 | `swx-sketch` `centered_plate` | 5.5, 5.7 |
 | `swx-sketch` `slot_sketch` | 5.6, 5.7 |
-| `swx-qa` `constraint_plots` | 4.7, 5.5, 5.6 figures |
+| `swx-sketch` `rounded_plate` | 5.8 |
+| `swx-qa` `constraint_plots` | 4.7, 5.5, 5.6, 5.8 figures |
 | `swx-core` `feature_history` | 17.1, 17.2 |
 | `swx-core` `parameter_table` | 17.4 |
 | `swx-sketch` `driven_plate` | 17.5 |
 | `swx-core` `expressions` | 17.6 |
 | `swx-core` `parameter_formulas` | 17.7 |
-| `swx-sketch` `inferred_sketch` | 5.8 |
-| `swx-qa` `inference_plots` | 5.8 figure |
+| `swx-sketch` `inferred_sketch` | 5.9 |
+| `swx-qa` `inference_plots` | 5.9 figure |
 | `swx-kernel` `extrude_plate` (occt) | 7.1 |
 | `swx-kernel` `extrude_slot` (occt) | 7.2 |
-| `swx-kernel` `extrude_modes` (occt) | 7.3 |
-| `swx-kernel` `extrude_through_all` (occt) | 7.4 |
+| `swx-kernel` `extrude_rounded_plate` (occt) | 7.3 |
+| `swx-kernel` `extrude_modes` (occt) | 7.4 |
+| `swx-kernel` `extrude_through_all` (occt) | 7.5 |
 | `swx-kernel` `revolve_bushing` (occt) | 8 |
 | `swx-kernel` `part_topology` (occt) | 6.3 |
-| `swx-kernel` `extrude_to_face` (occt) | 7.6 |
+| `swx-kernel` `extrude_to_face` (occt) | 7.7 |
 | `swx-kernel` `fillet_chamfer` (occt) | 9.1 |
 | `swx-kernel` `chamfer_sizes` (occt) | 9.2 |
 | `swx-kernel` `boolean_history` (occt) | 6.4 |
@@ -113,10 +115,9 @@ Everything a user can do or set on `main`, found from the code, `docs/ROADMAP.md
 
 ## Not user-facing yet
 
-- `swx_core::topo` (M3-04e, #103): `EntityRef`, `Role`, `FaceName`, `EdgeName`, `TopoRef`, `ResolveError`. Plain data with no way to resolve a name to a face or an edge yet, so nothing a user can do changes. M3-04b (#116) added the sub-shape queries it will resolve to (documented in 6.3), and M3-04c/d the face histories of extrudes and Booleans (7.5, 6.4), but not the resolving itself. Document it, with its `describe()` wording, when references can be resolved (later M3-04 slices); *Coming next* lists it as *Lasting references*.
+- `swx_core::topo` (M3-04e, #103): `EntityRef`, `Role`, `FaceName`, `EdgeName`, `TopoRef`, `ResolveError`. Plain data with no way to resolve a name to a face or an edge yet, so nothing a user can do changes. M3-04b (#116) added the sub-shape queries it will resolve to (documented in 6.3), and M3-04c/d the face histories of extrudes and Booleans (7.6, 6.4), but not the resolving itself. Document it, with its `describe()` wording, when references can be resolved (later M3-04 slices); *Coming next* lists it as *Lasting references*.
 
 ## Backlog
 
-- Nothing built is undocumented. Next: when shells take walls of different thicknesses or join the history (later M3-06 slices), extend chapter 10. When sketch regions reach the extrude and the revolve (M3-01c, #106), rewrite chapters 7, 8, 13 and 14 so their tasks start from a sketch, and update the known limitations. When fillets and chamfers take lasting edge references or join the history (later M3-05 slices), rewrite chapter 9's tasks around them. When extrudes and revolves with join, cut or intersect report a face history built on `boolean_tracked`, add it to 7.5 and 6.4. When holes gain drill points, other thread series, or modeled threads, or join the history, extend chapter 11. When work features can be picked on a part, use lasting references, or join the history (later M3-08 slices), extend chapter 15. When bodies can be named, moved or kept in a part's history, extend 6.5. When lofts gain guide curves or sections with holes, or sweeps gain closed or 3D paths, twist or guide rails (later M3-11 slices), extend chapters 13 and 14. When helical sweeps gain a varying radius or pitch, a left hand, or modeled threads arrive (later MB-03 slices), extend 14.2 and chapter 11. When `model.json` gets its typed schema, a part can be saved and opened, the ZIP form or `sltwx pack`/`unpack` arrive, or the cache and `model_hash` check (M4-01, M4-04, M4-05), extend chapter 18, and move the first-part tutorial's save step onto it. The sweep's bend check (M3-11c) is documented in 14.
-- Possible addition: a rounded-corner task (arc ends joined to two lines, M2-04a), now that an extrude can use arcs: a plate with rounded corners.
+- Nothing built is undocumented. Next: when shells take walls of different thicknesses or join the history (later M3-06 slices), extend chapter 10. When sketch regions reach the extrude and the revolve (M3-01c, #106), rewrite chapters 7, 8, 13 and 14 so their tasks start from a sketch, and update the known limitations. When fillets and chamfers take lasting edge references or join the history (later M3-05 slices), rewrite chapter 9's tasks around them. When extrudes and revolves with join, cut or intersect report a face history built on `boolean_tracked`, add it to 7.6 and 6.4. When holes gain drill points, other thread series, or modeled threads, or join the history, extend chapter 11. When work features can be picked on a part, use lasting references, or join the history (later M3-08 slices), extend chapter 15. When bodies can be named, moved or kept in a part's history, extend 6.5. When lofts gain guide curves or sections with holes, or sweeps gain closed or 3D paths, twist or guide rails (later M3-11 slices), extend chapters 13 and 14. When helical sweeps gain a varying radius or pitch, a left hand, or modeled threads arrive (later MB-03 slices), extend 14.2 and chapter 11. When `model.json` gets its typed schema, a part can be saved and opened, the ZIP form or `sltwx pack`/`unpack` arrive, or the cache and `model_hash` check (M4-01, M4-04, M4-05), extend chapter 18, and move the first-part tutorial's save step onto it. The sweep's bend check (M3-11c) is documented in 14.
 - Possible improvement: the variable-fillet picture (9.3) and the square-to-round loft (13) show faint tessellation ripples on curved faces, because `swx-qa render` has no finer-mesh option. Regenerate them if the renderer gains one.

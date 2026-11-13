@@ -1,12 +1,14 @@
 //! Plots the sketches of `swx-sketch`'s `centered_plate` example at two
-//! widths, and its `slot_sketch` example as drawn and solved.
+//! widths, its `slot_sketch` example as drawn and solved, and its
+//! `rounded_plate` example as drawn and solved with 5 mm and 8 mm corners.
 //!
 //! Used by the user manual for its pictures of the parallel, perpendicular,
 //! midpoint, tangent and equal constraints.
 //!
 //! Run: `cargo run -p swx-qa --example constraint_plots -- <out-dir> [<W>x<H>]`
 //! Writes `sketch-centered-40.png`, `sketch-centered-60.png`,
-//! `sketch-slot-rough.png` and `sketch-slot.png`.
+//! `sketch-slot-rough.png`, `sketch-slot.png`, `sketch-rounded-rough.png`,
+//! `sketch-rounded-5.png` and `sketch-rounded-8.png`.
 
 use std::f64::consts::{FRAC_PI_2, PI};
 use std::path::PathBuf;
@@ -129,6 +131,90 @@ fn slot(solve: bool) -> Res<Sketch> {
     Ok(s)
 }
 
+/// The `rounded_plate` sketch: as drawn (with gaps) when `radius` is `None`,
+/// solved with that corner radius otherwise.
+fn rounded(radius: Option<f64>) -> Res<Sketch> {
+    let mut s = Sketch::new();
+    let p = |x, y| Point::new(x, y);
+    let bottom = s.add(Geometry::Line(Line::new(p(6.0, 0.5)?, p(34.0, -0.5)?)?))?;
+    let right = s.add(Geometry::Line(Line::new(p(40.5, 6.0)?, p(39.5, 19.0)?)?))?;
+    let top = s.add(Geometry::Line(Line::new(p(34.0, 26.0)?, p(6.0, 25.0)?)?))?;
+    let left = s.add(Geometry::Line(Line::new(p(-0.5, 19.0)?, p(0.5, 6.0)?)?))?;
+    let br = s.add(Geometry::Arc(Arc::new(
+        p(35.0, 4.0)?,
+        4.0,
+        -FRAC_PI_2,
+        0.0,
+    )?))?;
+    let tr = s.add(Geometry::Arc(Arc::new(
+        p(34.0, 20.0)?,
+        6.0,
+        0.0,
+        FRAC_PI_2,
+    )?))?;
+    let tl = s.add(Geometry::Arc(Arc::new(p(5.0, 21.0)?, 4.5, FRAC_PI_2, PI)?))?;
+    let bl = s.add(Geometry::Arc(Arc::new(
+        p(5.0, 5.0)?,
+        5.5,
+        PI,
+        3.0 * FRAC_PI_2,
+    )?))?;
+    for (side, corner, next) in [
+        (bottom, br, right),
+        (right, tr, top),
+        (top, tl, left),
+        (left, bl, bottom),
+    ] {
+        s.add_constraint(Constraint::Coincident(
+            PointRef::End(side),
+            PointRef::ArcStart(corner),
+        ))?;
+        s.add_constraint(Constraint::Coincident(
+            PointRef::ArcEnd(corner),
+            PointRef::Start(next),
+        ))?;
+        s.add_constraint(Constraint::Tangent(side, corner))?;
+        s.add_constraint(Constraint::Tangent(next, corner))?;
+    }
+    let origin = s.add(Geometry::Point(p(0.0, 0.0)?))?;
+    for c in [
+        Constraint::Equal(br, tr),
+        Constraint::Equal(br, tl),
+        Constraint::Equal(br, bl),
+        Constraint::Radius {
+            geom: tr,
+            value: radius.unwrap_or(5.0),
+        },
+        Constraint::Horizontal(bottom),
+        Constraint::Horizontal(top),
+        Constraint::Vertical(left),
+        Constraint::Vertical(right),
+        Constraint::Distance {
+            a: PointRef::Start(left),
+            b: PointRef::End(right),
+            value: 40.0,
+        },
+        Constraint::Distance {
+            a: PointRef::End(bottom),
+            b: PointRef::Start(top),
+            value: 25.0,
+        },
+        Constraint::Fixed {
+            point: PointRef::Point(origin),
+            x: 0.0,
+            y: 0.0,
+        },
+        Constraint::VerticalPoints(PointRef::Point(origin), PointRef::Start(left)),
+        Constraint::HorizontalPoints(PointRef::Point(origin), PointRef::Start(bottom)),
+    ] {
+        s.add_constraint(c)?;
+    }
+    if radius.is_some() {
+        s.solve(SolveOptions::default())?;
+    }
+    Ok(s)
+}
+
 fn main() -> Res<()> {
     let mut args = std::env::args().skip(1);
     let dir = PathBuf::from(
@@ -144,6 +230,9 @@ fn main() -> Res<()> {
         (centered_plate(60.0)?, "sketch-centered-60.png"),
         (slot(false)?, "sketch-slot-rough.png"),
         (slot(true)?, "sketch-slot.png"),
+        (rounded(None)?, "sketch-rounded-rough.png"),
+        (rounded(Some(5.0))?, "sketch-rounded-5.png"),
+        (rounded(Some(8.0))?, "sketch-rounded-8.png"),
     ] {
         let path = dir.join(name);
         std::fs::write(&path, plot(&s, &opts)?.to_png()?)?;
