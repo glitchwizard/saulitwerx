@@ -1,0 +1,3 @@
+### Step 3 (final): Approach and QA verdict for #194
+
+Took #194 as the second item: independent of #202 (different crate, no Depends on line), started 19 minutes after the 15:26 PT resume. Added the five MetricThread methods and an ISO 965-1 position-g table for the 12 coarse pitches; the values agree with BENCHMARK_PARTS section 3 for M8 and M3. A clippy lint (manual range contains) in a new test was fixed with the suggested form. Verdict: pass with gaps. The es table values come from the author's knowledge of ISO 965-1, not a copy of the standard, so the owner should confirm them; ship_start and ship_complete returned output-schema errors but took effect; nothing visual. (issue:#194)
