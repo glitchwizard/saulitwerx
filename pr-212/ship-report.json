@@ -1,0 +1,98 @@
+{
+  "objective": {
+    "description": "MB-03b: ISO 68-1 thread profile dimensions and 6g/6H deviations (thread data, no OCCT)",
+    "project_id": "saulitwerx",
+    "status": "completed",
+    "completed_at": "2026-11-13T23:49:17.268835017+00:00"
+  },
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "command": "cargo fmt --all --check",
+      "exit_code": 0,
+      "passed": true,
+      "required": true,
+      "task_id": "mb-03b",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "command": "cargo clippy --workspace --all-targets -- -D warnings",
+      "exit_code": 0,
+      "passed": true,
+      "required": true,
+      "task_id": "mb-03b",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "command": "cargo test --workspace",
+      "exit_code": 0,
+      "passed": true,
+      "required": true,
+      "task_id": "mb-03b",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "occt: clippy swx-kernel",
+      "command": "cargo clippy -p swx-kernel --all-targets --features occt -- -D warnings",
+      "exit_code": 0,
+      "passed": true,
+      "required": true,
+      "task_id": "mb-03b",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "occt: test swx-kernel",
+      "command": "cargo test -p swx-kernel --features occt",
+      "exit_code": 0,
+      "passed": true,
+      "required": true,
+      "task_id": "mb-03b",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "occt: clippy swx-qa",
+      "command": "cargo clippy -p swx-qa --all-targets --features occt -- -D warnings",
+      "exit_code": 0,
+      "passed": true,
+      "required": true,
+      "task_id": "mb-03b",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "occt: test swx-qa",
+      "command": "cargo test -p swx-qa --features occt",
+      "exit_code": 0,
+      "passed": true,
+      "required": true,
+      "task_id": "mb-03b",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "artifacts": [
+    {
+      "type": "pr",
+      "ref": "https://github.com/glitchwizard/saulitwerx/pull/212",
+      "task_id": "mb-03b",
+      "description": "MB-03b PR"
+    }
+  ],
+  "task_list": [
+    {
+      "id": "mb-03b",
+      "status": "completed",
+      "checks_count": 7,
+      "artifacts_count": 1
+    }
+  ],
+  "project_id": "saulitwerx",
+  "note": "Transcribed from the ship_export response (acceptance_criteria omitted for length); commands and exit codes as returned by ship_check. ship_start and ship_complete returned an output-schema error but took effect (ship_status and ship_finalize confirm)."
+}
