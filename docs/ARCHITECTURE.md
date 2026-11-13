@@ -71,6 +71,12 @@ Dependency direction: `app → render, io → kernel, sketch → core`. `core` a
 | `serde_derive` 1.x | MIT OR Apache-2.0 | none (Cargo.lock only) | Optional dependency of `serde`, recorded in `Cargo.lock` but not built: the `derive` feature is off. |
 | `syn` 3.x, `quote` 1.x, `proc-macro2` 1.x | MIT OR Apache-2.0 | none (Cargo.lock only) | Transitive (via `serde_derive`); not built. |
 | `unicode-ident` 1.x | (MIT OR Apache-2.0) AND Unicode-3.0 | none (Cargo.lock only) | Transitive (via `proc-macro2`); not built. Unicode-3.0 is not on the allowed list, which is why `swx-io` leaves `serde`'s `derive` feature off. |
+| `flate2` 1.x | MIT OR Apache-2.0 | swx-io | Deflate for the `.sltwx` ZIP container (M4-01d). |
+| `crc32fast` 1.x | MIT OR Apache-2.0 | swx-io | CRC-32 of ZIP entries (M4-01d). |
+| `miniz_oxide` 0.9 | MIT OR Zlib OR Apache-2.0 | swx-io | Transitive (via `flate2`). |
+| `adler2` 2.x | 0BSD OR MIT OR Apache-2.0 | swx-io | Transitive (via `miniz_oxide`). |
+| `simd-adler32` 0.3 | MIT | swx-io | Transitive (via `miniz_oxide`). |
+| `cfg-if` 1.x | MIT OR Apache-2.0 | swx-io | Transitive (via `crc32fast`). |
 
 ## ADR log
 

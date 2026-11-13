@@ -4,14 +4,18 @@
 //! So far this covers `manifest.json` ([`Manifest`], [`read_manifest`],
 //! [`write_manifest`]), the canonical JSON writer ([`to_canonical_json`])
 //! that every file of the format uses, and whole documents in the unpacked
-//! folder form ([`Document`], [`read_unpacked`], [`write_unpacked`]).
+//! folder form ([`Document`], [`read_unpacked`], [`write_unpacked`]) and as a
+//! single ZIP archive ([`read_sltwx`], [`write_sltwx`]).
 
 mod canonical;
 mod manifest;
+mod packed;
 mod unpacked;
+mod zip;
 
 pub use canonical::to_canonical_json;
 pub use manifest::{read_manifest, write_manifest, DocumentKind, Manifest, Units};
+pub use packed::{read_sltwx, write_sltwx};
 pub use unpacked::{read_unpacked, write_unpacked, Document};
 
 use std::fmt;
@@ -56,6 +60,22 @@ pub enum FormatError {
         /// The manifest's kind.
         kind: DocumentKind,
     },
+    /// The file is not a readable ZIP archive: it has no end-of-central-
+    /// directory record, an entry is truncated, a header is inconsistent, an
+    /// entry's deflate data is corrupt, or the file is not a ZIP at all.
+    /// Holds what is wrong.
+    MalformedArchive(String),
+    /// An archive entry uses a compression method other than 0 (stored) or
+    /// 8 (deflate).
+    UnsupportedMethod {
+        /// The entry's name.
+        entry: String,
+        /// The ZIP compression method number.
+        method: u16,
+    },
+    /// An archive entry's data does not match its recorded CRC-32. Holds the
+    /// entry's name.
+    CrcMismatch(String),
 }
 
 impl fmt::Display for FormatError {
@@ -74,6 +94,14 @@ impl fmt::Display for FormatError {
             }
             FormatError::Io { path, message } => write!(f, "{}: {message}", path.display()),
             FormatError::MissingFile(name) => write!(f, "missing required file `{name}`"),
+            FormatError::MalformedArchive(why) => write!(f, "malformed ZIP archive: {why}"),
+            FormatError::UnsupportedMethod { entry, method } => write!(
+                f,
+                "archive entry `{entry}` uses unsupported compression method {method} (only 0 and 8 are supported)"
+            ),
+            FormatError::CrcMismatch(entry) => {
+                write!(f, "archive entry `{entry}` fails its CRC-32 check")
+            }
             FormatError::ExtensionMismatch { extension, kind } => {
                 let expected = unpacked::extension_of(*kind);
                 let kind = kind.as_str();

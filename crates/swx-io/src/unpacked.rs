@@ -126,7 +126,7 @@ pub(crate) fn extension_of(kind: DocumentKind) -> &'static str {
     }
 }
 
-fn check_extension(dir: &Path, kind: DocumentKind) -> Result<(), FormatError> {
+pub(crate) fn check_extension(dir: &Path, kind: DocumentKind) -> Result<(), FormatError> {
     let ext = dir.extension().map(|e| e.to_string_lossy().into_owned());
     if ext.as_deref() == Some(extension_of(kind)) {
         Ok(())
@@ -138,7 +138,7 @@ fn check_extension(dir: &Path, kind: DocumentKind) -> Result<(), FormatError> {
     }
 }
 
-fn io_error(path: &Path, e: &io::Error) -> FormatError {
+pub(crate) fn io_error(path: &Path, e: &io::Error) -> FormatError {
     FormatError::Io {
         path: path.to_path_buf(),
         message: e.to_string(),
@@ -160,7 +160,7 @@ fn write_file(dir: &Path, name: &str, text: &str) -> Result<(), FormatError> {
     fs::write(&path, text).map_err(|e| io_error(&path, &e))
 }
 
-fn check_object(file: &str, v: &Value) -> Result<(), FormatError> {
+pub(crate) fn check_object(file: &str, v: &Value) -> Result<(), FormatError> {
     if v.is_object() {
         Ok(())
     } else {
@@ -171,7 +171,7 @@ fn check_object(file: &str, v: &Value) -> Result<(), FormatError> {
     }
 }
 
-fn parse_object(file: &str, text: &str) -> Result<Value, FormatError> {
+pub(crate) fn parse_object(file: &str, text: &str) -> Result<Value, FormatError> {
     let v: Value =
         serde_json::from_str(text).map_err(|e| FormatError::Json(format!("{file}: {e}")))?;
     check_object(file, &v)?;
