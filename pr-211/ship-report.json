@@ -1,0 +1,13 @@
+{
+  "active_task": null,
+  "artifacts": [{"description": "M4-01d PR", "ref": "https://github.com/glitchwizard/saulitwerx/pull/211", "task_id": "m4-01d", "type": "pr"}],
+  "checks": [
+    {"name": "cargo fmt", "command": "cargo fmt --all --check", "exit_code": 0, "passed": true, "required": true, "task_id": "m4-01d", "type": "lint", "verified": true},
+    {"name": "cargo clippy", "command": "cargo clippy --workspace --all-targets -- -D warnings", "exit_code": 0, "passed": true, "required": true, "task_id": "m4-01d", "type": "lint", "verified": true},
+    {"name": "cargo test", "command": "cargo test --workspace", "exit_code": 0, "passed": true, "required": true, "task_id": "m4-01d", "type": "test", "verified": true}
+  ],
+  "objective": {"description": "M4-01d: swx-io ZIP container: read and write a whole .sltwx document as a deflate ZIP", "project_id": "saulitwerx", "status": "completed", "completed_at": "2026-11-13T23:43:26.685606776+00:00"},
+  "project_id": "saulitwerx",
+  "task_list": [{"id": "m4-01d", "status": "completed", "checks_count": 3, "artifacts_count": 1, "title": "Implement and verify the ZIP container (PR #211)", "type": "implement"}],
+  "note": "Transcribed from the ship_export response (acceptance_criteria omitted for length); commands and exit codes as returned by ship_check. ship_start and ship_complete returned an output-schema error but took effect (confirmed with ship_status)."
+}
