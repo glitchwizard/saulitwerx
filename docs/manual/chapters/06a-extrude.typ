@@ -124,6 +124,60 @@ Three workplanes are built in. To draw on another plane, give your own `Workplan
 
 #caution(title: [XZ extrudes toward −Y])[Looking down on the XZ plane so that X runs right and Z runs up, you are looking from the −Y side, and that is where a positive distance goes. If a part comes out on the wrong side, use a negative distance.]
 
+== Extrude a plate with rounded corners <sec-extrude-rounded>
+
+#idx("rounded corner")
+The rounded plate of @sec-rounded becomes a solid the same way as the plain one: type its outline into a loop, add the hole, and extrude. Its outline has eight pieces, side, corner, side, corner, all the way round.
+
+#task-intro(
+  goal: [Extrude a 40 × 25 mm plate with 5 mm rounded corners and a 10 mm hole, 5 mm thick, and save it as STEP.],
+  needs: [Saulitwerx built with OpenCascade.],
+  time: [5 minutes.],
+)
+
+#shot(
+  // cargo run -p swx-kernel --features occt --example extrude_rounded_plate -- rounded-plate.step
+  // swx-qa render --step rounded-plate.step --size 1200x840 -o docs/manual/img/rounded-plate.png
+  "img/rounded-plate.png",
+  width: 50%,
+  caption: [The plate with rounded corners: four flat sides, four curved corners and a hole, extruded 5 mm.],
+  alt: "A flat rectangular plate with rounded corners and a round hole in its middle, seen from above at an angle",
+) <fig-rounded-plate>
+
+#steps(
+  [Run the sample program:
+  #term-block("cargo run -p swx-kernel --features occt --example extrude_rounded_plate -- rounded-plate.step")
+  #term-block(label: "Output", "volume        4500.00 mm³\nfaces         11\nbounding box  [0.0, 0.0, 0.0] to [40.0, 25.0, 5.0]\n…  (the geometry engine's file report)\nwrote rounded-plate.step")],
+  [Compare it with the sharp-cornered plate of @sec-extrude. The box around it is the same, 40 × 25 × 5 mm, but the volume is 107.30 mm³ less: the material the rounding took off the four corners. The plate has 11 faces: top, bottom, four flat sides, four curved corners and the hole.],
+  [Draw the part:
+  #term-block("target/release/swx-qa render --step rounded-plate.step -o rounded-plate.png")
+  Open `rounded-plate.png`. You should see the plate of @fig-rounded-plate, with smooth corners and no edge line where a side turns into a corner.],
+)
+
+#result[A plate with rounded corners and a hole, made in one extrude.]
+
+The program is `crates/swx-kernel/examples/extrude_rounded_plate.rs`. Each corner is a quarter circle, `Segment2::Arc`, that turns a quarter of a full turn, π/2, counterclockwise. The bottom-right corner starts at −π/2, straight down from its center where the bottom side ends, and stops at 0, pointing right, where the right side begins:
+
+```rust
+let corner = |center, start_angle: f64| Segment2::Arc {
+    center,
+    radius: r,
+    start_angle,
+    end_angle: start_angle + FRAC_PI_2,
+};
+let outer = ProfileLoop {
+    segments: vec![
+        line([r, 0.0], [40.0 - r, 0.0]),
+        corner([40.0 - r, r], -FRAC_PI_2),
+        line([40.0, r], [40.0, 25.0 - r]),
+        corner([40.0 - r, 25.0 - r], 0.0),
+        // … and the same for the top and left sides
+    ],
+};
+```
+
+#tip(title: [Change the radius in one place])[The sample works out every point from `r`, the corner radius. Change `let r = 5.0;` to another value and run it again: the plate stays 40 × 25 mm. Keep `r` under 12.5 mm, half the plate's height, so the left and right sides still have some length.]
+
 == Join, cut or intersect with an extrude <sec-extrude-modes>
 
 #idx("extrude mode")#idx("target body")

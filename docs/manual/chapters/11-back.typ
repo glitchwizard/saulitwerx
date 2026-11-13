@@ -132,6 +132,12 @@
 
 = What's new
 
+== 2026-11-13: plates with rounded corners
+
+- *New task:* draw a plate with four rounded corners, set every corner with one radius, and change it without changing the plate's size (@sec-rounded).
+- *New task:* extrude the rounded plate with a hole, and compare it with the sharp-cornered plate (@sec-extrude-rounded).
+- *Pictures:* the rounded plate as drawn and solved, with 5 mm and 8 mm corners, and the extruded plate.
+
 == 2026-11-12: springs and coils, and Saulitwerx document files
 
 - *New:* sweep a flat profile around a helix, by pitch and number of turns, for coil springs, coils and thread-like ridges (@sec-helix).

@@ -294,6 +294,96 @@ println!("open edges: {:?}", profile.open_edges);
 
 #caution(title: [Crossing pieces stop the search])[If two pieces cross, overlap or touch away from their ends, `profile_report` returns an error naming both, such as `geometry 2 and 5 intersect`, and no regions. Saulitwerx doesn't split pieces where they cross. Move or shorten one of them so they meet only end to end.]
 
+== Round the corners of a plate <sec-rounded>
+
+#idx("rounded corner")
+Sharp corners catch on hands and pockets, and they are the first place a part cracks. Most plates and covers have rounded corners instead: each corner is a quarter of a circle, and the straight sides run into it smoothly. You draw them the same way as the ends of a slot (@sec-slot). Each corner is an arc, coincident joins its ends to the two sides beside it, and tangent removes the corner where they meet. Equal makes all four corners one size, so a single radius sets them all.
+
+#task-intro(
+  goal: [Close a roughly drawn plate with four rounded corners, check that it is fully defined, then change the corner radius without changing the plate's size.],
+  needs: [Saulitwerx built (@ch-install). OpenCascade is not needed.],
+  time: [10 minutes.],
+)
+
+#image-equation(
+  (
+    // cargo run -p swx-qa --example constraint_plots -- docs/manual/img 600x420
+    ("img/sketch-rounded-rough.png", "As drawn"),
+    ("img/sketch-rounded-5.png", "Solved"),
+  ),
+  ("→",),
+  caption: [The rounded plate before and after solving. As drawn, the corners differ in size and no piece meets the next. Solved, four equal 5 mm corners run smoothly into level, upright sides.],
+  alt: "Left: a rough rectangle of four leaning lines and four unequal corner arcs with gaps between them. Right: a neat rectangle with four equal rounded corners.",
+) <fig-rounded>
+
+#steps(
+  [Run the rounded-plate sample:
+  #term-block("cargo run -p swx-sketch --example rounded_plate")
+  It prints the plate three times: as drawn, after solving, and after the radius changes. Each time it lists the four corners (bottom right, top right, top left, bottom left), the four sides, and the regions. The first part is the plate as drawn:
+  #term-block(label: "Output", "1 as drawn\n  br     arc center (35.00,  4.00)  radius 4.00 mm\n  tr     arc center (34.00, 20.00)  radius 6.00 mm\n  tl     arc center ( 5.00, 21.00)  radius 4.50 mm\n  bl     arc center ( 5.00,  5.00)  radius 5.50 mm\n  bottom ( 6.00,  0.50) -> (34.00, -0.50)\n  right  (40.50,  6.00) -> (39.50, 19.00)\n  top    (34.00, 26.00) -> ( 6.00, 25.00)\n  left   (-0.50, 19.00) -> ( 0.50,  6.00)\n  regions: 0\n  open edges: [0, 1, 2, 3, 4, 5, 6, 7]")],
+  [Read stage 1. The plate was drawn carelessly on purpose: four different corner sizes, sides that lean, and no piece touching the next (@fig-rounded). Nothing closes, so there is no region, and all eight pieces are open edges.],
+  [Read stage 2, which comes next:
+  #term-block(label: "Output", "2 solved: true\n  dof 0 FullyConstrained\n  br     arc center (35.00,  5.00)  radius 5.00 mm\n  tr     arc center (35.00, 20.00)  radius 5.00 mm\n  tl     arc center ( 5.00, 20.00)  radius 5.00 mm\n  bl     arc center ( 5.00,  5.00)  radius 5.00 mm\n  bottom ( 5.00,  0.00) -> (35.00,  0.00)\n  right  (40.00,  5.00) -> (40.00, 20.00)\n  top    (35.00, 25.00) -> ( 5.00, 25.00)\n  left   ( 0.00, 20.00) -> ( 0.00,  5.00)\n  regions: 1\n    outer edges 8, holes 0, area 978.54 mm²\n  open edges: []")
+  Every corner now has a radius of 5 mm, the sides are level and upright, and each side starts and ends exactly where a corner does. The bottom side runs from 5 mm to 35 mm: the plate is 40 mm wide, and 5 mm at each end belongs to the rounding.],
+  [Read `dof 0 FullyConstrained` and the region. The plate is fully defined, and it encloses one region of 978.54 mm²: the 40 × 25 mm rectangle, 1000 mm², less the four small corner pieces the rounding cut away.],
+  [Read stage 3, at the end of the output. The radius is now 8 mm. The corners grew and the straight sides got shorter, but the plate is still 40 × 25 mm, from (0, 0) to (40, 25):
+  #term-block(label: "Output", "3 radius 8 mm, solved: true\n  br     arc center (32.00,  8.00)  radius 8.00 mm\n  …\n  bottom ( 8.00,  0.00) -> (32.00,  0.00)\n  right  (40.00,  8.00) -> (40.00, 17.00)\n  …\n  regions: 1\n    outer edges 8, holes 0, area 945.06 mm²")],
+)
+
+#result[A fully defined 40 × 25 mm plate outline with rounded corners, whose corner size you can change with one number.]
+
+#image-row(
+  (
+    // cargo run -p swx-qa --example constraint_plots -- docs/manual/img 600x420
+    ("img/sketch-rounded-5.png", "Radius 5 mm", "A 40 by 25 rectangle with small rounded corners"),
+    ("img/sketch-rounded-8.png", "Radius 8 mm", "The same rectangle with larger rounded corners and shorter straight sides"),
+  ),
+  caption: [Changing the radius from 5 mm to 8 mm. The 40 and 25 mm dimensions are on the outline itself, so the plate keeps its size and only the corners change.],
+) <fig-rounded-radius>
+
+#block(breakable: false)[
+=== How the rounded plate is built
+
+The program is `crates/swx-sketch/examples/rounded_plate.rs`. Going round the plate counterclockwise, it is side, corner, side, corner. Each corner arc starts where the side before it ends and ends where the next side starts, so one loop adds all its joins and tangents:
+
+```rust
+for (side, corner, next) in [
+    (bottom, br, right),
+    (right, tr, top),
+    (top, tl, left),
+    (left, bl, bottom),
+] {
+    s.add_constraint(Constraint::Coincident(PointRef::End(side), PointRef::ArcStart(corner)))?;
+    s.add_constraint(Constraint::Coincident(PointRef::ArcEnd(corner), PointRef::Start(next)))?;
+    s.add_constraint(Constraint::Tangent(side, corner))?;
+    s.add_constraint(Constraint::Tangent(next, corner))?;
+}
+```
+]
+
+Then three equal constraints tie the other corners to the bottom-right one, a radius dimension sets the size, and horizontal and vertical square up the sides.
+
+The overall size takes some thought, because a rounded plate has no sharp corner to measure from. The sample measures between the points where the sides meet the rounding. The left side's start and the right side's end sit straight across from each other, so the distance between them is the full width:
+
+```rust
+s.add_constraint(Constraint::Distance {
+    a: PointRef::Start(left),
+    b: PointRef::End(right),
+    value: 40.0,
+})?;
+```
+
+The height is measured the same way, from the bottom side's end up to the top side's start. Last, a fixed point at the origin anchors the plate: `VerticalPoints` keeps the left side straight above it, and `HorizontalPoints` keeps the bottom side level with it. `add_constraint` returns an id for each constraint. The sample keeps the radius dimension's id, and later changes its value through it and solves again:
+
+```rust
+s.set_dimension_value(radius, 8.0)?;
+s.solve(SolveOptions::default())?;
+```
+
+#tip(title: [Dimension what you mean])[Your dimensions say what must stay the same when something else changes. This plate is dimensioned on its outline, so a bigger radius keeps it 40 × 25 mm. Dimension the distance between the corner centers instead, and a bigger radius makes the whole plate grow. Both are correct sketches; they just mean different things. Pick the one that matches what the part has to fit.]
+
+#tip(title: [Round corners in the sketch, or later?])[Rounding the corners in the sketch keeps the solid simple: the extrude makes the rounded sides directly. You can also extrude sharp corners and round the edges afterwards with a fillet (@ch-fillet). Use the sketch when the rounding belongs to the outline, as on this plate, and a fillet for edges the sketch doesn't draw, such as the rim of a top face.]
+
 == Let Saulitwerx add constraints as you draw <sec-infer>
 
 Most of a sketch's constraints say what your drawing already almost shows: this corner joins that one, this line is level, this circle touches that line. Adding each of them by hand is slow. #term[Inference] does it for you. After you add a piece, Saulitwerx compares it with everything already in the sketch, suggests the constraints it nearly satisfies, adds them and solves. It never adds a dimension: sizes stay yours to set.
