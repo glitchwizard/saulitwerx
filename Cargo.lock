@@ -191,6 +191,8 @@ version = "0.0.1"
 name = "swx-io"
 version = "0.0.1"
 dependencies = [
+ "crc32fast",
+ "flate2",
  "serde",
  "serde_json",
 ]
