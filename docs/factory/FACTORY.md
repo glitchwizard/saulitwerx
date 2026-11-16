@@ -15,9 +15,9 @@ The owner wants **slow, steady progress on a tight token budget**. When in doubt
 
 | Role | Schedule | Does |
 |---|---|---|
-| **Builder** | 12:17am and 2:17am PT | Implements up to `issues_per_night` issues per night (`STATE.md`), at most **two** per run, one PR per issue (§3). |
-| **Reviewer + Planner** | 1:17am and 3:17am PT, an hour after each Builder slot | Reviews and merges up to **2** factory PRs per run, then tops up the issue queue. On Monday nights it also runs the weekly retro (§4). |
-| **Documenter** | 4:17am PT, after the last Reviewer slot | Writes and designs the user manual (a PDF built from `docs/manual/`), keeps it current with what merged, and merges its own manual PR (§4a, §6d). |
+| **Builder** | 12:17am PT | Implements up to `issues_per_night` issues per night (`STATE.md`), one after the other in a single run, one PR per issue (§3). |
+| **Reviewer + Planner** | 2:47am PT, after the Builder run | Reviews and merges up to **4** factory PRs, then tops up the issue queue. On Monday nights it also runs the weekly retro (§4). |
+| **Documenter** | 4:17am PT, after the Reviewer run | Writes and designs the user manual (a PDF built from `docs/manual/`), keeps it current with what merged, and merges its own manual PR (§4a, §6d). |
 | **Reporter** | Mondays 7:56am PT | Weekly summary for the owner. Read-only on GitHub; writes only its weekly section of the status doc (§7a). |
 
 ## 2. Work queue (GitHub issues)
@@ -41,10 +41,10 @@ Issue title format: `M2-03: Solver constraints: coincident, horizontal, …`. Th
 
 ## 3. Builder protocol
 
-**Night, cap and time box.** A night is the America/Los_Angeles date on which a run starts. Times in this file are Pacific time (PT), which follows daylight saving. `issues_per_night` in `STATE.md` caps how many items the Builder takes per night, across all its runs. Note the time when the run starts (`TZ=America/Los_Angeles date`). Start no new item after 40 minutes, and wrap up by 60. An item that isn't done by then: push its branch, open its PR as a draft if it has none, label the issue `factory:changes`, comment what's left, and record it as `partial`. The next run continues it and marks the PR ready for review when it's done.
+**Night, cap and time box.** A night is the America/Los_Angeles date on which a run starts. Times in this file are Pacific time (PT), which follows daylight saving. `issues_per_night` in `STATE.md` caps how many items the Builder takes per night, across all its runs. Note the time when the run starts (`TZ=America/Los_Angeles date`). Start no new item after 90 minutes, and wrap up by 120, so the run ends before the Reviewer starts. An item that isn't done by then: push its branch, open its PR as a draft if it has none, label the issue `factory:changes`, comment what's left, and record it as `partial`. The next run continues it and marks the PR ready for review when it's done.
 
 1. Kill-switch check (§0). Read `CLAUDE.md`, `docs/ARCHITECTURE.md` and `CLEAN_ROOM.md`.
-2. **Nightly cap.** Count tonight's non-idle Builder outcome comments on the run log (§6a posts one per item). If the count has reached `issues_per_night`, post an `idle (nightly cap reached)` run-log comment and stop. Otherwise this run may take up to `min(2, issues_per_night − count)` items.
+2. **Nightly cap.** Count tonight's non-idle Builder outcome comments on the run log (§6a posts one per item). If the count has reached `issues_per_night`, post an `idle (nightly cap reached)` run-log comment and stop. Otherwise this run may take up to `issues_per_night − count` items.
 3. Pick work in this order. Skip any issue labeled `needs-human` or `factory:blocked`, and any issue whose `Depends on:` line names an issue that is still open (§2).
    1. If `main` CI is red, fix `main`. This is the only case where work starts without an issue: open a `fix:` PR. It is the run's only item.
    2. The oldest open issue labeled both `priority` and `factory:ready`.
@@ -52,9 +52,9 @@ Issue title format: `M2-03: Solver constraints: coincident, horizontal, …`. Th
    4. The lowest-numbered roadmap item among open `factory:ready` issues.
    5. If nothing qualifies, post an `idle` run-log comment and stop.
 
-   Take the first item. Take a second one, the next in the same order, when this run may take two and the two are **independent**: neither depends on the other, directly or through another open issue. Prefer a second item in a different crate when one qualifies. Two in the same crate are fine: if merging the first leaves the second in conflict, the Reviewer sends it back and the Builder merges `main` into it (step 3.3). If they're dependent, take only the first; the next Builder slot takes the second after the Reviewer has merged the first.
+   Take the first item, then keep taking the next one in the same order until the run has as many as it may take. Skip any item that depends on one already taken this run, directly or through another open issue: it waits for the next night, after the Reviewer has merged what it needs. Prefer items in different crates when the order allows. Items in the same crate are fine; §4 step 1 handles the conflicts they cause.
 4. Claim each issue: add `factory:wip`, remove `factory:ready` or `factory:changes`.
-5. **One item at a time.** Run steps 6–13 for the first item, through its QA report and outcome comment, then for the second, each on its own branch from `origin/main`. No subagents and no parallel worktrees: if a run stops early, at most one item is left half done.
+5. **One item at a time.** Run steps 6–13 for the first item, through its QA report and outcome comment, then for the next, each on its own branch from `origin/main`. No subagents and no parallel worktrees: if a run stops early, at most one item is left half done.
 6. Branch: `feat/<issue#>-<short-slug>` (or `fix/…`). **Never commit to `main`.**
 7. Implement the smallest change that meets the acceptance criteria. Add tests that would fail without the change. Locally, run all of:
    `cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace`
@@ -63,15 +63,15 @@ Issue title format: `M2-03: Solver constraints: coincident, horizontal, …`. Th
 10. **Check off acceptance criteria in the issue as you go, not at the end.** After each commit that satisfies a criterion and passes its tests, edit the issue body right away: change that line's `- [ ]` to `- [x]` and append the short commit SHA, e.g. `- [x] With --features occt: … (5074e53)`. Check only what is implemented *and* verified in this run, never on intent. Leave the rest unchecked. If a criterion is met in a different way than written, check it and explain in the outcome comment. If a later commit breaks a checked criterion, uncheck it.
 11. Push and open a PR titled like the issue, with a body that includes `Closes #N`, a summary, how it was tested, and any follow-up issues. Label the issue `factory:review` and remove `factory:wip`.
 12. Wait for CI. If it fails, fix it, up to **3 attempts**. If it still fails, label the issue `factory:blocked`, comment the failure summary, and stop.
-13. Record the gates (§6c), run QA and post the QA report (§6b), then record your STATE line (§6), post the outcome comments (§6a), and stop. **At most two items per run and `issues_per_night` per night, no exceptions.**
+13. Record the gates (§6c), run QA and post the QA report (§6b), then record your STATE line (§6), post the outcome comments (§6a), and stop. **One Builder run a night, at most `issues_per_night` items, no exceptions.**
 
 ## 4. Reviewer + Planner protocol
 
-### Review (max 2 PRs per run)
+### Review (max 4 PRs per run)
 
 For each open PR whose issue is labeled `factory:review`, oldest first:
 
-1. CI must be green. If it isn't, label the issue `factory:changes`, comment why, and go to the next PR. **A PR with no CI checks at all counts as red, and so does a PR that conflicts with `main`** (comment: merge `main` into the branch). If `.github/workflows/ci.yml` is missing on `main`, merge nothing, open (or keep open) one `needs-human` issue titled "CI workflow missing", and skip to Plan.
+1. CI must be green. If it isn't, label the issue `factory:changes`, comment why, and go to the next PR. **A PR with no CI checks at all counts as red, and so does a PR that conflicts with `main`** (comment: merge `main` into the branch). One exception: when the conflict comes from a PR you merged earlier in this run and only touches lines both sides added (imports, `mod` lines, re-exports, dependency or test lists), merge `main` into the branch yourself, keeping both sides. Then run the §3 step 7 gates, push, wait for CI, and review it as usual. If `.github/workflows/ci.yml` is missing on `main`, merge nothing, open (or keep open) one `needs-human` issue titled "CI workflow missing", and skip to Plan.
 2. Read the issue and the full diff. Check:
    - every acceptance criterion is met and tested, and every box the Builder checked is actually true (uncheck any that aren't and send the PR back);
    - the PR has a QA report (§6b) for its current head commit, with all six sections. Open every image it embeds and check that it shows what the report claims (§6b, *Reviewer checks*);
@@ -86,16 +86,16 @@ For each open PR whose issue is labeled `factory:review`, oldest first:
 
 ### Plan
 
-After reviewing, if fewer than **4** issues are labeled `factory:ready`:
+After reviewing, if fewer than **6** issues are labeled `factory:ready`:
 
 1. Take the next unchecked items from `docs/ROADMAP.md`, in order, that have no open issue yet. Search the issue titles for the item ID.
-2. Create issues until there are 4 ready, using the format in §2: a `Depends on:` line when an issue needs another open issue merged first, and the QA item last in the acceptance criteria. Make the acceptance criteria concrete and testable, with numbers and tolerances where geometry is involved.
-3. Prefer keeping at least **2** ready issues that are independent of each other (§3), so a Builder run can take two. When the next roadmap items form a dependency chain, also create the next _(parallel ok)_ item whose prerequisites are met.
+2. Create issues until there are 6 ready, using the format in §2: a `Depends on:` line when an issue needs another open issue merged first, and the QA item last in the acceptance criteria. Make the acceptance criteria concrete and testable, with numbers and tolerances where geometry is involved.
+3. Keep at least **4** ready issues that are unblocked and independent of each other (§3), so the next Builder run can take four. When the next roadmap items form a dependency chain, also create the next _(parallel ok)_ item whose prerequisites are met.
 4. If an item needs a design decision first (e.g. M3-04 topological naming), create a `docs/specs/<id>.md` spec issue first.
 
 ### Retro (weekly): the factory improves itself
 
-The first Reviewer run of each Monday night (§3) runs a retro after Plan, over the last 7 nights. This is how the factory iterates on its own rules, using its own records.
+The Reviewer run of each Monday night (§3) runs a retro after Plan, over the last 7 nights. This is how the factory iterates on its own rules, using its own records.
 
 1. **Gather:** the run-log outcome comments, the Reviewer's send-back comments, the known gaps (e) of the week's QA reports, and the `think-trace.md` and `ship-report.json` files under `qa-artifacts` for those nights (§6c). Also last week's retro PR and whether it merged.
 2. **Reason with `think_*`:** one step per candidate problem, naming its evidence (links) and what it cost: a wasted run, a send-back, a red `main`, extra tokens.
@@ -108,7 +108,7 @@ Finish the run with outcome comments (§6a).
 
 ## 4a. Documenter protocol
 
-One run a night, after the last Reviewer slot. It writes and designs the user manual (§6d), and it meets the product the way a user would: it runs every procedure it describes. Quality comes first in this role: a chapter that isn't good enough yet waits for the next run rather than shipping rough.
+One run a night, after the Reviewer run. It writes and designs the user manual (§6d), and it meets the product the way a user would: it runs every procedure it describes. Quality comes first in this role: a chapter that isn't good enough yet waits for the next run rather than shipping rough.
 
 1. Kill-switch check (§0). Read `CLAUDE.md`, `CLEAN_ROOM.md`, §6d, and `docs/manual/STYLE.md` and `docs/manual/COVERAGE.md` if they exist.
 2. **Anything to do?** There is work when the open `manual-feedback` issue has owner comments you haven't answered, when a commit since the marker on the first line of `COVERAGE.md` (`manual-synced-to: <sha>`) changed anything under `crates/` outside `examples/`, or when `COVERAGE.md` lists backlog. Otherwise stop: no PR and no comment. If there is no manual yet, build the first one: the design (template and `STYLE.md`), the structure, and everything on `main`.
@@ -125,7 +125,7 @@ Time box: start no new chapter after 60 minutes, and wrap up by 90. Merge what m
 
 ## 5. Budget rules (hard)
 
-- Builder: at most `issues_per_night` issues per night (`STATE.md`), at most two per run, inside the §3 time box. Reviewer: two PRs and at most three new issues per run, plus one retro PR with at most three changes on Monday nights. Documenter: one run and at most one manual PR per night, and at most 2 new issues per run, inside its §4a time box. Reporter: read-only on GitHub, one status-doc section per week.
+- Builder: one run and at most `issues_per_night` issues per night (`STATE.md`), inside the §3 time box. Reviewer: one run, at most four PRs and five new issues per night, plus one retro PR with at most three changes on Monday nights. Documenter: one run and at most one manual PR per night, and at most 2 new issues per run, inside its §4a time box. Reporter: read-only on GitHub, one status-doc section per week.
 - Don't explore the codebase broadly. Read only what the issue touches, plus the docs listed above.
 - Don't vendor or build large C++ dependencies from source inside a run unless the issue requires it and caching is in place.
 - If a run hits something that would take a lot of extra work (toolchain breakage, an ambiguous spec), write it down (`factory:blocked` or `needs-human` plus a comment) and stop. Don't push through.
