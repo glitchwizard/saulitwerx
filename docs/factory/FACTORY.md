@@ -53,7 +53,7 @@ Issue title format: `M2-03: Solver constraints: coincident, horizontal, …`. Th
    5. If nothing qualifies, post an `idle` run-log comment and stop.
 
    Take the first item. Take a second one, the next in the same order, when this run may take two and the two are **independent**: neither depends on the other, directly or through another open issue. Prefer a second item in a different crate when one qualifies. Two in the same crate are fine: if merging the first leaves the second in conflict, the Reviewer sends it back and the Builder merges `main` into it (step 3.3). If they're dependent, take only the first; the next Builder slot takes the second after the Reviewer has merged the first.
-4. Claim each issue: add `factory:wip`, remove `factory:ready` or `factory:changes`.
+4. Claim each issue: first re-read its labels and check for an existing branch or PR for it (`git ls-remote` or the GitHub connector). If it is already claimed, take the next item. Otherwise add `factory:wip` and remove `factory:ready` or `factory:changes`.
 5. **One item at a time.** Run steps 6–13 for the first item, through its QA report and outcome comment, then for the second, each on its own branch from `origin/main`. No subagents and no parallel worktrees: if a run stops early, at most one item is left half done.
 6. Branch: `feat/<issue#>-<short-slug>` (or `fix/…`). **Never commit to `main`.**
 7. Implement the smallest change that meets the acceptance criteria. Add tests that would fail without the change. Locally, run all of:
@@ -199,7 +199,7 @@ Every Builder PR gets a QA report: hands-on evidence that the change works, beyo
 
   Each image gets a one-line caption saying what it should show. The weekly status report (§7a) and the user manual (§6d) reuse these images and captions, so write captions for the owner, not only the Reviewer. If the change has nothing visual, write `Nothing visual: <reason>`. If the tool it needs doesn't exist yet, write `No visual: <tool> not available yet` and list that in (e).
 - **(e) Known gaps.** Everything QA did not cover or could not verify, and anything deferred, with follow-up issue numbers. Write `None` if there are none.
-- **(f) Verdict.** `pass`: every criterion is met and verified, and (e) is `None`. `pass with gaps`: every criterion is met, and (e) lists what QA could not cover. An unmet criterion is not a gap: fix it before posting. If you can't fix it in this run, post no verdict; the run is `stalled` (§6a).
+- **(f) Verdict.** `pass`: every criterion is met and verified, and (e) is `None`. `pass with gaps`: every criterion is met, and (e) lists what QA could not cover. An unmet criterion is not a gap: fix it before posting. If you can't fix it in this run, post no verdict; the run is `stalled` (§6a). A criterion that rests on data copied from a published standard, or from memory, is met only when its author has checked the values against that standard's text. Otherwise post no `pass` verdict; the run is `stalled` with fix owner `owner`.
 
 **Images:**
 
