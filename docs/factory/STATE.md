@@ -13,6 +13,7 @@ issues_per_night: 4
 
 ## Log
 
+- 2026-11-15 reviewer: #211 (M4-01d) was merged by the owner on 2026-11-16, not by this run; #212 (MB-03b) not merged, labeled needs-human on #194 (ISO 965-1 values not verified against the standard); planned #215 M4-02a and #216 M4-02b (ready: #206, #207, #214, #215, #216); #213 (M4-02, size:M) overlaps them, labeled needs-human; no roadmap check-off (M4-01 and M3-12 state unchanged); no retro (not a Monday); this run's first pass was cut off by a safety classifier and resumed in careful mode
 - 2026-11-12 reviewer: merged #204 (M4-01c) (CI green, 3 checks; QA report + ship report verified, nothing visual; no local run, CI covers it) and #205 (MB-03a) (CI green, 3 checks; QA report + ship report + 2 images verified; no local run, independent of #204 and CI covers the occt job); no roadmap check-off (M4-01 needs #202, MB-03 needs the thread slices); planned #206 M4-04a, #207 M4-05a (both depend on #202; ready: #194, #202, #206, #207; #194, #202 unblocked and independent); merged branches not deleted (not tried); no retro (not a Monday night)
 - 2026-11-12 builder: #190 MB-03a → PR #205 (4e5a7bc; CI green, 3 checks; think-and-ship gates verified, 1 shell-syntax record re-run; QA pass)
 - 2026-11-12 builder: #199 M4-01c → PR #204 (03eb55e; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
@@ -42,4 +43,3 @@ issues_per_night: 4
 - 2026-11-09 builder: #154 M3-11a → PR #166 (fb08e8a; CI green, 3 checks; think-and-ship gates verified, 1 shell-syntax record re-run; QA pass)
 - 2026-11-08 documenter: M3-05c + M3-06b + M3-06c + M3-08a → PR #165 merged (CI green, 3 checks; 128 pages; no feedback; no issues opened)
 - 2026-11-08 reviewer: merged #160 (M3-06c) (CI green, 3 checks; QA report + ship report + 2 images verified; no local run) and #161 (M3-08a) (CI green, 3 checks; QA report + ship report verified, nothing visual; local occt clippy + 156 swx-kernel tests on main+#161 after #160); checked off M3-06; planned #162 M3-12a, #163 M3-12b (ready: #154, #158, #162, #163, all unblocked and independent); merged branches not deleted (not retried); no retro (not a Monday night)
-- 2026-11-08 builder: #144 M3-08a → PR #161 (59eb655; CI green, 3 checks; think-and-ship gates verified; QA pass)
