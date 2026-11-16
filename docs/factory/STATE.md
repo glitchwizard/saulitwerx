@@ -8,7 +8,7 @@ issues_per_night: 4
 
 ## Notes for the factory
 
-- Owner priority: every run does real work. Two issues per Builder run, one after the other, so up to `issues_per_night` (4) a night across the 12:17am and 2:17am runs (FACTORY §3). Each Reviewer run merges what the Builder run before it opened.
+- Owner priority: one Builder run and one Reviewer run a night, each doing the whole night's work. The Builder takes up to `issues_per_night` (4) issues, one after the other (FACTORY §3); the Reviewer then reviews and merges them (§4).
 - Current focus: M3 Part features, in roadmap order.
 
 ## Log
