@@ -1,4 +1,4 @@
-manual-synced-to: f72947756d5489deed0505031c2482cfa28c7342
+manual-synced-to: b7ff03402d34661fda88776d5f58d62577325ed3
 
 # Manual coverage
 
@@ -62,7 +62,7 @@ Everything a user can do or set on `main`, found from the code, `docs/ROADMAP.md
 | Document model errors (incl. `DuplicateParameter`, `InvalidParameterName`) | 17.5, 20.2 |
 | Sketch dimensions bound to parameters: `swx_sketch::params` `bind_dimension`, `apply_params`, `rename_bound`, `ParamError`; `Sketch::bindings`, `Sketch::set_dimension_value`; `SketchError::UnknownConstraint`, `NotADimension` | 4.8, 17.5, 19.14, 20.2 |
 | Expressions: `swx_core::expr` `parse`, `eval`, `Expr` (`names`), `Quantity` (`in_unit`), `Dim`, `Unit` (mm, cm, m, in, ft, deg, rad; `from_suffix`, `factor`, `dim`), `ExprError` kinds; grammar and limits | 4.8, 17.6, 19.15, 20.2 |
-| Document files (`swx-io`): `write_unpacked`, `read_unpacked`, `Document` (manifest, model, properties), `read_manifest`, `write_manifest`, `to_canonical_json`, `Manifest` (every field, `extra`), `Units` (`extra`), `DocumentKind` (`as_str`, extensions), `FormatError` (every kind and message); folder-name check, properties removal, unknown entries left alone | 18, 19.17, 20.2, 20.3, 20.4 |
+| Document files (`swx-io`): `write_sltwx`, `read_sltwx` (packed ZIP form: stored and deflate entries, CRC-32 and size checks, other entries skipped, fixed dates, byte-identical rewrites; no ZIP64, encryption or multi-disk), `write_unpacked`, `read_unpacked`, `Document` (manifest, model, properties), `read_manifest`, `write_manifest`, `to_canonical_json`, `Manifest` (every field, `extra`), `Units` (`extra`), `DocumentKind` (`as_str`, extensions), `FormatError` (every kind and message, including `MalformedArchive`, `UnsupportedMethod`, `CrcMismatch`); folder- and file-name check (the message says "folder" for a file too), properties removal, unknown entries left alone | 18, 18.2, 19.16, 19.17, 20.2, 20.3, 20.4 |
 | Units (mm; degrees for feature parameters, radians for arcs and kernel revolves) | 4.2, 19.16 |
 
 ## Examples the manual runs (`crates/*/examples/`)
@@ -112,6 +112,7 @@ Everything a user can do or set on `main`, found from the code, `docs/ROADMAP.md
 | `swx-kernel` `multi_body` (occt) | 6.5 |
 | `swx-kernel` `helical_spring` (occt) | 14.2 |
 | `swx-io` `unpacked_document` | 18 |
+| `swx-io` `packed_document` | 18.2 |
 
 ## Not user-facing yet
 
@@ -119,5 +120,5 @@ Everything a user can do or set on `main`, found from the code, `docs/ROADMAP.md
 
 ## Backlog
 
-- Nothing built is undocumented. Next: when shells take walls of different thicknesses or join the history (later M3-06 slices), extend chapter 10. When sketch regions reach the extrude and the revolve (M3-01c, #106), rewrite chapters 7, 8, 13 and 14 so their tasks start from a sketch, and update the known limitations. When fillets and chamfers take lasting edge references or join the history (later M3-05 slices), rewrite chapter 9's tasks around them. When extrudes and revolves with join, cut or intersect report a face history built on `boolean_tracked`, add it to 7.6 and 6.4. When holes gain drill points, other thread series, or modeled threads, or join the history, extend chapter 11. When work features can be picked on a part, use lasting references, or join the history (later M3-08 slices), extend chapter 15. When bodies can be named, moved or kept in a part's history, extend 6.5. When lofts gain guide curves or sections with holes, or sweeps gain closed or 3D paths, twist or guide rails (later M3-11 slices), extend chapters 13 and 14. When helical sweeps gain a varying radius or pitch, a left hand, or modeled threads arrive (later MB-03 slices), extend 14.2 and chapter 11. When `model.json` gets its typed schema, a part can be saved and opened, the ZIP form or `sltwx pack`/`unpack` arrive, or the cache and `model_hash` check (M4-01, M4-04, M4-05), extend chapter 18, and move the first-part tutorial's save step onto it. The sweep's bend check (M3-11c) is documented in 14.
+- Nothing built is undocumented. Next: when shells take walls of different thicknesses or join the history (later M3-06 slices), extend chapter 10. When sketch regions reach the extrude and the revolve (M3-01c, #106), rewrite chapters 7, 8, 13 and 14 so their tasks start from a sketch, and update the known limitations. When fillets and chamfers take lasting edge references or join the history (later M3-05 slices), rewrite chapter 9's tasks around them. When extrudes and revolves with join, cut or intersect report a face history built on `boolean_tracked`, add it to 7.6 and 6.4. When holes gain drill points, other thread series, or modeled threads, or join the history, extend chapter 11. When work features can be picked on a part, use lasting references, or join the history (later M3-08 slices), extend chapter 15. When bodies can be named, moved or kept in a part's history, extend 6.5. When lofts gain guide curves or sections with holes, or sweeps gain closed or 3D paths, twist or guide rails (later M3-11 slices), extend chapters 13 and 14. When helical sweeps gain a varying radius or pitch, a left hand, or modeled threads arrive (later MB-03 slices), extend 14.2 and chapter 11. When `model.json` gets its typed schema, a part can be saved and opened, `sltwx pack`/`unpack` arrive, or the cache and `model_hash` check (M4-01, M4-04, M4-05), extend chapter 18, and move the first-part tutorial's save step onto it. The sweep's bend check (M3-11c) is documented in 14.
 - Possible improvement: the variable-fillet picture (9.3) and the square-to-round loft (13) show faint tessellation ripples on curved faces, because `swx-qa render` has no finer-mesh option. Regenerate them if the renderer gains one.
