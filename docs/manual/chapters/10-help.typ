@@ -243,9 +243,13 @@ For an unknown entity, `infer` and `add_inferred` give the sketch messages above
   [#raw("invalid field `kind`: must be \"part\", \"assembly\" or \"drawing\", got \"widget\"")], [A manifest field has a value that isn't allowed, or the wrong type. The reason names what is allowed. The same form covers `format`, `format_version`, `document_id`, `model_hash` and `units`.],
   [#raw("invalid field `model.json`: must be a JSON object")], [The model or the properties isn't a JSON object (also `properties.json`, and `manifest` for a manifest that isn't an object).],
   [`unsupported format_version "1.0.0": only major version 0 is supported`], [The document comes from a newer major version. Use a newer Saulitwerx.],
-  [#raw("missing required file `model.json`")], [The folder has no `model.json` or no `manifest.json` (@sec-files-mistakes).],
-  [#raw("folder extension `.sltwxa` does not match the manifest kind `part` (expected `.sltwx`)"), #raw("folder has no extension; the manifest kind `part` needs `.sltwx`")], [Name the folder for its kind: `.sltwx` for a part, `.sltwxa` for an assembly, `.sltwxd` for a drawing.],
+  [#raw("missing required file `model.json`")], [The folder or file has no `model.json` or no `manifest.json` (@sec-files-mistakes).],
+  [#raw("folder extension `.sltwxa` does not match the manifest kind `part` (expected `.sltwx`)"), #raw("folder has no extension; the manifest kind `part` needs `.sltwx`")], [Name the folder or file for its kind: `.sltwx` for a part, `.sltwxa` for an assembly, `.sltwxd` for a drawing. The message says "folder" for a file too.],
   [`files/missing.sltwx: No such file or directory (os error 2)`, `…: not a directory`], [The folder or a file can't be read, written or removed. The message starts with the path and ends with the system's reason.],
+  [`malformed ZIP archive: no end-of-central-directory record`], [The file isn't a ZIP, or was cut short (a copy or download that didn't finish). Copy it again (@sec-files-mistakes).],
+  [#raw("malformed ZIP archive: entry `model.json` is truncated"), #raw("… has corrupt deflate data: …"), #raw("… is 88 bytes, its header says 87"), `… ZIP64 archives are not supported`], [The file is damaged, or uses a ZIP feature Saulitwerx doesn't read (ZIP64, encryption, several disks). The message names what is wrong. Use an earlier copy, or re-zip the files with default settings.],
+  [#raw("archive entry `model.json` fails its CRC-32 check")], [A byte in that file changed after it was written. Use an earlier copy.],
+  [#raw("archive entry `model.json` uses unsupported compression method 12 (only 0 and 8 are supported)")], [The ZIP was made by a tool set to another compression. Re-zip with default settings, or unpack it to a folder.],
 )
 ]
 
@@ -255,7 +259,7 @@ For an unknown entity, `infer` and `add_inferred` give the sketch messages above
 
 *Can I open files from other CAD programs?* Yes, if you save them as STEP first. Saulitwerx doesn't read any program's own native file format, and won't.
 
-*Can I save my design and edit it later?* Not yet. Today you can save solids as STEP, which keeps the shape but not the history. Saulitwerx can write and read its own document folders (@ch-files), but can't yet store a part's history in them or rebuild a part from one.
+*Can I save my design and edit it later?* Not yet. Today you can save solids as STEP, which keeps the shape but not the history. Saulitwerx can write and read its own document files, as a folder or as one file (@ch-files), but can't yet store a part's history in them or rebuild a part from one.
 
 *Does it cost anything?* No. Saulitwerx is free and open source, under the MIT or Apache-2.0 license, at your choice.
 
@@ -277,7 +281,7 @@ For an unknown entity, `infer` and `add_inferred` give the sketch messages above
 - A loft goes through flat sections without holes, in the order given, with no guide curves and no control over how the sections line up (@ch-loft).
 - A sweep moves one flat profile without holes along an open path of lines and arcs in one plane, or around a helix of one radius and one pitch: no closed, spline or other 3D paths, no twist or change of size. A bend must be wider than the profile: the check uses the profile's farthest point from the path's start, so it can refuse a bend that would just fit on the profile's narrow side (@ch-sweep).
 - Extrudes, revolves, lofts, sweeps, fillets, chamfers, shells, holes, drafts and work features aren't recorded in a part's history, so they don't rebuild when a parameter changes.
-- Document files exist only in the unpacked (folder) form, and `model.json` isn't yet filled from a part or read back into one, so work can't be saved with its history (@ch-files). There is no single-file form and no `sltwx` command yet.
+- `model.json` isn't yet filled from a part or read back into one, so work can't be saved with its history (@ch-files). There is no `sltwx` command yet: converting between a folder and a single file takes a small program (@sec-files-packed). A single file can't hold more than 4 GB (no ZIP64).
 - `swx-qa sketch` draws only its two built-in sketches. Your own sketches need a short program (@sec-picture-sketch). Sketch pictures show no dimension arrows and no marks for constraints such as horizontal.
 - A parameter's unit is free text. Only the seven units of @sec-ref-expr are understood by formulas; any other unit counts as none.
 - When a new value breaks a formula that depends on it, the formula keeps its old value without an error (@sec-param-formulas).

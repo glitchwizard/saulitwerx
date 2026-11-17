@@ -23,9 +23,15 @@ A document is a set of small text files in #term[JSON], a plain-text way of writ
 - *`model.json`* holds the design itself, and is what Saulitwerx rebuilds the part from.
 - *`properties.json`*, if present, holds facts about the document such as a part number or a material.
 
-The files can live in one folder, the #term[unpacked form], named like the document (`plate.sltwx/`). Each file is written the same way every time, with its names in alphabetical order and one value per line, so when you keep a design under version control a change shows up as a change to just the lines it touched.
+#idx("ZIP")
+The same files can be kept in two ways, and both carry the same name:
 
-*In Saulitwerx today:* `swx-io` reads and writes the unpacked form and checks the manifest. `model.json` and `properties.json` are read and written as plain JSON objects: Saulitwerx can't yet fill `model.json` from a part's history or build a part from it, so a part can't be saved and opened again yet. The single-file form (one zipped file), the stored pictures and previews, and the `sltwx` command that converts between the forms are planned (*Coming next*).
+- *One file,* the #term[packed form] (`plate.sltwx`). The files are squeezed together into a single #term[ZIP] archive, the standard compressed bundle that every computer can open. This is the form to send, attach or keep beside your other files.
+- *One folder,* the #term[unpacked form] (`plate.sltwx/`), holding the files side by side. This is the form to keep under version control, or to read and edit with any text editor.
+
+Each file is written the same way every time, with its names in alphabetical order and one value per line, in either form. So the same document always gives the same bytes, and when you keep a design under version control a change shows up as a change to just the lines it touched.
+
+*In Saulitwerx today:* `swx-io` reads and writes both forms and checks the manifest. `model.json` and `properties.json` are read and written as plain JSON objects: Saulitwerx can't yet fill `model.json` from a part's history or build a part from it, so a part can't be saved and opened again yet. The stored pictures and previews, and the `sltwx` command that converts between the forms, are planned (*Coming next*); for now a small program converts them (@sec-files-packed).
 
 // Keeps the task's heading and intro with its first step.
 #pagebreak(weak: true)
@@ -96,11 +102,63 @@ The program is `crates/swx-io/examples/unpacked_document.rs`. It does three thin
 
 #note(title: [The document id])[`document_id` is a #term[UUID]: 32 hexadecimal digits in groups of 8, 4, 4, 4 and 12, like the sample's. Give each new document a new one and never change it: assemblies will use it to find their parts again after a file is moved or renamed.]
 
+== Write and read a document as one file <sec-files-packed>
+
+The packed form is the one to hand to someone else: one file instead of a folder. This task writes the plate from @sec-files as a single `plate.sltwx`, checks that it reads back unchanged, turns a document folder into a file, and shows what happens when a file is damaged.
+
+#task-intro(
+  goal: [Write a part document as one file, read it back, convert a folder to a file, and see the errors.],
+  needs: [Saulitwerx built from source (@ch-install). OpenCascade isn't needed.],
+  time: [5 minutes.],
+)
+
+#steps(
+  [#block(breakable: false)[Run the sample program, and tell it to write into a folder called `packed`:
+  #term-block("cargo run -p swx-io --example packed_document -- packed")
+  It writes the file, reads it back, makes a few more files, then shows four errors on purpose:
+  #term-block(label: "Output", "wrote packed/plate.sltwx (633 bytes)\nsame as written: true\nwritten twice, identical: true\nfolder packed/folder/plate.sltwx -> file packed/from-folder.sltwx,\n    identical to plate.sltwx: true\nnot a zip -> error: malformed ZIP archive: no end-of-central-directory\n    record\ncut short -> error: malformed ZIP archive: no end-of-central-directory\n    record\ndamaged -> error: archive entry `model.json` fails its CRC-32 check\nwrong extension -> error: folder extension `.sltwxa` does not match the\n    manifest kind `part` (expected `.sltwx`)")
+  Four long lines are wrapped here to fit the page.]],
+  [Read the first two lines. The whole document is one file of 633 bytes, and reading it gives back exactly what was written.],
+  [Read the third line. The program wrote the same document a second time, to `plate-again.sltwx`, and the two files are identical to the last byte. Saulitwerx stamps every file inside with the same fixed date (1 January 1980, the earliest a ZIP can hold), so saving an unchanged design never changes its file.],
+  [Read the fourth line. The program wrote the document as a folder, `packed/folder/plate.sltwx/`, read the folder, and wrote what it read as a file. That file is identical to `plate.sltwx`: the two forms hold the same thing, and you can turn either into the other with nothing lost.],
+  [#block(breakable: false)[Look inside the file, if your computer has the `unzip` command (most Linux and macOS systems do):
+  #term-block("unzip -l packed/plate.sltwx")
+  It lists the same three files the folder holds, in the order Saulitwerx always writes them, each with the fixed date:
+  #term-block(label: "Output", "Archive:  packed/plate.sltwx\n  Length      Date    Time    Name\n---------  ---------- -----   ----\n      273  1980-01-01 00:00   manifest.json\n       87  1980-01-01 00:00   model.json\n       56  1980-01-01 00:00   properties.json\n---------                     -------\n      416                     3 files")
+  The three files hold 416 bytes of text, squeezed down to 307. The ZIP's own records of names, sizes and checks make up the rest of the 633 bytes. A real part's model is far larger, and squeezes down much more.]],
+  [Read the errors. A text file that only has a document's name isn't a ZIP, and neither is a file cut short: both lose the ZIP's closing record, which a reader looks for first. One damaged byte inside the model still unpacks, but to different text, and the file's built-in check (its #term[CRC-32]) catches it. A part can't be written under an assembly's name.],
+)
+
+#result[A part document as one file, read back unchanged, the same bytes every time it is written, and damage reported instead of misread.]
+
+#block(breakable: false)[
+=== How the sample is built
+
+The program is `crates/swx-io/examples/packed_document.rs`. It makes the same `Document` as the folder sample (@sec-files), then:
+
+#steps(
+  [*Write it as one file, and read it back.* The file is replaced if it's there:
+  ```rust
+  write_sltwx(&file, &doc)?;
+  let back = read_sltwx(&file)?;
+  ```],
+  [*Turn a folder into a file.* Read the unpacked form, and write what you read in the packed form. The other way round is `read_sltwx`, then `write_unpacked`:
+  ```rust
+  write_sltwx(&packed, &read_unpacked(&folder)?)?;
+  ```],
+)
+]
+
+#tip(title: [Open a document file with any ZIP tool])[#set par(justify: false)
+A `.sltwx` file is a plain ZIP. Any ZIP tool can list it or take out one file to read, such as `unzip -p plate.sltwx model.json`. To change a file inside, convert the document to a folder, edit it, and convert it back, so Saulitwerx writes it the way it always does.]
+
 == What is read and written <sec-files-rules>
 
 - *Reading* (`read_unpacked`) needs `manifest.json` and `model.json`; `properties.json` is optional. Anything else in the folder is left alone. The manifest is checked first, then the folder's name against its kind, then the other two files, which must each be a JSON object.
 - *Writing* (`write_unpacked`) checks the name and the two objects before it writes anything, so it never writes a document it would refuse to read back. It writes the three files, deletes `properties.json` when the document has no properties, and leaves everything else in the folder as it was.
-- *One file at a time.* `read_manifest` checks the text of a `manifest.json` on its own, and `write_manifest` writes one. `to_canonical_json` writes any JSON value the way every document file is written.
+- *Reading one file* (`read_sltwx`) needs the same two files, inside the ZIP. Each one is unpacked, then checked against its CRC-32 and its recorded size, so damage is reported rather than read. Anything else in the file, such as stored previews, is skipped. After that, the checks are the same as for a folder.
+- *Writing one file* (`write_sltwx`) makes the same checks before it writes anything, then writes `manifest.json`, `model.json` and `properties.json` (when the document has properties), in that order, each compressed, with the fixed date. It replaces the whole file.
+- *One manifest at a time.* `read_manifest` checks the text of a `manifest.json` on its own, and `write_manifest` writes one. `to_canonical_json` writes any JSON value the way every document file is written.
 
 The manifest's checks, and the rest of the rules, are in @sec-ref-files.
 
@@ -113,4 +171,8 @@ The manifest's checks, and the rest of the rules, are in @sec-ref-files.
 - *A model that isn't an object.* #raw("invalid field `model.json`: must be a JSON object"). The model and the properties must each be a JSON object, in braces, not a list or a single value.
 - *A broken file.* `invalid JSON: model.json: expected value at line 1 column 17`. The message names the file and the place where it stopped making sense.
 - *A malformed id or hash.* #raw("invalid field `document_id`: must be a UUID in 8-4-4-4-12 hex form, got \"plate-1\""). A `model_hash` must be `sha256:` and 64 lowercase hexadecimal digits, or left out.
+- *A file that isn't a document file.* `malformed ZIP archive: no end-of-central-directory record`. The file isn't a ZIP at all, or it was cut short, for example by a copy or download that didn't finish. Copy it again from where it came from. Other `malformed ZIP archive` messages name what is wrong, such as an entry that is truncated.
+- *A damaged file.* #raw("archive entry `model.json` fails its CRC-32 check"). A byte inside the file changed after it was written. Use an earlier copy.
+- *A ZIP made by another tool.* #raw("archive entry `model.json` uses unsupported compression method 12 (only 0 and 8 are supported)"). Saulitwerx reads only stored and standard compressed (deflate) entries, which is what nearly every ZIP tool writes by default. Re-zip the files with default settings, or unpack them to a folder.
+- *A file named for the wrong kind.* The message says #raw("folder extension"), even for a file: #raw("folder extension `.sltwxa` does not match the manifest kind `part` (expected `.sltwx`)"). Name the file for its kind, as for a folder.
 - *A file from a future version.* `unsupported format_version "1.0.0": only major version 0 is supported`. This Saulitwerx can't read it; use a newer one.

@@ -589,7 +589,7 @@ A unit that is not one of the seven in @sec-ref-expr, including an empty one, co
   [STEP (`.step`, `.stp`), ISO 10303-21], [Both], [Solids only. Written in millimeters.],
   [PNG (`.png`)], [Write], [Pictures from `swx-qa render` and `swx-qa sketch`.],
   [Saulitwerx document, unpacked form (a `.sltwx`, `.sltwxa` or `.sltwxd` folder)], [Both], [The manifest is checked in full; the model and properties are kept as JSON objects, not yet tied to a part (@ch-files, @sec-ref-files).],
-  [Saulitwerx document, one file (`.sltwx`, zipped)], [Not yet], [Planned: the part with its full history in one file.],
+  [Saulitwerx document, packed form (one `.sltwx`, `.sltwxa` or `.sltwxd` file, a ZIP)], [Both], [The same files as the unpacked form, deflate-compressed; checked as for a folder, plus each entry's CRC-32 and size (@sec-files-packed, @sec-ref-files).],
 )
 
 #ref-table(
@@ -609,6 +609,8 @@ A unit that is not one of the seven in @sec-ref-expr, including an empty one, co
   header: ("Call", "What it does"),
   [`write_unpacked(dir, doc)`], [Writes `doc` to the folder `dir`, made if missing: `manifest.json`, `model.json`, and `properties.json` when `doc.properties` is `Some` (deleted when `None`). Other entries in `dir` are left alone. Nothing is written when `dir`'s extension doesn't match the manifest's kind, or the model or properties isn't a JSON object.],
   [`read_unpacked(dir)`], [Reads the `Document` in the folder `dir`. `manifest.json` and `model.json` required, `properties.json` optional; other entries not read. Checks the manifest, then the extension against its kind, then that the model and properties are JSON objects.],
+  [`write_sltwx(path, doc)`], [Writes `doc` to the single file `path` as a ZIP archive, replacing any file there: `manifest.json`, `model.json`, then `properties.json` when `doc.properties` is `Some`, in that order, each deflated (method 8), with the same text `write_unpacked` writes and every date set to 1980-01-01 00:00, so the same document always gives the same bytes. Nothing is written when `path`'s extension doesn't match the manifest's kind, or the model or properties isn't a JSON object. No ZIP64: an entry over 4 GB is refused.],
+  [`read_sltwx(path)`], [Reads the `Document` in the ZIP archive `path`. Entries may be stored (method 0) or deflated (method 8); each one needed is checked against its CRC-32 and uncompressed size. `manifest.json` and `model.json` required, `properties.json` optional; other entries (`cache/…`, `thumbnail.png`, `attachments/…`) skipped. Then the same checks as `read_unpacked`. Not read: ZIP64, encrypted and multi-disk archives.],
   [`read_manifest(text)`], [Reads and checks the text of a `manifest.json` (rules below).],
   [`write_manifest(m)`], [The text of a `manifest.json` for `m`, in canonical form, extra fields included, `model_hash` left out when `None`.],
   [`to_canonical_json(v)`], [Any JSON-representable value as canonical JSON: names in byte order at every level, 2-space indent, one member or element per line, `": "` after each name, `{}` and `[]` for empty ones, other characters kept as UTF-8, one newline at the end. The same value always gives the same text.],
@@ -629,7 +631,7 @@ A unit that is not one of the seven in @sec-ref-expr, including an empty one, co
   [Any other field], [No], [Kept in `Manifest::extra` and written back unchanged.],
 )
 
-`FormatError` kinds: `Json` (not valid JSON; the message names the file), `MissingField` (a required field), `InvalidField` (a wrong value or type, or a model or properties that isn't an object), `UnsupportedVersion` (major version not 0), `Io` (a file or folder can't be read, written or removed, or isn't a folder), `MissingFile` (`manifest.json` or `model.json`), `ExtensionMismatch` (folder name and kind disagree). The messages are in @sec-errors.
+`FormatError` kinds: `Json` (not valid JSON; the message names the file), `MissingField` (a required field), `InvalidField` (a wrong value or type, or a model or properties that isn't an object), `UnsupportedVersion` (major version not 0), `Io` (a file or folder can't be read, written or removed, or isn't a folder), `MissingFile` (`manifest.json` or `model.json`), `ExtensionMismatch` (folder or file name and kind disagree), `MalformedArchive` (not a ZIP, cut short, a truncated or inconsistent entry, corrupt compressed data, or ZIP64, encryption or several disks), `UnsupportedMethod` (an entry compressed other than stored or deflate; names the entry and the method number), `CrcMismatch` (an entry fails its CRC-32 check; names the entry). The messages are in @sec-errors.
 
 == Keyboard and mouse
 

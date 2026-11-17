@@ -31,6 +31,9 @@
     ("Document file", [A Saulitwerx file that keeps a design with everything needed to edit it: a part (`.sltwx`), an assembly (`.sltwxa`) or a drawing (`.sltwxd`).]),
     ("JSON", [A plain-text way of writing down named values, readable by people and programs. Saulitwerx document files are written in it.]),
     ("Manifest", [The small file in a Saulitwerx document, `manifest.json`, that says what the document is, which format version wrote it, its id and its units.]),
+    ("Packed form", [A Saulitwerx document kept as one file, a ZIP archive of its files, rather than as a folder.]),
+    ("ZIP", [A standard way of squeezing several files into one smaller file, called an archive, that almost any computer can open.]),
+    ("CRC-32", [A short number worked out from a file's bytes and stored with it. Working it out again on reading shows whether any byte has changed.]),
     ("Unpacked form", [A Saulitwerx document kept as a folder of files, named like the document, rather than as one file.]),
     ("UUID", [A 32-digit hexadecimal id, written in groups of 8, 4, 4, 4 and 12, made so that no two are ever the same.]),
     ("Tap drill", [The drill a hole is made with before a thread is cut in it: narrower than the screw, so there is material for the thread.]),
@@ -131,6 +134,11 @@
 }
 
 = What's new
+
+== 2026-11-17: a document in one file
+
+- *New:* write and read a Saulitwerx document as one file, a ZIP of the same files, the same bytes every time; turn a folder into a file and back (@sec-files-packed).
+- *Changed:* chapter 18 now explains both forms, the folder and the file. Reference: `write_sltwx`, `read_sltwx` and the three new error kinds. Help: the archive error messages, new common mistakes, and the known limitations updated. Glossary: CRC-32, packed form and ZIP.
 
 == 2026-11-13: plates with rounded corners
 
@@ -299,7 +307,7 @@ These are the next items on the public roadmap. None of them works yet. When one
   [More part features], [Shells with walls of different thicknesses; fillets, chamfers, shells, holes, drafts, lofts, sweeps and work features kept in a part's history.],
   [Threads], [Model real screw threads, outside on a shaft or inside a hole, built on the helical sweep.],
   [Lasting references], [A feature built on a face or an edge keeps finding it when earlier features change.],
-  [Part files], [Save a part with its full history in a document file and open it again; one zipped file as well as a folder; the `sltwx pack` and `unpack` commands; stored previews.],
+  [Part files], [Save a part with its full history in a document file and open it again; the `sltwx pack` and `unpack` commands; stored previews.],
   [Desktop app], [A window with a 3D view, a model browser, sketch mode and property panels.],
 )
 
