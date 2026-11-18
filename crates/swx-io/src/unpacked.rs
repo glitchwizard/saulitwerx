@@ -10,7 +10,8 @@ use std::path::Path;
 use serde_json::Value;
 
 use crate::{
-    read_manifest, to_canonical_json, write_manifest, DocumentKind, FormatError, Manifest,
+    read_manifest, to_canonical_json, write_manifest, DocumentForm, DocumentKind, FormatError,
+    Manifest,
 };
 
 const MANIFEST: &str = "manifest.json";
@@ -63,7 +64,7 @@ pub fn read_unpacked(dir: &Path) -> Result<Document, FormatError> {
         FormatError::Json(m) => FormatError::Json(format!("{MANIFEST}: {m}")),
         other => other,
     })?;
-    check_extension(dir, manifest.kind)?;
+    check_extension(dir, DocumentForm::Folder, manifest.kind)?;
     let model_text = read_file(dir, MODEL)?.ok_or(FormatError::MissingFile(MODEL.into()))?;
     let model = parse_object(MODEL, &model_text)?;
     let properties = match read_file(dir, PROPERTIES)? {
@@ -96,7 +97,7 @@ pub fn read_unpacked(dir: &Path) -> Result<Document, FormatError> {
 /// [`FormatError::Io`] when `dir` or a file can't be created, written or
 /// removed.
 pub fn write_unpacked(dir: &Path, doc: &Document) -> Result<(), FormatError> {
-    check_extension(dir, doc.manifest.kind)?;
+    check_extension(dir, DocumentForm::Folder, doc.manifest.kind)?;
     check_object(MODEL, &doc.model)?;
     if let Some(p) = &doc.properties {
         check_object(PROPERTIES, p)?;
@@ -126,12 +127,17 @@ pub(crate) fn extension_of(kind: DocumentKind) -> &'static str {
     }
 }
 
-pub(crate) fn check_extension(dir: &Path, kind: DocumentKind) -> Result<(), FormatError> {
-    let ext = dir.extension().map(|e| e.to_string_lossy().into_owned());
+pub(crate) fn check_extension(
+    path: &Path,
+    form: DocumentForm,
+    kind: DocumentKind,
+) -> Result<(), FormatError> {
+    let ext = path.extension().map(|e| e.to_string_lossy().into_owned());
     if ext.as_deref() == Some(extension_of(kind)) {
         Ok(())
     } else {
         Err(FormatError::ExtensionMismatch {
+            form,
             extension: ext,
             kind,
         })
@@ -357,6 +363,7 @@ mod tests {
         assert_eq!(
             read_unpacked(&dir),
             Err(FormatError::ExtensionMismatch {
+                form: DocumentForm::Folder,
                 extension: Some("sltwx".into()),
                 kind: DocumentKind::Assembly,
             })
@@ -374,17 +381,23 @@ mod tests {
         assert_eq!(
             read_unpacked(&bare),
             Err(FormatError::ExtensionMismatch {
+                form: DocumentForm::Folder,
                 extension: None,
                 kind: DocumentKind::Part,
             })
         );
-        // Writing a part to a drawing folder writes nothing.
+        assert_eq!(
+            read_unpacked(&bare).unwrap_err().to_string(),
+            "folder has no extension; the manifest kind `part` needs `.sltwx`"
+        );
+        // Writing a part to a drawing folder writes nothing, and the message
+        // names a folder.
         let doc = read_unpacked(&fixture()).unwrap();
         let out = tmp.0.join("bracket.sltwxd");
-        assert!(matches!(
-            write_unpacked(&out, &doc),
-            Err(FormatError::ExtensionMismatch { .. })
-        ));
+        assert_eq!(
+            write_unpacked(&out, &doc).unwrap_err().to_string(),
+            "folder extension `.sltwxd` does not match the manifest kind `part` (expected `.sltwx`)"
+        );
         assert!(!out.exists());
     }
 
@@ -426,6 +439,7 @@ mod tests {
             "missing required file `model.json`"
         );
         let e = FormatError::ExtensionMismatch {
+            form: DocumentForm::Folder,
             extension: Some("sltwx".into()),
             kind: DocumentKind::Assembly,
         };
@@ -434,6 +448,7 @@ mod tests {
             "folder extension `.sltwx` does not match the manifest kind `assembly` (expected `.sltwxa`)"
         );
         let e = FormatError::ExtensionMismatch {
+            form: DocumentForm::Folder,
             extension: None,
             kind: DocumentKind::Part,
         };
