@@ -1,0 +1,79 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "PR #221 head",
+      "ref": "9943fd8",
+      "task_id": "gates-215",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-215",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-215",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-215",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "New module `stl` in `swx-io` with `pub fn write_stl_binary(positions: &[[f32; 3]], indices: &[u32], out: &mut impl std::io::Write) -> Result<(), StlError>` and `pub fn write_stl_ascii(name: &str, positions: &[[f32; 3]], indices: &[u32], out: &mut impl std::io::Write) -> Result<(), StlError>`, both documented with the format description they follow.",
+      "Each facet normal is the unit normal `normalize((b - a) × (c - a))` of its three vertices in index order. A degenerate (zero-area) triangle gets the normal `[0, 0, 0]` and is still written.",
+      "Binary output: the 80-byte header is fixed text (not a timestamp), so writing the same input twice gives byte-identical output; its length is exactly `84 + 50 × triangles`.",
+      "`StlError` is a documented enum with variants for an index count that is not a multiple of 3, an index out of range (naming the index and the vertex count), a non-finite coordinate, and an I/O error. Nothing panics on bad input.",
+      "Tests (no files needed, write to a `Vec<u8>`): a unit cube of 12 triangles gives 684 binary bytes with all 12 normals axis-aligned and pointing out of the cube; the ASCII output of one triangle equals an exact expected string; both formats agree on the vertices; each `StlError` case; a degenerate triangle; byte-identical double write.",
+      "No `unsafe`, and `swx-io` still has no workspace dependencies. `docs/ARCHITECTURE.md` is not edited.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-20T10:20:15.285238068+00:00",
+    "constraints": [],
+    "created_at": "2026-11-20T10:19:54.221668567+00:00",
+    "description": "M4-02a: swx-io: binary and ASCII STL writers for an indexed triangle mesh",
+    "project_id": "saulitwerx",
+    "scope": "crates/swx-io (PR #221, head 9943fd8)",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 3,
+      "estimate": "small",
+      "id": "gates-215",
+      "status": "completed",
+      "title": "Gates for PR #221 head 9943fd8",
+      "type": "test"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
