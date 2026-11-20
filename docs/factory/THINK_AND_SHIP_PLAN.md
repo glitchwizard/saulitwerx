@@ -1,6 +1,6 @@
 # Plan: think-and-ship in the factory
 
-Status: **phases 1 and 2 adopted** (FACTORY §6c and the §4 retro). Written 2026-10-16, updated 2026-10-17. Both need the owner's setup-script step below; until then runs use the §6c fallback.
+Status: **phase 1 (gates) adopted; phase 2 (reasoning traces) retired on 2026-11-20.** From 2026-11-13 the model's safeguards stopped every run that recorded its reasoning (`reasoning_extraction`), so FACTORY §6c now keeps only the `ship_*` gate records and `.mcp.json` enables only that family. The original plan follows. Written 2026-10-16, updated 2026-10-17. Both need the owner's setup-script step below; until then runs use the §6c fallback.
 
 ## What it is
 

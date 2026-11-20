@@ -97,8 +97,8 @@ After reviewing, if fewer than **6** issues are labeled `factory:ready`:
 
 The Reviewer run of each Monday night (§3) runs a retro after Plan, over the last 7 nights. This is how the factory iterates on its own rules, using its own records.
 
-1. **Gather:** the run-log outcome comments, the Reviewer's send-back comments, the known gaps (e) of the week's QA reports, and the `think-trace.md` and `ship-report.json` files under `qa-artifacts` for those nights (§6c). Also last week's retro PR and whether it merged.
-2. **Reason with `think_*`:** one step per candidate problem, naming its evidence (links) and what it cost: a wasted run, a send-back, a red `main`, extra tokens.
+1. **Gather:** the run-log outcome comments, the Reviewer's send-back comments, the known gaps (e) of the week's QA reports, and the `ship-report.json` files under `qa-artifacts` for those nights (§6c). Also last week's retro PR and whether it merged.
+2. **Weigh each candidate problem:** name its evidence (links) and what it cost: a wasted run, a send-back, a red `main`, extra tokens.
 3. **Keep at most 3 changes.** Each fixes a problem seen at least twice that week, or once at a real cost. Prefer tightening or deleting a rule over adding one. Never loosen a §5 budget rule, a §8 protection or a §9 hard stop.
 4. **Open one PR** from `docs/factory-retro-<night>` that changes only `docs/factory/FACTORY.md`. Its body lists each change with its evidence, the effect expected, and how next week's retro will tell whether it worked. Label it `needs-human`. The factory never merges it; the owner does.
 5. **Check last week's changes.** If last week's retro PR merged, say in this week's PR, or in the run-log comment, whether each change had its expected effect. Propose reverting one that didn't help.
@@ -204,7 +204,7 @@ Every Builder PR gets a QA report: hands-on evidence that the change works, beyo
 **Images:**
 
 - PNG images only, plus the §6c records. Each image under 500 KB, at most 4 per report, with descriptive names (`l-bracket-iso.png`). A fix run adds new names (`l-bracket-iso-r2.png`) rather than replacing files.
-- Commit them to the branch `qa-artifacts` under `pr-<N>/`, where N is the PR number. Touch nothing outside your own `pr-<N>/`, and `runs/` for the §6c reasoning traces.
+- Commit them to the branch `qa-artifacts` under `pr-<N>/`, where N is the PR number. Touch nothing outside your own `pr-<N>/`.
 - `qa-artifacts` is an orphan branch with no code. It only ever gets new commits: never merge it, never open a PR from it, never force-push it, never delete or edit files already on it.
 - If it doesn't exist yet, create it with `git switch --orphan qa-artifacts` in a separate worktree, commit only `pr-<N>/…`, and push it. If it exists, fetch it, add your files in a separate worktree, commit and push. If the push is rejected as non-fast-forward, fetch, rebase your one unpushed commit onto `origin/qa-artifacts`, and push again, up to 3 attempts. Commit message: `qa: pr-<N> <what>`, no AI attribution.
 - Embed each image as `![<caption>](https://raw.githubusercontent.com/glitchwizard/saulitwerx/qa-artifacts/pr-<N>/<name>.png)`.
@@ -217,9 +217,9 @@ Every Builder PR gets a QA report: hands-on evidence that the change works, beyo
 - Open the ship report (`pr-<N>/ship-report.json`, §6c). Every required check must show `verified: true` and `passed: true`, and (b) must list the same checks. A gate result without a server-run command behind it is a fail, unless (b) and (e) say the server was unavailable.
 - Fail the PR (§4 step 4) for: no report, a missing section, a report for an older head, a claim that isn't true, an image that doesn't show what its caption says, or a `pass` verdict with open gaps. Name the specific mismatch in the review comment.
 
-## 6c. Run records (think-and-ship)
+## 6c. Gate records (think-and-ship)
 
-Runs record their gates (`ship_*`) and their reasoning (`think_*`) through the think-and-ship MCP server. The server runs each gate command itself and records the real exit code, so a gate result can't be typed in. The reasoning traces are what the weekly retro (§4) learns from. `.mcp.json` enables only these two tool families. Their state stays in the run's container, so the exports below are what persists. Background: `docs/factory/THINK_AND_SHIP_PLAN.md`.
+The Builder records its gates (`ship_*`) through the think-and-ship MCP server. The server runs each gate command itself and records the real exit code, so a gate result can't be typed in. `.mcp.json` enables only the `ship` tool family. Its state stays in the run's container, so the export below is what persists. Background: `docs/factory/THINK_AND_SHIP_PLAN.md`.
 
 **Gates (Builder).** For each item, after CI has finished (§3 step 12):
 
@@ -231,14 +231,7 @@ Runs record their gates (`ship_*`) and their reasoning (`think_*`) through the t
 
 Ship state is one per project, so a two-item run records its items one after the other.
 
-**Reasoning (Builder and Reviewer).** Record a `think_record_step` at each decision, and only there:
-
-- Builder: which items it took and why, the approach, any deviation from the issue, each failed attempt and what changed, and the QA verdict.
-- Reviewer: each PR verdict and its deciding reason, each planning choice, and the retro's analysis.
-
-About 6 steps per item at most: decisions, not narration. Set `execution_ref` to the issue (`issue:#32`) and mark the run's last step `is_final_step`. Subagents record their own steps. Never put secrets, tokens or long logs in a step.
-
-At the end of the run, `think_export_trace` with `format: markdown`, and commit the output to `qa-artifacts` as `runs/<night>-<role>-<HHMM>/think-trace.md` (`<HHMM>` = the run's PT start time). It is text, so the Reviewer may push it through the GitHub connector. Builder QA reports link it in (b). A run that stops at the kill switch or is idle records nothing.
+**No reasoning records.** Runs don't record, export or commit their own reasoning, in think-and-ship or anywhere else. Since 2026-11-13 the model's safeguards have stopped every run that tried (`reasoning_extraction`). The factory's records are the outcome comments (§6a), review comments, QA reports (§6b) and ship reports.
 
 **Without the server.** If the tools aren't available, say so in the outcome comment, and for a Builder also in QA report sections (b) and (e), and report the gates as before. The verdict is then at most `pass with gaps`.
 
