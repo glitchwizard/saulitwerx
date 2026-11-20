@@ -1,0 +1,76 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "docs(spec): M4-03 STEP import as a dumb solid feature",
+      "ref": "443f74c",
+      "task_id": "gates-214",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt --all --check",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-214",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy --workspace --all-targets -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-214",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test --workspace",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-214",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`docs/specs/M4-03.md` exists and states, with concrete answers: what the feature stores in `model.json` (for example the STEP file's bytes, or a path plus a content hash, and which one is authoritative); how the feature gets its shape after a load (import at rebuild time, or from the cache); what happens when the STEP file is missing or fails to import (error text, feature state); the units handling, and how the STEP AP242 file's units are read; which crate owns each step (`swx-io`, `swx-core`, `swx-kernel`), checked against the dependency direction in `docs/ARCHITECTURE.md`; the test plan for the implementation issue that follows, including one round-trip test.",
+      "The spec names the implementation as one `size:M` issue, and lists its acceptance criteria in outline form. It does not write those issues itself.",
+      "Any new third-party dependency is named in the spec, with its license, and is not added in this PR.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass (nothing under `crates/` changes, so the test run is a sanity check).",
+      "QA report (FACTORY §6b) posted on the PR. Visuals: `Nothing visual: spec only`."
+    ],
+    "completed_at": "2026-11-20T08:23:48.948302757+00:00",
+    "constraints": [],
+    "created_at": "2026-11-20T08:23:28.462371067+00:00",
+    "description": "M4-03 spec: STEP import as a dumb solid feature",
+    "project_id": "saulitwerx",
+    "scope": "docs/specs/M4-03.md only; PR #226",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 3,
+      "estimate": "small",
+      "id": "gates-214",
+      "status": "completed",
+      "title": "Record gates for PR #226 (M4-03 spec)",
+      "type": "docs"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
