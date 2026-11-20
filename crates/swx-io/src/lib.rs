@@ -21,6 +21,28 @@ pub use unpacked::{read_unpacked, write_unpacked, Document};
 use std::fmt;
 use std::path::PathBuf;
 
+/// Which on-disk form of a document a path names: the unpacked folder
+/// ([`read_unpacked`], [`write_unpacked`]) or the single ZIP file
+/// ([`read_sltwx`], [`write_sltwx`]). Error messages use it to name the
+/// right subject.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DocumentForm {
+    /// The unpacked folder form.
+    Folder,
+    /// The packed single-file (ZIP) form.
+    File,
+}
+
+impl DocumentForm {
+    /// The word used for this form in messages: `"folder"` or `"file"`.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            DocumentForm::Folder => "folder",
+            DocumentForm::File => "file",
+        }
+    }
+}
+
 /// Why a `.sltwx` file could not be read. Reading never panics; every
 /// problem is one of these.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -51,11 +73,13 @@ pub enum FormatError {
     /// A required file of the document is missing. Holds its name:
     /// `"manifest.json"` or `"model.json"`.
     MissingFile(String),
-    /// The folder's extension does not match the manifest's `kind`
+    /// The folder's or file's extension does not match the manifest's `kind`
     /// (`.sltwx` ↔ part, `.sltwxa` ↔ assembly, `.sltwxd` ↔ drawing). The
     /// manifest is authoritative (FILE_FORMAT.md, "Extensions").
     ExtensionMismatch {
-        /// The folder's extension without the dot, or `None` if it has none.
+        /// Whether the path is the unpacked folder or the packed file.
+        form: DocumentForm,
+        /// The path's extension without the dot, or `None` if it has none.
         extension: Option<String>,
         /// The manifest's kind.
         kind: DocumentKind,
@@ -102,17 +126,22 @@ impl fmt::Display for FormatError {
             FormatError::CrcMismatch(entry) => {
                 write!(f, "archive entry `{entry}` fails its CRC-32 check")
             }
-            FormatError::ExtensionMismatch { extension, kind } => {
+            FormatError::ExtensionMismatch {
+                form,
+                extension,
+                kind,
+            } => {
                 let expected = unpacked::extension_of(*kind);
                 let kind = kind.as_str();
+                let form = form.as_str();
                 match extension {
                     Some(ext) => write!(
                         f,
-                        "folder extension `.{ext}` does not match the manifest kind `{kind}` (expected `.{expected}`)"
+                        "{form} extension `.{ext}` does not match the manifest kind `{kind}` (expected `.{expected}`)"
                     ),
                     None => write!(
                         f,
-                        "folder has no extension; the manifest kind `{kind}` needs `.{expected}`"
+                        "{form} has no extension; the manifest kind `{kind}` needs `.{expected}`"
                     ),
                 }
             }
