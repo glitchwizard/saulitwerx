@@ -1,0 +1,79 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "PR #231 head",
+      "ref": "b0dd299",
+      "task_id": "gates-228",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-228",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-228",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-228",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "For a part, these arrays are \"ID arrays\": top-level `sketches`, `features` and `bodies`, and each sketch's `entities` and `constraints`. An array that is absent is fine. Every element of an ID array must be an object with a non-empty string `id`, and IDs must be unique within that array.",
+      "Two new documented `FormatError` variants: one for a missing, empty or non-string `id` (naming the array, e.g. `sketches[0].constraints`, and the element index), one for a duplicate `id` (naming the array and the ID). Their `Display` texts are tested. Nothing panics on bad input.",
+      "Writing (both forms) checks IDs before anything is written: on error no file or folder is created. On success, `sketches`, `bodies`, and each sketch's `entities` and `constraints` are written sorted by `id` in byte order (the same order the canonical writer uses for keys; `\"e10\"` sorts before `\"e2\"`). `features` keep their given order. The caller's `Document` is not modified.",
+      "Reading (both forms) checks IDs the same way and returns the error; it does not reorder anything.",
+      "Tests: the golden `crates/swx-io/tests/golden/bracket.sltwx/` still reads and round-trips byte-identically in both forms; a part with `bodies` given as `b-2, b-1` and `entities` given as `e2, e10, e1` is written as `b-1, b-2` and `e1, e10, e2`; two features given as `ft-b, ft-a` stay in that order; a duplicate body ID, an entity without `id` and an `id` of `5` each give the right error from both writers and both readers, with nothing written.",
+      "Assemblies and drawings are unchanged (no ID checks yet), shown by an existing or new test.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-20T10:26:01.484988885+00:00",
+    "constraints": [],
+    "created_at": "2026-11-20T10:25:44.137087940+00:00",
+    "description": "M4-01f: swx-io: stable IDs in a part's model.json: required, unique, and set arrays sorted by id on write",
+    "project_id": "saulitwerx",
+    "scope": "crates/swx-io (PR #231, head b0dd299)",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 3,
+      "estimate": "small",
+      "id": "gates-228",
+      "status": "completed",
+      "title": "Gates for PR #231 head b0dd299",
+      "type": "test"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
