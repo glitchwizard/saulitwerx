@@ -35,7 +35,75 @@ impl MetricThread {
     pub fn tap_drill_diameter(&self) -> f64 {
         self.nominal - self.pitch
     }
+
+    /// Fundamental triangle height `H = (√3/2)·P` (ISO 68-1 basic profile).
+    pub fn fundamental_height(&self) -> f64 {
+        3f64.sqrt() / 2.0 * self.pitch
+    }
+
+    /// Basic pitch diameter `d2 = D2 = d − (3√3/8)·P`, about `d − 0.649519·P`
+    /// (ISO 68-1 basic profile: `d2 = d − (3/4)·H`).
+    pub fn pitch_diameter(&self) -> f64 {
+        self.nominal - 3.0 * 3f64.sqrt() / 8.0 * self.pitch
+    }
+
+    /// Basic minor diameter of the external thread `d3 = d − (17√3/24)·P`,
+    /// about `d − 1.226869·P` (ISO 68-1 basic profile: `d3 = d − (17/12)·H`).
+    ///
+    /// This is the basic-profile value, before the tolerance shift
+    /// [`es_6g`](Self::es_6g).
+    pub fn external_minor_diameter(&self) -> f64 {
+        self.nominal - 17.0 * 3f64.sqrt() / 24.0 * self.pitch
+    }
+
+    /// Fundamental deviation `es` of an external thread in tolerance
+    /// position g (class 6g), in mm. It is negative: the thread is smaller
+    /// than the basic profile by this much (ISO 965-1, fundamental
+    /// deviations for external threads, tabulated by pitch; the table is
+    /// close to `−(15 + 11·P)` µm).
+    ///
+    /// # Errors
+    ///
+    /// [`KernelError::InvalidInput`] when the pitch is not one of the
+    /// [`METRIC_COARSE`] pitches, since no other pitch is tabulated here.
+    pub fn es_6g(&self) -> Result<f64, KernelError> {
+        ES_6G_MICROMETRES
+            .iter()
+            .find(|(pitch, _)| (pitch - self.pitch).abs() < 1e-9)
+            .map(|&(_, es_um)| es_um / 1000.0)
+            .ok_or_else(|| {
+                KernelError::InvalidInput(format!(
+                    "no 6g fundamental deviation tabulated for pitch {} mm",
+                    self.pitch
+                ))
+            })
+    }
+
+    /// Fundamental deviation `EI` of an internal thread in tolerance
+    /// position H (class 6H): 0 (ISO 965-1). Internal threads are modeled at
+    /// the basic profile.
+    pub fn ei_6h(&self) -> f64 {
+        0.0
+    }
 }
+
+/// ISO 965-1 fundamental deviation `es` for external threads, tolerance
+/// position g, as (pitch in mm, `es` in µm), for the pitches of
+/// [`METRIC_COARSE`].
+const ES_6G_MICROMETRES: &[(f64, f64)] = &[
+    (0.4, -19.0),
+    (0.45, -20.0),
+    (0.5, -20.0),
+    (0.7, -22.0),
+    (0.8, -24.0),
+    (1.0, -26.0),
+    (1.25, -28.0),
+    (1.5, -32.0),
+    (1.75, -34.0),
+    (2.0, -38.0),
+    (2.5, -42.0),
+    (3.0, -48.0),
+];
 
 const fn m(nominal: f64, pitch: f64) -> MetricThread {
     MetricThread { nominal, pitch }
@@ -131,6 +199,80 @@ mod tests {
         for t in METRIC_COARSE {
             assert_eq!(metric_coarse(&t.designation()).unwrap(), *t);
         }
+    }
+
+    /// Checks `(H, d2, D1, d3, es, EI)` of a size; `None` skips a quantity.
+    fn profile(designation: &str, want: [Option<f64>; 6]) {
+        let t = metric_coarse(designation).unwrap();
+        let got = [
+            t.fundamental_height(),
+            t.pitch_diameter(),
+            t.minor_diameter(),
+            t.external_minor_diameter(),
+            t.es_6g().unwrap(),
+            t.ei_6h(),
+        ];
+        let names = ["H", "d2", "D1", "d3", "es", "EI"];
+        for ((g, w), n) in got.iter().zip(want).zip(names) {
+            if let Some(w) = w {
+                assert!(close(*g, w), "{designation} {n}: got {g}, want {w}");
+            }
+        }
+    }
+
+    #[test]
+    fn profile_dimensions_match_the_benchmark_values() {
+        let s = Some;
+        profile(
+            "M8",
+            [
+                s(1.0825),
+                s(7.1881),
+                s(6.6468),
+                s(6.4664),
+                s(-0.028),
+                s(0.0),
+            ],
+        );
+        profile(
+            "M3",
+            [
+                s(0.4330),
+                s(2.6752),
+                s(2.4587),
+                s(2.3866),
+                s(-0.020),
+                s(0.0),
+            ],
+        );
+        profile("M6", [None, s(5.3505), None, s(4.7731), s(-0.026), None]);
+    }
+
+    #[test]
+    fn every_coarse_size_has_a_plausible_profile() {
+        for t in METRIC_COARSE {
+            let es = t.es_6g().unwrap();
+            assert!((-0.1..0.0).contains(&es), "{}: es {es}", t.designation());
+            let (d3, d1, d2) = (
+                t.external_minor_diameter(),
+                t.minor_diameter(),
+                t.pitch_diameter(),
+            );
+            assert!(
+                d3 < d1 && d1 < d2 && d2 < t.nominal,
+                "{}: d3 {d3}, D1 {d1}, d2 {d2}",
+                t.designation()
+            );
+        }
+    }
+
+    #[test]
+    fn untabulated_pitch_has_no_6g_deviation() {
+        let t = MetricThread {
+            nominal: 6.0,
+            pitch: 0.123,
+        };
+        assert!(matches!(t.es_6g(), Err(KernelError::InvalidInput(_))));
     }
 
     #[test]
