@@ -251,14 +251,45 @@ For an unknown entity, `infer` and `add_inferred` give the sketch messages above
   [#raw("malformed ZIP archive: entry `model.json` is truncated"), #raw("… has corrupt deflate data: …"), #raw("… is 88 bytes, its header says 87"), `… ZIP64 archives are not supported`], [The file is damaged, or uses a ZIP feature Saulitwerx doesn't read (ZIP64, encryption, several disks). The message names what is wrong. Use an earlier copy, or re-zip the files with default settings.],
   [#raw("archive entry `model.json` fails its CRC-32 check")], [A byte in that file changed after it was written. Use an earlier copy.],
   [#raw("archive entry `model.json` uses unsupported compression method 12 (only 0 and 8 are supported)")], [The ZIP was made by a tool set to another compression. Re-zip with default settings, or unpack it to a folder.],
+  [#raw("duplicate id `body-2` in `bodies`")], [Two items in one of a part's ID arrays share an ID. Give one a new ID (@sec-files-ids).],
+  [#raw("`bodies[1]` needs a non-empty string `id`")], [That item of a part's ID array has no `id`, an empty one, or one that isn't text. The array is named by its path, such as #raw("sketches[0].constraints") (@sec-files-ids).],
+  [#raw("invalid field `bodies`: must be an array")], [One of a part's ID arrays isn't a list. Write it in square brackets.],
 )
 ]
+
+=== From `sltwx`
+
+Every message starts `sltwx: `. Any document-file message above can follow it, when reading or writing fails.
+
+#ref-table(
+  columns: (1fr, 1fr),
+  header: ("Message", "Meaning and fix"),
+  [`sltwx: plate.sltwx: already exists`], [The file or folder to write is already there. `sltwx` never overwrites: delete it first, or pick another name (@sec-files-sltwx).],
+  [`sltwx: copy/plate.sltwx: parent folder does not exist`], [`unpack` makes only the last folder of the path. Make the ones above it first, for example with `mkdir -p copy`.],
+  [The usage, starting `usage: sltwx pack`], [The words after `sltwx` aren't one of its forms: a missing or extra path, or a misspelled `pack` or `unpack`. Exit status 2 (@sec-ref-sltwx).],
+)
+
+=== From STL files
+
+`swx_io::stl` messages have no prefix (@sec-ref-stl).
+
+#ref-table(
+  columns: (1fr, 1fr),
+  header: ("Message", "Meaning and fix"),
+  [`index count 2 is not a multiple of 3`], [The triangle list doesn't hold whole triangles. Each triangle needs exactly three corner numbers.],
+  [`index 7 is out of range for a mesh with 4 vertices`], [A triangle names a corner that isn't in the corner list. Corners count from 0, so the last of 4 is 3.],
+  [`vertex 1 has a non-finite coordinate`], [A corner's position is infinite or not a number, often from dividing by zero. Fix the program that made the mesh.],
+  [`… triangles do not fit in a binary STL file`], [More than 4 294 967 295 triangles. Use a coarser mesh.],
+  [`could not write STL: …`], [Writing failed, for example a full disk. The rest is the system's reason.],
+)
 
 == Questions
 
 *Is there a version with windows and buttons?* Not yet. The desktop app is a later milestone; see *Coming next*.
 
 *Can I open files from other CAD programs?* Yes, if you save them as STEP first. Saulitwerx doesn't read any program's own native file format, and won't.
+
+*Can I 3D-print a part?* Not in one step yet. A program can write any triangle mesh as an STL file, which 3D-printing programs read (@sec-stl); saving a part as STL directly is planned.
 
 *Can I save my design and edit it later?* Not yet. Today you can save solids as STEP, which keeps the shape but not the history. Saulitwerx can write and read its own document files, as a folder or as one file (@ch-files), but can't yet store a part's history in them or rebuild a part from one.
 
@@ -282,7 +313,8 @@ For an unknown entity, `infer` and `add_inferred` give the sketch messages above
 - A loft goes through flat sections without holes, in the order given, with no guide curves and no control over how the sections line up (@ch-loft).
 - A sweep moves one flat profile without holes along an open path of lines and arcs in one plane, or around a helix of one radius and one pitch: no closed, spline or other 3D paths, no twist or change of size. A bend must be wider than the profile: the check uses the profile's farthest point from the path's start, so it can refuse a bend that would just fit on the profile's narrow side (@ch-sweep).
 - Extrudes, revolves, lofts, sweeps, fillets, chamfers, shells, holes, drafts and work features aren't recorded in a part's history, so they don't rebuild when a parameter changes.
-- `model.json` isn't yet filled from a part or read back into one, so work can't be saved with its history (@ch-files). There is no `sltwx` command yet: converting between a folder and a single file takes a small program (@sec-files-packed). A single file can't hold more than 4 GB (no ZIP64).
+- `model.json` isn't yet filled from a part or read back into one, so work can't be saved with its history (@ch-files). A single file can't hold more than 4 GB (no ZIP64).
+- STL files are written from a mesh your program gives; a part can't yet be saved as STL in one step (@sec-stl). STL can't be read.
 - `swx-qa sketch` draws only its two built-in sketches. Your own sketches need a short program (@sec-picture-sketch). Sketch pictures show no dimension arrows and no marks for constraints such as horizontal.
 - A parameter's unit is free text. Only the seven units of @sec-ref-expr are understood by formulas; any other unit counts as none.
 - When a new value breaks a formula that depends on it, the formula keeps its old value without an error (@sec-param-formulas).

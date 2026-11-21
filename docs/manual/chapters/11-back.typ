@@ -31,6 +31,13 @@
     ("Document file", [A Saulitwerx file that keeps a design with everything needed to edit it: a part (`.sltwx`), an assembly (`.sltwxa`) or a drawing (`.sltwxd`).]),
     ("JSON", [A plain-text way of writing down named values, readable by people and programs. Saulitwerx document files are written in it.]),
     ("Manifest", [The small file in a Saulitwerx document, `manifest.json`, that says what the document is, which format version wrote it, its id and its units.]),
+    ("ID", [In a part's `model.json`, the short text name, such as `sketch-1`, that a sketch, feature, body, sketch piece or rule keeps for as long as it exists. No two in the same list are alike.]),
+    ("Set", [A list where only what is in it counts, not the order. Saulitwerx writes a part's sets sorted by ID.]),
+    ("sltwx command", [The command that turns a Saulitwerx document folder into one file (`pack`) and back (`unpack`).]),
+    ("Mesh", [A surface broken into many small flat triangles, as 3D printers and many viewers want it.]),
+    ("STL", [A common file format for a mesh, listing each triangle's corners and normal. It comes as ASCII text or as binary.]),
+    ("Normal", [The direction straight out of a plane or a face, at right angles to it. Each triangle in an STL file has one.]),
+    ("E notation", [A way of writing numbers with a power of ten: `1e1` is 1 × 10¹, which is 10, and `2.5e-1` is 0.25.]),
     ("Packed form", [A Saulitwerx document kept as one file, a ZIP archive of its files, rather than as a folder.]),
     ("ZIP", [A standard way of squeezing several files into one smaller file, called an archive, that almost any computer can open.]),
     ("CRC-32", [A short number worked out from a file's bytes and stored with it. Working it out again on reading shows whether any byte has changed.]),
@@ -134,6 +141,13 @@
 }
 
 = What's new
+
+== 2026-11-21: the `sltwx` command, IDs in a part, and STL files
+
+- *New:* the `sltwx` command packs a document folder into one file and unpacks a file into a folder, never overwriting anything (@sec-files-sltwx).
+- *New:* a part's sketches, features and bodies, and each sketch's pieces and rules, must carry their own ID; files are written with these lists sorted by ID, the features kept in history order (@sec-files-ids).
+- *New for developers:* write any triangle mesh as an ASCII or a binary STL file (@sec-stl).
+- Reference: `sltwx` (@sec-ref-sltwx), the ID rules and the `InvalidId` and `DuplicateId` errors, STL files (@sec-ref-stl), and three samples. Help: the ID, `sltwx` and STL messages, a new question, new common mistakes, and the known limitations updated. Glossary: seven new terms, from e notation to STL.
 
 == 2026-11-20: clearer file-name messages
 
@@ -312,7 +326,8 @@ These are the next items on the public roadmap. None of them works yet. When one
   [More part features], [Shells with walls of different thicknesses; fillets, chamfers, shells, holes, drafts, lofts, sweeps and work features kept in a part's history.],
   [Threads], [Model real screw threads, outside on a shaft or inside a hole, built on the helical sweep.],
   [Lasting references], [A feature built on a face or an edge keeps finding it when earlier features change.],
-  [Part files], [Save a part with its full history in a document file and open it again; the `sltwx pack` and `unpack` commands; stored previews.],
+  [Part files], [Save a part with its full history in a document file and open it again; stored previews; a check that a document's stored results still match its model.],
+  [STL and STEP], [Save a part as an STL file for 3D printing in one step, with a chosen fineness; bring in a STEP file as the first feature of a part.],
   [Desktop app], [A window with a 3D view, a model browser, sketch mode and property panels.],
 )
 
@@ -333,8 +348,10 @@ Later milestones add assemblies, 2D drawings and exploded views. The full plan i
       #term-block("swx-qa render --step part.step -o part.png\nswx-qa render --fixture cube -o cube.png\n  --size 1600x1000   (default 800x600)\n  --crease 45     (default 30)")
       #text(font: sans, weight: "bold", fill: accent, "DRAW A SKETCH")
       #term-block("swx-qa sketch --fixture rectangle -o r.png\n  (or triangle-345)")
+      #text(font: sans, weight: "bold", fill: accent, "DOCUMENT FILES")
+      #term-block("sltwx pack <folder> <file>\nsltwx unpack <file> <folder>")
       #text(font: sans, weight: "bold", fill: accent, "SAMPLES")
-      #term-block("cargo run -p swx-sketch \\\n  --example plate_sketch\ncargo run -p swx-sketch \\\n  --example centered_plate -- 60 25\ncargo run -p swx-kernel --features occt \\\n  --example plate_with_hole -- plate.step\ncargo run -p swx-kernel --features occt \\\n  --example extrude_plate\ncargo run -p swx-kernel --features occt \\\n  --example revolve_bushing -- revolve\ncargo run -p swx-core \\\n  --example feature_history\ncargo run -p swx-core \\\n  --example parameter_table\ncargo run -p swx-sketch \\\n  --example driven_plate\ncargo run -p swx-core \\\n  --example parameter_formulas\ncargo run -p swx-sketch \\\n  --example inferred_sketch")
+      #term-block("cargo run -p swx-sketch \\\n  --example plate_sketch\ncargo run -p swx-sketch \\\n  --example centered_plate -- 60 25\ncargo run -p swx-kernel --features occt \\\n  --example plate_with_hole -- plate.step\ncargo run -p swx-kernel --features occt \\\n  --example extrude_plate\ncargo run -p swx-core \\\n  --example feature_history\ncargo run -p swx-sketch \\\n  --example inferred_sketch")
       #v(-4pt) Every sample, with what it does: @sec-ref-build.
 
       #text(font: sans, weight: "bold", fill: accent, "UNITS")

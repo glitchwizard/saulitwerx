@@ -65,6 +65,31 @@ Success and errors work as for `render`. `--step` and `--crease` belong to `rend
   [Values], [Up to 3 decimals, with trailing zeros dropped: `40`, `12.5`, `R2.125`.],
 )
 
+== `sltwx` <sec-ref-sltwx>
+
+#idx("sltwx command")
+Converts a Saulitwerx document between its unpacked folder and its packed single file (@sec-files-sltwx). Built by `cargo build --release -p swx-io`, at `target/release/sltwx`. It needs no OpenCascade.
+
+#term-block(label: "Form", "sltwx pack <folder> <file>\nsltwx unpack <file> <folder>\nsltwx --help | -h")
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("Form", "What it does"),
+  [`pack <folder> <file>`], [Reads the unpacked document `<folder>` as `read_unpacked` does, and writes it to `<file>` as `write_sltwx` does (@sec-ref-files).],
+  [`unpack <file> <folder>`], [Reads the packed document `<file>` as `read_sltwx` does, and writes it to the new folder `<folder>` as `write_unpacked` does. Makes `<folder>`; the folder it goes in must exist.],
+  [`--help`, `-h`], [Prints the usage to standard output and exits with status 0.],
+)
+
+The output path must not exist, as a file, a folder or a link: `sltwx` never overwrites. It prints nothing on success.
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("Exit status", "When"),
+  [0], [It worked, or `--help` was asked for.],
+  [1], [The output already exists, `unpack`'s parent folder is missing, or reading or writing failed. One line, `sltwx: ` and the message (@sec-errors), goes to standard error, and nothing is written.],
+  [2], [A missing, extra or unknown word after `sltwx`. The usage goes to standard error.],
+)
+
 == Build options <sec-ref-build>
 
 #ref-table(
@@ -101,6 +126,9 @@ Success and errors work as for `render`. `--step` and `--crease` belong to `rend
   [`cargo run -p swx-kernel --features occt --example sweep_pipe -- <dir>`], [Sweeps a circle and a rectangle along a bent path, and shows the errors, a too-tight bend among them (@ch-sweep). STEP files in `<dir>`.],
   [`cargo run -p swx-kernel --features occt --example helical_spring -- <dir>`], [Winds a circle into a coil spring and a rectangle into a square ridge around a helix, and shows the errors (@sec-helix). STEP files in `<dir>`.],
   [`cargo run -p swx-io --example unpacked_document -- <dir>`], [Writes a part document folder `<dir>/plate.sltwx`, reads it back, and shows the errors (@sec-files). Needs no OpenCascade.],
+  [`cargo run -p swx-io --example packed_document -- <dir>`], [Writes the same document as one file, `<dir>/plate.sltwx`, converts a folder to a file, and shows the errors (@sec-files-packed). Needs no OpenCascade.],
+  [`cargo run -p swx-io --example stl_mesh -- <dir>`], [Writes a four-triangle mesh as `<dir>/corner.stl` (ASCII) and `<dir>/corner-binary.stl`, and shows the errors (@sec-stl). Needs no OpenCascade.],
+  [`cargo build --release -p swx-io`], [Builds the `sltwx` command, at `target/release/sltwx` (@sec-ref-sltwx).],
   [`cargo run -p swx-kernel --example work_features`], [Builds work planes, axes and a point, and prints them (@sec-work). Needs no OpenCascade.],
   [`cargo run -p swx-kernel --features occt --example tilted_post -- <dir>`], [Stands a post at 30° on a plate, from a tilted work plane (@sec-work-use). A STEP file in `<dir>`.],
   [`cargo run -p swx-kernel --features occt --example work_on_part -- <dir>`], [Takes work features from a block's faces, edges and a corner, then uses two of them (@sec-work-part). A STEP file in `<dir>`.],
@@ -587,6 +615,7 @@ A unit that is not one of the seven in @sec-ref-expr, including an empty one, co
   columns: (auto, auto, 1fr),
   header: ("Format", "Read / write", "Notes"),
   [STEP (`.step`, `.stp`), ISO 10303-21], [Both], [Solids only. Written in millimeters.],
+  [STL (`.stl`), ASCII and binary], [Write], [Triangle meshes, in millimeters, from your program's own mesh (@sec-stl, @sec-ref-stl). Not yet straight from a part.],
   [PNG (`.png`)], [Write], [Pictures from `swx-qa render` and `swx-qa sketch`.],
   [Saulitwerx document, unpacked form (a `.sltwx`, `.sltwxa` or `.sltwxd` folder)], [Both], [The manifest is checked in full; the model and properties are kept as JSON objects, not yet tied to a part (@ch-files, @sec-ref-files).],
   [Saulitwerx document, packed form (one `.sltwx`, `.sltwxa` or `.sltwxd` file, a ZIP)], [Both], [The same files as the unpacked form, deflate-compressed; checked as for a folder, plus each entry's CRC-32 and size (@sec-files-packed, @sec-ref-files).],
@@ -607,9 +636,9 @@ A unit that is not one of the seven in @sec-ref-expr, including an empty one, co
 #ref-table(
   columns: (auto, 1fr),
   header: ("Call", "What it does"),
-  [`write_unpacked(dir, doc)`], [Writes `doc` to the folder `dir`, made if missing: `manifest.json`, `model.json`, and `properties.json` when `doc.properties` is `Some` (deleted when `None`). Other entries in `dir` are left alone. Nothing is written when `dir`'s extension doesn't match the manifest's kind, or the model or properties isn't a JSON object.],
-  [`read_unpacked(dir)`], [Reads the `Document` in the folder `dir`. `manifest.json` and `model.json` required, `properties.json` optional; other entries not read. Checks the manifest, then the extension against its kind, then that the model and properties are JSON objects.],
-  [`write_sltwx(path, doc)`], [Writes `doc` to the single file `path` as a ZIP archive, replacing any file there: `manifest.json`, `model.json`, then `properties.json` when `doc.properties` is `Some`, in that order, each deflated (method 8), with the same text `write_unpacked` writes and every date set to 1980-01-01 00:00, so the same document always gives the same bytes. Nothing is written when `path`'s extension doesn't match the manifest's kind, or the model or properties isn't a JSON object. No ZIP64: an entry over 4 GB is refused.],
+  [`write_unpacked(dir, doc)`], [Writes `doc` to the folder `dir`, made if missing: `manifest.json`, `model.json`, and `properties.json` when `doc.properties` is `Some` (deleted when `None`). Other entries in `dir` are left alone. A part's set arrays are written sorted by `id` (rules below); `doc` itself isn't changed. Nothing is written when `dir`'s extension doesn't match the manifest's kind, the model or properties isn't a JSON object, or a part's IDs break the rules.],
+  [`read_unpacked(dir)`], [Reads the `Document` in the folder `dir`. `manifest.json` and `model.json` required, `properties.json` optional; other entries not read. Checks the manifest, then the extension against its kind, then that the model is a JSON object and, for a part, its IDs, then the properties. Nothing is reordered.],
+  [`write_sltwx(path, doc)`], [Writes `doc` to the single file `path` as a ZIP archive, replacing any file there: `manifest.json`, `model.json`, then `properties.json` when `doc.properties` is `Some`, in that order, each deflated (method 8), with the same text `write_unpacked` writes and every date set to 1980-01-01 00:00, so the same document always gives the same bytes. A part's sets are sorted as for `write_unpacked`. Nothing is written when `path`'s extension doesn't match the manifest's kind, the model or properties isn't a JSON object, or a part's IDs break the rules. No ZIP64: an entry over 4 GB is refused.],
   [`read_sltwx(path)`], [Reads the `Document` in the ZIP archive `path`. Entries may be stored (method 0) or deflated (method 8); each one needed is checked against its CRC-32 and uncompressed size. `manifest.json` and `model.json` required, `properties.json` optional; other entries (`cache/…`, `thumbnail.png`, `attachments/…`) skipped. Then the same checks as `read_unpacked`. Not read: ZIP64, encrypted and multi-disk archives.],
   [`read_manifest(text)`], [Reads and checks the text of a `manifest.json` (rules below).],
   [`write_manifest(m)`], [The text of a `manifest.json` for `m`, in canonical form, extra fields included, `model_hash` left out when `None`.],
@@ -631,9 +660,36 @@ A unit that is not one of the seven in @sec-ref-expr, including an empty one, co
   [Any other field], [No], [Kept in `Manifest::extra` and written back unchanged.],
 )
 
-`FormatError` kinds: `Json` (not valid JSON; the message names the file), `MissingField` (a required field), `InvalidField` (a wrong value or type, or a model or properties that isn't an object), `UnsupportedVersion` (major version not 0), `Io` (a file or folder can't be read, written or removed, or isn't a folder), `MissingFile` (`manifest.json` or `model.json`), `ExtensionMismatch` (folder or file name and kind disagree; holds `form`, `extension` and `kind`), `MalformedArchive` (not a ZIP, cut short, a truncated or inconsistent entry, corrupt compressed data, or ZIP64, encryption or several disks), `UnsupportedMethod` (an entry compressed other than stored or deflate; names the entry and the method number), `CrcMismatch` (an entry fails its CRC-32 check; names the entry). The messages are in @sec-errors.
+#block(breakable: false)[
+#ref-table(
+  columns: (auto, auto, 1fr),
+  header: ("ID array of a part", "Order on write", "Rule"),
+  [`sketches`], [Sorted by `id`], [Each element an object with a non-empty string `id`, unique in the array.],
+  [`sketches[i].entities`], [Sorted by `id`], [The same, within each sketch.],
+  [`sketches[i].constraints`], [Sorted by `id`], [The same, within each sketch.],
+  [`features`], [Kept as given], [The same. The order is the history.],
+  [`bodies`], [Sorted by `id`], [The same.],
+)
+]
+
+An absent array passes; one that isn't an array is `InvalidField` (`must be an array`). Sorting is by the `id` text in byte order, the order names are written in. IDs need be unique only within their own array. Only parts are checked; assemblies and drawings aren't yet.
+
+`FormatError` kinds: `Json` (not valid JSON; the message names the file), `MissingField` (a required field), `InvalidField` (a wrong value or type, or a model or properties that isn't an object), `UnsupportedVersion` (major version not 0), `Io` (a file or folder can't be read, written or removed, or isn't a folder), `MissingFile` (`manifest.json` or `model.json`), `ExtensionMismatch` (folder or file name and kind disagree; holds `form`, `extension` and `kind`), `MalformedArchive` (not a ZIP, cut short, a truncated or inconsistent entry, corrupt compressed data, or ZIP64, encryption or several disks), `UnsupportedMethod` (an entry compressed other than stored or deflate; names the entry and the method number), `CrcMismatch` (an entry fails its CRC-32 check; names the entry), `InvalidId` (an element of a part's ID array without a non-empty string `id`; holds `array`, the array's path such as `"sketches[0].constraints"`, and `index`), `DuplicateId` (an `id` used twice in one array; holds `array` and `id`). The messages are in @sec-errors.
 
 `DocumentForm` says which form a path names, so the message can name it: `Folder` (the unpacked form) or `File` (the packed form). `as_str` gives the word the message uses, `"folder"` or `"file"`.
+
+== STL files <sec-ref-stl>
+
+`swx_io::stl` writes a triangle mesh as STL (@sec-stl). A mesh is `positions`, a list of `[f32; 3]` corners in millimeters, and `indices`, a list of `u32` corner numbers, three per triangle, counterclockwise as seen from outside. Each facet's normal is worked out from its corners in that order: the unit vector along (b − a) × (c − a), or 0 0 0 for a triangle with no area. The whole mesh is checked before the first byte is written.
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("Call", "What it does"),
+  [`write_stl_binary(positions, indices, out)`], [Writes binary STL to `out` (any `Write`): a fixed 80-byte header that doesn't start with `solid` and holds no date, the triangle count as a little-endian `u32`, then 50 bytes per triangle (normal and three corners as little-endian `f32`, and a `u16` 0). Exactly 84 + 50 × triangles bytes; the same mesh always gives the same bytes.],
+  [`write_stl_ascii(name, positions, indices, out)`], [Writes ASCII STL: `solid <name>`, then per triangle `facet normal`, `outer loop`, three `vertex` lines, `endloop`, `endfacet`, then `endsolid <name>`. Numbers in e notation, the shortest form that reads back to the same `f32` (`1e1`, `-2.5e-1`). Control and non-ASCII characters in `name` become `_`; an empty name gives `solid` and `endsolid` alone.],
+)
+
+`StlError` kinds: `IndexCountNotMultipleOf3` (holds the count), `IndexOutOfRange` (holds `index` and `vertex_count`), `NonFiniteCoordinate` (holds `vertex`), `TooManyTriangles` (binary only: more than a `u32` can count; holds the count), `Io` (writing to `out` failed; holds the message). The messages are in @sec-errors.
 
 == Keyboard and mouse
 

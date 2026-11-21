@@ -252,3 +252,59 @@ The program is `crates/swx-kernel/examples/multi_body.rs`. It does three things.
 == Open a STEP file from another program
 
 `import_step` reads any STEP file, and `swx-qa render --step` draws one (@ch-pictures). Everything in the file comes in as one shape. Saulitwerx can't edit an imported shape yet; using it as a starting feature is on the roadmap.
+
+== Write a mesh as an STL file <sec-stl>
+
+#idx("STL")
+A 3D printer, and the slicing program that prepares a print, don't want a solid's exact curved faces. They want a #term[mesh]: the surface broken into many small flat triangles, like a geodesic dome. The most common file for a mesh is #term[STL]. It lists the triangles one by one, each with its three corners and the direction it faces, called its #term[normal]. STL has two forms: ASCII, which is plain text you can read, and binary, which is smaller and quicker to load. Both hold the same triangles.
+
+STL keeps only the shape's surface, more coarsely than a STEP file and with no units: by custom, and in Saulitwerx, its numbers are millimeters. Use it to print a part, or to hand it to a program that wants a mesh. Keep the document file (@ch-files) or a STEP file for anything you will edit or build on.
+
+*In Saulitwerx today:* `swx-io` writes any triangle mesh your program gives it, in either form. Saving a part as STL in one step, with a chosen fineness, is planned (*Coming next*). This section needs no OpenCascade.
+
+#task-intro(
+  goal: [Write a small mesh as an ASCII and a binary STL file, read the ASCII one, and see the errors.],
+  needs: [Saulitwerx built from source (@ch-install). OpenCascade isn't needed.],
+  time: [5 minutes.],
+)
+
+#steps(
+  [#block(breakable: false)[Run the sample program, and tell it to write into a folder called `stl`:
+  #term-block("cargo run -p swx-io --example stl_mesh -- stl")
+  It writes the two files, then tries three broken meshes on purpose:
+  #term-block(label: "Output", "wrote stl/corner.stl (619 bytes)\nwrote stl/corner-binary.stl (284 bytes)\nhalf a triangle -> error: index count 2 is not a multiple of 3\nno such corner -> error: index 7 is out of range for a mesh with 4\n    vertices\nnot a number -> error: vertex 1 has a non-finite coordinate\nbytes written by the failed tries: 0")
+  One long line is wrapped here to fit the page.]],
+  [Read the first two lines. The mesh is a corner cut off a 10 mm cube: a small pyramid with four triangular faces. As text it takes 619 bytes; in binary, 284. A binary file is always 84 bytes plus 50 for each triangle, so a part's mesh of many thousands of triangles stays far smaller in binary.],
+  [#block(breakable: false)[Look at the ASCII file:
+  #term-block("cat stl/corner.stl")
+  It names the solid, then lists each triangle (`facet`) with its normal and its three corners (`vertex`), in millimeters:
+  #term-block(label: "Output", "solid corner\n  facet normal 0e0 0e0 -1e0\n    outer loop\n      vertex 0e0 0e0 0e0\n      vertex 0e0 1e1 0e0\n      vertex 1e1 0e0 0e0\n    endloop\n  endfacet\n  …\n  facet normal 5.7735026e-1 5.7735026e-1 5.7735026e-1\n    outer loop\n      vertex 1e1 0e0 0e0\n      vertex 0e0 1e1 0e0\n      vertex 0e0 0e0 1e1\n    endloop\n  endfacet\nendsolid corner")
+  The middle two triangles are left out here. Numbers are in #term[e notation]: `1e1` is 1 × 10¹, which is 10, and `5.7735026e-1` is 0.57735026. The first triangle lies on the floor and faces straight down, −Z; the last is the sloping face, and faces up and out equally along X, Y and Z.]],
+  [Read the errors. Every triangle needs three corners, so two numbers are half a triangle. A triangle can't use corner 7 of a mesh with four corners. A corner whose position isn't a number is refused. The mesh is checked in full before the first byte is written, so a broken mesh never leaves half a file behind.],
+)
+
+#result[The same small mesh as a readable text STL and as a compact binary STL, ready for any program that reads STL.]
+
+#block(breakable: false)[
+=== How the sample is built
+
+The program is `crates/swx-io/examples/stl_mesh.rs`. A mesh is two lists: the corners, as x, y, z in millimeters, and the triangles, as three corner numbers each, counting from 0.
+
+#steps(
+  [*List the corners and the triangles.* Give each triangle's corners counterclockwise as seen from outside the part; that is how the writer knows which way the triangle faces:
+  ```rust
+  let positions = [[0.0, 0.0, 0.0], [10.0, 0.0, 0.0],
+                   [0.0, 10.0, 0.0], [0.0, 0.0, 10.0]];
+  let indices = [0, 2, 1, 0, 1, 3, 0, 3, 2, 1, 2, 3];
+  ```],
+  [*Write it.* Each writer takes anything you can write bytes to, such as an open file. The ASCII writer also takes the name it prints after `solid`:
+  ```rust
+  write_stl_ascii("corner", &positions, &indices, &mut out)?;
+  write_stl_binary(&positions, &indices, &mut out)?;
+  ```],
+)
+]
+
+#tip(title: [A part's own mesh])[The geometry engine's `tessellate` (@sec-ref-kernel) breaks a solid into a mesh whose `positions` and `indices` fit these writers as they are, already counterclockwise from outside. Hand them over to save a part of your own as STL.]
+
+#caution(title: [Get the winding right])[The writer works out each triangle's normal from the order of its corners. Corners listed clockwise give a normal that points into the part, and many programs then show the triangle as a hole or turn the part inside out. If a mesh looks inside out in another program, swap two corners of every triangle.]
