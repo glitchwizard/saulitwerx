@@ -11,6 +11,7 @@
 //! ([`write_stl_binary`], [`write_stl_ascii`]).
 
 mod canonical;
+mod ids;
 mod manifest;
 mod packed;
 pub mod stl;
@@ -105,6 +106,21 @@ pub enum FormatError {
     /// An archive entry's data does not match its recorded CRC-32. Holds the
     /// entry's name.
     CrcMismatch(String),
+    /// An element of a part's ID array (FILE_FORMAT.md, "`model.json`
+    /// rules") is not an object with a non-empty string `id`.
+    InvalidId {
+        /// The array's path, e.g. `"bodies"` or `"sketches[0].constraints"`.
+        array: String,
+        /// The element's position in the array.
+        index: usize,
+    },
+    /// Two elements of a part's ID array have the same `id`.
+    DuplicateId {
+        /// The array's path, e.g. `"bodies"` or `"sketches[0].entities"`.
+        array: String,
+        /// The repeated `id`.
+        id: String,
+    },
 }
 
 impl fmt::Display for FormatError {
@@ -130,6 +146,13 @@ impl fmt::Display for FormatError {
             ),
             FormatError::CrcMismatch(entry) => {
                 write!(f, "archive entry `{entry}` fails its CRC-32 check")
+            }
+            FormatError::InvalidId { array, index } => write!(
+                f,
+                "`{array}[{index}]` needs a non-empty string `id`"
+            ),
+            FormatError::DuplicateId { array, id } => {
+                write!(f, "duplicate id `{id}` in `{array}`")
             }
             FormatError::ExtensionMismatch {
                 form,
