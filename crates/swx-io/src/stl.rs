@@ -25,9 +25,15 @@
 //! The input is checked completely before the first byte is written, so a
 //! bad mesh never leaves a partial file behind. Nothing here panics on bad
 //! input.
+//!
+//! [`export_stl`] connects these writers to the kernel: it tessellates a
+//! shape at a chosen deflection ([`StlOptions`]) and writes the file.
 
 use std::fmt;
 use std::io::Write;
+use std::path::Path;
+
+use swx_kernel::{Kernel, KernelError};
 
 /// The fixed 80-byte header of a binary STL file. It is constant text, not a
 /// timestamp, so writing the same mesh twice gives byte-identical files. It
@@ -37,7 +43,7 @@ const BINARY_HEADER: &[u8; 80] =
     b"binary STL written by Saulitwerx                                                ";
 
 /// Why an STL file could not be written.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum StlError {
     /// The number of indices is not a multiple of 3, so it does not describe
     /// whole triangles. Holds the index count.
@@ -59,6 +65,11 @@ pub enum StlError {
     TooManyTriangles(usize),
     /// Writing to the output failed. Holds the I/O error's message.
     Io(String),
+    /// [`StlOptions::deflection_mm`] is not finite or not greater than 0.
+    /// Holds the rejected value.
+    InvalidDeflection(f64),
+    /// The kernel could not tessellate the shape.
+    Kernel(KernelError),
 }
 
 impl fmt::Display for StlError {
@@ -81,6 +92,11 @@ impl fmt::Display for StlError {
                 write!(f, "{n} triangles do not fit in a binary STL file")
             }
             StlError::Io(msg) => write!(f, "could not write STL: {msg}"),
+            StlError::InvalidDeflection(d) => write!(
+                f,
+                "deflection {d} mm is invalid: it must be finite and greater than 0"
+            ),
+            StlError::Kernel(e) => write!(f, "could not tessellate the shape: {e}"),
         }
     }
 }
@@ -236,6 +252,81 @@ pub fn write_stl_ascii(
         writeln!(out, "  endfacet")?;
     }
     writeln!(out, "endsolid{sep}{name}")?;
+    Ok(())
+}
+
+/// Which STL layout [`export_stl`] writes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum StlFormat {
+    /// The compact binary layout ([`write_stl_binary`]).
+    #[default]
+    Binary,
+    /// The text layout ([`write_stl_ascii`]).
+    Ascii,
+}
+
+/// Options for [`export_stl`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct StlOptions {
+    /// The largest distance, in millimetres, the mesh may be from the true
+    /// surface. Smaller values give more triangles. Must be finite and
+    /// greater than 0.
+    pub deflection_mm: f64,
+    /// Binary or ASCII.
+    pub format: StlFormat,
+}
+
+impl Default for StlOptions {
+    /// Deflection 0.01 mm, binary.
+    fn default() -> Self {
+        StlOptions {
+            deflection_mm: 0.01,
+            format: StlFormat::Binary,
+        }
+    }
+}
+
+/// Returns `deflection` when it is finite and greater than 0, otherwise
+/// [`StlError::InvalidDeflection`].
+fn check_deflection(deflection: f64) -> Result<f64, StlError> {
+    if deflection.is_finite() && deflection > 0.0 {
+        Ok(deflection)
+    } else {
+        Err(StlError::InvalidDeflection(deflection))
+    }
+}
+
+/// Tessellates `shape` with `kernel` at `options.deflection_mm` and writes
+/// it to `path` as an STL file in `options.format`.
+///
+/// The deflection is checked before anything else, so an invalid value
+/// returns [`StlError::InvalidDeflection`] without tessellating or creating
+/// a file. Kernel failures are returned as [`StlError::Kernel`]. The whole
+/// file is built in memory first, so a mesh the writers reject leaves no
+/// file behind. The ASCII solid name is the file name without its
+/// extension.
+pub fn export_stl<K: Kernel>(
+    kernel: &K,
+    shape: &K::Shape,
+    path: &Path,
+    options: &StlOptions,
+) -> Result<(), StlError> {
+    let deflection = check_deflection(options.deflection_mm)?;
+    let mesh = kernel
+        .tessellate(shape, deflection)
+        .map_err(StlError::Kernel)?;
+    let mut bytes = Vec::new();
+    match options.format {
+        StlFormat::Binary => write_stl_binary(&mesh.positions, &mesh.indices, &mut bytes)?,
+        StlFormat::Ascii => {
+            let name = path
+                .file_stem()
+                .and_then(|n| n.to_str())
+                .unwrap_or("saulitwerx");
+            write_stl_ascii(name, &mesh.positions, &mesh.indices, &mut bytes)?;
+        }
+    }
+    std::fs::write(path, bytes)?;
     Ok(())
 }
 
@@ -452,5 +543,198 @@ endsolid tri
         assert_eq!(e, StlError::Io("disk full".to_string()));
         let e = write_stl_ascii("c", &positions, &indices, &mut Broken).unwrap_err();
         assert_eq!(e, StlError::Io("disk full".to_string()));
+    }
+
+    #[test]
+    fn stl_options_default_is_0_01_mm_binary() {
+        let o = StlOptions::default();
+        assert_eq!(o.deflection_mm, 0.01);
+        assert_eq!(o.format, StlFormat::Binary);
+        assert_eq!(StlFormat::default(), StlFormat::Binary);
+    }
+
+    #[test]
+    fn deflection_must_be_finite_and_positive() {
+        assert_eq!(check_deflection(0.01), Ok(0.01));
+        assert_eq!(check_deflection(1e-9), Ok(1e-9));
+        for bad in [0.0, -0.0, -1.0, f64::INFINITY, f64::NEG_INFINITY] {
+            assert_eq!(check_deflection(bad), Err(StlError::InvalidDeflection(bad)));
+        }
+        // NaN never equals itself, so match the variant instead.
+        assert!(matches!(
+            check_deflection(f64::NAN),
+            Err(StlError::InvalidDeflection(d)) if d.is_nan()
+        ));
+    }
+
+    #[test]
+    fn new_errors_name_the_value_and_the_kernel_message() {
+        let msg = StlError::InvalidDeflection(0.0).to_string();
+        assert!(msg.contains("deflection 0 mm"), "{msg}");
+        let msg = StlError::Kernel(KernelError::Backend("boom".into())).to_string();
+        assert!(msg.contains("boom"), "{msg}");
+    }
+
+    #[cfg(feature = "occt")]
+    mod occt {
+        use super::super::*;
+        use std::collections::HashMap;
+        use std::path::PathBuf;
+        use swx_kernel::OcctKernel;
+
+        /// A fresh path in the system temp directory.
+        fn scratch(name: &str) -> PathBuf {
+            use std::sync::atomic::{AtomicUsize, Ordering};
+            static N: AtomicUsize = AtomicUsize::new(0);
+            let n = N.fetch_add(1, Ordering::Relaxed);
+            let p =
+                std::env::temp_dir().join(format!("swx-io-stl-{}-{n}-{name}", std::process::id()));
+            let _ = std::fs::remove_file(&p);
+            p
+        }
+
+        /// Reads a binary STL file back as triangles (three vertices each),
+        /// checking that the stored count matches the file length.
+        fn read_binary(path: &Path) -> Vec<[[f32; 3]; 3]> {
+            let bytes = std::fs::read(path).unwrap();
+            let count = u32::from_le_bytes(bytes[80..84].try_into().unwrap()) as usize;
+            assert_eq!(bytes.len(), 84 + 50 * count);
+            let f = |o: usize| f32::from_le_bytes(bytes[o..o + 4].try_into().unwrap());
+            (0..count)
+                .map(|t| {
+                    let base = 84 + 50 * t + 12; // skip the facet normal
+                    [0, 1, 2].map(|v| [0, 1, 2].map(|k| f(base + 12 * v + 4 * k)))
+                })
+                .collect()
+        }
+
+        /// Sum of the signed volumes of the tetrahedra (origin, a, b, c).
+        fn signed_volume(tris: &[[[f32; 3]; 3]]) -> f64 {
+            tris.iter()
+                .map(|t| {
+                    let [a, b, c] = t.map(|p| p.map(f64::from));
+                    (a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0])
+                        + a[2] * (b[0] * c[1] - b[1] * c[0]))
+                        / 6.0
+                })
+                .sum()
+        }
+
+        fn bbox_size(tris: &[[[f32; 3]; 3]]) -> [f64; 3] {
+            let mut lo = [f64::INFINITY; 3];
+            let mut hi = [f64::NEG_INFINITY; 3];
+            for p in tris.iter().flatten() {
+                for k in 0..3 {
+                    lo[k] = lo[k].min(f64::from(p[k]));
+                    hi[k] = hi[k].max(f64::from(p[k]));
+                }
+            }
+            [0, 1, 2].map(|k| hi[k] - lo[k])
+        }
+
+        /// True when every undirected edge, after merging bit-identical
+        /// positions, is used by exactly two triangles.
+        fn is_closed(tris: &[[[f32; 3]; 3]]) -> bool {
+            let mut ids: HashMap<[u32; 3], usize> = HashMap::new();
+            let mut edges: HashMap<(usize, usize), usize> = HashMap::new();
+            for t in tris {
+                let v = t.map(|p| {
+                    let key = p.map(|c| (c + 0.0).to_bits());
+                    let next = ids.len();
+                    *ids.entry(key).or_insert(next)
+                });
+                for (a, b) in [(v[0], v[1]), (v[1], v[2]), (v[2], v[0])] {
+                    *edges.entry((a.min(b), a.max(b))).or_insert(0) += 1;
+                }
+            }
+            !edges.is_empty() && edges.values().all(|&n| n == 2)
+        }
+
+        fn export(shape: &swx_kernel::OcctShape, deflection_mm: f64, name: &str) -> PathBuf {
+            let path = scratch(name);
+            let options = StlOptions {
+                deflection_mm,
+                format: StlFormat::Binary,
+            };
+            export_stl(&OcctKernel, shape, &path, &options).unwrap();
+            path
+        }
+
+        #[test]
+        fn invalid_deflection_creates_no_file() {
+            let k = OcctKernel;
+            let shape = k.make_box([0.0; 3], [20.0, 10.0, 5.0]).unwrap();
+            for bad in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+                let path = scratch("bad.stl");
+                let options = StlOptions {
+                    deflection_mm: bad,
+                    format: StlFormat::Binary,
+                };
+                let e = export_stl(&k, &shape, &path, &options).unwrap_err();
+                assert!(matches!(e, StlError::InvalidDeflection(_)), "{e:?}");
+                assert!(!path.exists());
+            }
+        }
+
+        #[test]
+        fn box_exports_with_its_size_and_volume() {
+            let k = OcctKernel;
+            let shape = k.make_box([0.0; 3], [20.0, 10.0, 5.0]).unwrap();
+            let path = export(&shape, 0.01, "box.stl");
+            let tris = read_binary(&path);
+            assert!(tris.len() >= 12, "{} triangles", tris.len());
+            let size = bbox_size(&tris);
+            for (got, want) in size.iter().zip([20.0, 10.0, 5.0]) {
+                assert!((got - want).abs() <= 1e-4, "{size:?}");
+            }
+            let vol = signed_volume(&tris);
+            assert!((vol - 1000.0).abs() <= 1e-3, "volume {vol}");
+            assert!(is_closed(&tris));
+            let _ = std::fs::remove_file(path);
+        }
+
+        #[test]
+        fn finer_deflection_gives_more_triangles_and_a_closer_volume() {
+            let k = OcctKernel;
+            let shape = k.make_cylinder([0.0; 3], 5.0, 10.0).unwrap();
+            let coarse = read_binary(&export(&shape, 0.1, "cyl-coarse.stl"));
+            let fine = read_binary(&export(&shape, 0.01, "cyl-fine.stl"));
+            assert!(
+                fine.len() > coarse.len(),
+                "{} vs {}",
+                fine.len(),
+                coarse.len()
+            );
+            let exact = std::f64::consts::PI * 25.0 * 10.0;
+            let vol = signed_volume(&fine);
+            assert!(
+                ((vol - exact) / exact).abs() <= 1e-3,
+                "volume {vol}, exact {exact}"
+            );
+            assert!(is_closed(&coarse));
+            assert!(is_closed(&fine));
+        }
+
+        #[test]
+        fn ascii_export_names_the_solid_after_the_file() {
+            let k = OcctKernel;
+            let shape = k.make_box([0.0; 3], [20.0, 10.0, 5.0]).unwrap();
+            let path = scratch("plate.stl");
+            let options = StlOptions {
+                deflection_mm: 0.01,
+                format: StlFormat::Ascii,
+            };
+            export_stl(&k, &shape, &path, &options).unwrap();
+            let text = std::fs::read_to_string(&path).unwrap();
+            let stem = path.file_stem().unwrap().to_str().unwrap().to_string();
+            assert!(
+                text.starts_with(&format!("solid {stem}\n")),
+                "{}",
+                &text[..40]
+            );
+            assert!(text.trim_end().ends_with(&format!("endsolid {stem}")));
+            assert!(text.matches("facet normal").count() >= 12);
+            let _ = std::fs::remove_file(path);
+        }
     }
 }

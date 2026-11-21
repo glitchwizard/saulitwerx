@@ -20,7 +20,7 @@ mod zip;
 pub use canonical::to_canonical_json;
 pub use manifest::{read_manifest, write_manifest, DocumentKind, Manifest, Units};
 pub use packed::{read_sltwx, write_sltwx};
-pub use stl::{write_stl_ascii, write_stl_binary, StlError};
+pub use stl::{export_stl, write_stl_ascii, write_stl_binary, StlError, StlFormat, StlOptions};
 pub use unpacked::{read_unpacked, write_unpacked, Document};
 
 use std::fmt;

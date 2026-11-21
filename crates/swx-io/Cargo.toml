@@ -8,7 +8,13 @@ repository.workspace = true
 rust-version.workspace = true
 publish = false
 
+[features]
+default = []
+# Forwards to `swx-kernel/occt`, so `export_stl` can tessellate real shapes.
+occt = ["swx-kernel/occt"]
+
 [dependencies]
+swx-kernel = { path = "../swx-kernel" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 flate2 = "1"
