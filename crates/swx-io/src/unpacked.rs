@@ -10,8 +10,8 @@ use std::path::Path;
 use serde_json::Value;
 
 use crate::{
-    read_manifest, to_canonical_json, write_manifest, DocumentForm, DocumentKind, FormatError,
-    Manifest,
+    model_hash, read_manifest, to_canonical_json, write_manifest, DocumentForm, DocumentKind,
+    FormatError, Manifest,
 };
 
 const MANIFEST: &str = "manifest.json";
@@ -30,6 +30,21 @@ pub struct Document {
     pub model: Value,
     /// `properties.json`, if the document has one. Always a JSON object.
     pub properties: Option<Value>,
+}
+
+impl Document {
+    /// Sets `manifest.model_hash` to the [`model_hash`] of `model`.
+    pub fn refresh_model_hash(&mut self) {
+        self.manifest.model_hash = Some(model_hash(&self.model));
+    }
+
+    /// Whether a cache built from the model hash `recorded` is still valid:
+    /// true only when `recorded` equals the [`model_hash`] of `model`
+    /// (FILE_FORMAT.md: "If they differ, the cache is stale"). A malformed
+    /// `recorded` string is never equal, so it gives `false`.
+    pub fn cache_is_fresh(&self, recorded: &str) -> bool {
+        recorded == model_hash(&self.model)
+    }
 }
 
 /// Reads the document in the unpacked folder `dir`
@@ -456,5 +471,23 @@ mod tests {
             e.to_string(),
             "folder has no extension; the manifest kind `part` needs `.sltwx`"
         );
+    }
+
+    #[test]
+    fn refreshed_model_hash_keeps_the_cache_fresh_until_the_model_changes() {
+        let mut doc = read_unpacked(&fixture()).unwrap();
+        doc.refresh_model_hash();
+        let recorded = doc.manifest.model_hash.clone().unwrap();
+        assert_eq!(recorded, model_hash(&doc.model));
+        // The refreshed hash passes the manifest's own `model_hash` check.
+        let reread = read_manifest(&write_manifest(&doc.manifest)).unwrap();
+        assert_eq!(reread.model_hash.as_deref(), Some(recorded.as_str()));
+        assert!(doc.cache_is_fresh(&recorded));
+
+        let obj = doc.model.as_object_mut().unwrap();
+        obj.insert("end_of_part".into(), Value::String("ft-other".into()));
+        assert!(!doc.cache_is_fresh(&recorded));
+        assert!(!doc.cache_is_fresh("sha256:xyz"));
+        assert!(!doc.cache_is_fresh(""));
     }
 }
