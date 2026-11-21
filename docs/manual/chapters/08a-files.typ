@@ -31,7 +31,7 @@ The same files can be kept in two ways, and both carry the same name:
 
 Each file is written the same way every time, with its names in alphabetical order and one value per line, in either form. So the same document always gives the same bytes, and when you keep a design under version control a change shows up as a change to just the lines it touched.
 
-*In Saulitwerx today:* `swx-io` reads and writes both forms and checks the manifest. `model.json` and `properties.json` are read and written as plain JSON objects: Saulitwerx can't yet fill `model.json` from a part's history or build a part from it, so a part can't be saved and opened again yet. The stored pictures and previews, and the `sltwx` command that converts between the forms, are planned (*Coming next*); for now a small program converts them (@sec-files-packed).
+*In Saulitwerx today:* `swx-io` reads and writes both forms and checks the manifest, and the `sltwx` command turns a folder into a file and back (@sec-files-sltwx). In a part's `model.json`, every sketch, feature and body, and every piece and rule of a sketch, must carry its own ID, and the file is written in a fixed order (@sec-files-ids). Beyond that, `model.json` and `properties.json` are read and written as plain JSON objects: Saulitwerx can't yet fill `model.json` from a part's history or build a part from it, so a part can't be saved and opened again yet. The stored pictures and previews are planned (*Coming next*).
 
 // Keeps the task's heading and intro with its first step.
 #pagebreak(weak: true)
@@ -150,14 +150,94 @@ The program is `crates/swx-io/examples/packed_document.rs`. It makes the same `D
 ]
 
 #tip(title: [Open a document file with any ZIP tool])[#set par(justify: false)
-A `.sltwx` file is a plain ZIP. Any ZIP tool can list it or take out one file to read, such as `unzip -p plate.sltwx model.json`. To change a file inside, convert the document to a folder, edit it, and convert it back, so Saulitwerx writes it the way it always does.]
+A `.sltwx` file is a plain ZIP. Any ZIP tool can list it or take out one file to read, such as `unzip -p plate.sltwx model.json`. To change a file inside, convert the document to a folder with `sltwx unpack`, edit it, and convert it back with `sltwx pack` (@sec-files-sltwx), so Saulitwerx writes it the way it always does.]
+
+// Keeps the task's heading and intro with its first step.
+#pagebreak(weak: true)
+== Convert between a folder and a file with `sltwx` <sec-files-sltwx>
+
+The folder is the form to edit and keep under version control; the file is the form to send. The #term(key: "sltwx command")[`sltwx` command] turns one into the other, so you can move between them whenever you need to. It needs no program of your own.
+
+#task-intro(
+  goal: [Build the `sltwx` command, pack a document folder into one file, and unpack the file into a new folder.],
+  needs: [Saulitwerx built from source (@ch-install), and the folder `files/plate.sltwx` from @sec-files. OpenCascade isn't needed.],
+  time: [5 minutes.],
+)
+
+#steps(
+  [#block(breakable: false)[Build the command:
+  #term-block("cargo build --release -p swx-io")
+  It ends with a line that starts `Finished`. The command is now at `target/release/sltwx`.]],
+  [#block(breakable: false)[Ask it what it does:
+  #term-block("target/release/sltwx --help")
+  It prints its three forms:
+  #term-block(label: "Output", "usage: sltwx pack <folder> <file>     read the unpacked <folder>,\n    write the ZIP <file>\n       sltwx unpack <file> <folder>   read the ZIP <file>, write the\n    unpacked <folder>\n       sltwx --help | -h              print this usage\n\nThe output path must not exist; it is never overwritten.")
+  Two long lines are wrapped here to fit the page.]],
+  [#block(breakable: false)[Pack the folder from @sec-files into one file, and look at the file:
+  #term-block("target/release/sltwx pack files/plate.sltwx plate.sltwx\nls -l plate.sltwx")
+  `pack` prints nothing when it works. The file is 633 bytes, the same size as the file the sample program wrote in @sec-files-packed, because it holds the same document.]],
+  [#block(breakable: false)[Unpack the file into a new folder, and list the folder:
+  #term-block("target/release/sltwx unpack plate.sltwx plate-copy.sltwx\nls plate-copy.sltwx")
+  The new folder holds the same three files as the one you started from:
+  #term-block(label: "Output", "manifest.json\nmodel.json\nproperties.json")]],
+  [#block(breakable: false)[Pack the folder again, to the same file name:
+  #term-block("target/release/sltwx pack files/plate.sltwx plate.sltwx")
+  This time it refuses, and leaves the file you made in step 3 alone:
+  #term-block(label: "Output", "sltwx: plate.sltwx: already exists")]],
+)
+
+#result[The same document as a folder and as one file, converted both ways with one command.]
+
+`sltwx` never overwrites anything: the file or folder it writes must not exist yet, so a slip of the keyboard can't destroy your work. To write over an old copy, delete it first, or pick a new name. `unpack` makes the new folder itself, but the folder it goes in must already exist. Both forms are checked on the way in exactly as a program's `read_unpacked` and `read_sltwx` check them (@sec-files-rules); on a problem, `sltwx` prints the same message after `sltwx: `, and writes nothing. Its exit status, for scripts, is 0 when it works, 1 when reading or writing fails or the output is already there, and 2, with the usage, when the words after `sltwx` aren't one of its three forms. @sec-ref-sltwx has the details.
+
+#tip(title: [Run it from anywhere])[`target/release/sltwx` works only from the `saulitwerx` folder. To type just `sltwx` in any folder, copy the file to a folder on your search path, for example `cp target/release/sltwx ~/.local/bin/` on most Linux systems.]
+
+== IDs in a part's model <sec-files-ids>
+
+#idx("ID")
+When you change a design, Saulitwerx must be able to tell which sketch, which line or which feature you changed, even after you rename or reorder things. So in a part's `model.json`, each of these carries an #term[ID]: a short name of its own, such as `"sketch-1"` or `"line-3"`, that never changes for as long as the thing exists. The IDs are what a feature will use to point at the sketch it was made from, and what lets a later version of the file be compared with an earlier one.
+
+The rules cover five lists in `model.json`: `sketches`, `features` and `bodies`, and inside each sketch, its pieces (`entities`) and its rules (`constraints`). Each item in these lists must have an `"id"` that is a piece of text, not empty, and different from every other ID in the same list. A list may be left out altogether.
+
+Order matters only for features: they are the part's history (@ch-history), so they stay in the order they were made. The other four lists are #term(key: "set")[sets]: only what is in them counts, not the order. Saulitwerx writes every set sorted by its IDs, so the same design always gives the same file, however its lists were built. Assemblies and drawings aren't checked yet.
+
+#task-intro(
+  goal: [Write a small model with IDs out of order, see Saulitwerx sort them, and see the two ID errors.],
+  needs: [The `sltwx` command (@sec-files-sltwx), and the folder `files/plate.sltwx` from @sec-files.],
+  time: [5 minutes.],
+)
+
+#steps(
+  [#block(breakable: false)[Make a new document folder, `ids.sltwx`, with the plate's manifest in it:
+  #term-block("mkdir ids.sltwx\ncp files/plate.sltwx/manifest.json ids.sltwx/")]],
+  [#block(breakable: false)[Write a model into the folder. Type this in the terminal, or put the lines between the first and the last into `ids.sltwx/model.json` with any text editor:
+  #term-block("cat > ids.sltwx/model.json <<'EOF'\n{\n  \"bodies\": [{ \"id\": \"body-2\" }, { \"id\": \"body-1\" }],\n  \"features\": [{ \"id\": \"extrude-1\" }, { \"id\": \"chamfer-1\" }],\n  \"sketches\": [\n    { \"id\": \"sketch-1\",\n      \"entities\": [{ \"id\": \"line-2\" }, { \"id\": \"line-1\" }] }\n  ]\n}\nEOF")
+  The bodies and the lines are out of order. The extrude comes before the chamfer, as it would in a part's history.]],
+  [#block(breakable: false)[Pack the folder, unpack the file into a new folder, and look at its model:
+  #term-block("target/release/sltwx pack ids.sltwx ids-file.sltwx\ntarget/release/sltwx unpack ids-file.sltwx ids-sorted.sltwx\ncat ids-sorted.sltwx/model.json")
+  The bodies and the lines are now sorted by ID. The features kept their order, though `chamfer-1` comes before `extrude-1` in the alphabet:
+  #term-block(label: "Output", "{\n  \"bodies\": [\n    {\n      \"id\": \"body-1\"\n    },\n    {\n      \"id\": \"body-2\"\n    }\n  ],\n  \"features\": [\n    {\n      \"id\": \"extrude-1\"\n    },\n    {\n      \"id\": \"chamfer-1\"\n    }\n  ],\n  \"sketches\": [\n    {\n      \"entities\": [\n        {\n          \"id\": \"line-1\"\n        },\n        {\n          \"id\": \"line-2\"\n        }\n      ],\n      \"id\": \"sketch-1\"\n    }\n  ]\n}")]],
+  [#block(breakable: false)[Give both bodies the same ID, and try to pack the folder again:
+  #term-block("sed -i 's/\"body-1\"/\"body-2\"/' ids.sltwx/model.json\ntarget/release/sltwx pack ids.sltwx dup.sltwx")
+  It refuses, names the ID and the list, and writes no file:
+  #term-block(label: "Output", "sltwx: duplicate id `body-2` in `bodies`")]],
+  [#block(breakable: false)[Replace the second body's ID with a name, so it has no ID at all, and try once more:
+  #term-block("sed -i 's/{ \"id\": \"body-2\" }, { \"id\": \"body-2\" }/{ \"id\": \"body-2\" }, { \"name\": \"base\" }/' \\\n    ids.sltwx/model.json\ntarget/release/sltwx pack ids.sltwx dup.sltwx")
+  The message points at the item by its list and its place, counting from 0:
+  #term-block(label: "Output", "sltwx: `bodies[1]` needs a non-empty string `id`")]],
+)
+
+#result[A part's model written in one fixed order, with every ID checked on the way in and out.]
+
+#note(title: [Reading never reorders])[Saulitwerx checks the IDs when it reads a part, and refuses a file that breaks the rules, but it gives you the lists in the order the file has them. Only writing sorts. Your program's own copy of the model isn't changed either: the sorted lists go only into the file.]
 
 == What is read and written <sec-files-rules>
 
 - *Reading* (`read_unpacked`) needs `manifest.json` and `model.json`; `properties.json` is optional. Anything else in the folder is left alone. The manifest is checked first, then the folder's name against its kind, then the other two files, which must each be a JSON object.
-- *Writing* (`write_unpacked`) checks the name and the two objects before it writes anything, so it never writes a document it would refuse to read back. It writes the three files, deletes `properties.json` when the document has no properties, and leaves everything else in the folder as it was.
+- *A part's IDs* are checked when a part is read, after the model is found to be an object, and again before it is written (@sec-files-ids). Assemblies and drawings aren't checked yet.
+- *Writing* (`write_unpacked`) checks the name, the two objects and a part's IDs before it writes anything, so it never writes a document it would refuse to read back. A part's sets are written sorted by ID; its features keep their order. It writes the three files, deletes `properties.json` when the document has no properties, and leaves everything else in the folder as it was.
 - *Reading one file* (`read_sltwx`) needs the same two files, inside the ZIP. Each one is unpacked, then checked against its CRC-32 and its recorded size, so damage is reported rather than read. Anything else in the file, such as stored previews, is skipped. After that, the checks are the same as for a folder.
-- *Writing one file* (`write_sltwx`) makes the same checks before it writes anything, then writes `manifest.json`, `model.json` and `properties.json` (when the document has properties), in that order, each compressed, with the fixed date. It replaces the whole file.
+- *Writing one file* (`write_sltwx`) makes the same checks, and the same sorting, before it writes anything, then writes `manifest.json`, `model.json` and `properties.json` (when the document has properties), in that order, each compressed, with the fixed date. It replaces the whole file.
 - *One manifest at a time.* `read_manifest` checks the text of a `manifest.json` on its own, and `write_manifest` writes one. `to_canonical_json` writes any JSON value the way every document file is written.
 
 The manifest's checks, and the rest of the rules, are in @sec-ref-files.
@@ -175,4 +255,8 @@ The manifest's checks, and the rest of the rules, are in @sec-ref-files.
 - *A damaged file.* #raw("archive entry `model.json` fails its CRC-32 check"). A byte inside the file changed after it was written. Use an earlier copy.
 - *A ZIP made by another tool.* #raw("archive entry `model.json` uses unsupported compression method 12 (only 0 and 8 are supported)"). Saulitwerx reads only stored and standard compressed (deflate) entries, which is what nearly every ZIP tool writes by default. Re-zip the files with default settings, or unpack them to a folder.
 - *A file named for the wrong kind.* #raw("file extension `.sltwxa` does not match the manifest kind `part` (expected `.sltwx`)"), or #raw("file has no extension; the manifest kind `part` needs `.sltwx`"). The message says _file_ for the one-file form and _folder_ for a folder. Name the file for its kind, as for a folder.
+- *An ID used twice.* #raw("duplicate id `body-2` in `bodies`"). Two items in the same list have the same ID. Give one of them a new ID that isn't used anywhere in that list. The list is named by its place in the model, such as #raw("sketches[0].entities") for the pieces of the first sketch.
+- *An item without an ID.* #raw("`bodies[1]` needs a non-empty string `id`"). That item has no `"id"`, an empty one, or one that isn't text (`"id": 7` is a number, so it doesn't count). Give it a text ID. A list that isn't a list at all gives #raw("invalid field `bodies`: must be an array").
+- *Converting onto an existing name.* `sltwx: plate.sltwx: already exists`. `sltwx` never overwrites. Delete the old copy first, or choose another name.
+- *Unpacking into a folder that isn't there.* `sltwx: copy/plate.sltwx: parent folder does not exist`. `unpack` makes the last folder in the path, not the ones above it. Make them first with `mkdir -p copy`.
 - *A file from a future version.* `unsupported format_version "1.0.0": only major version 0 is supported`. This Saulitwerx can't read it; use a newer one.
