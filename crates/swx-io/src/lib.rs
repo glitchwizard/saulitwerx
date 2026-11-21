@@ -6,16 +6,21 @@
 //! that every file of the format uses, and whole documents in the unpacked
 //! folder form ([`Document`], [`read_unpacked`], [`write_unpacked`]) and as a
 //! single ZIP archive ([`read_sltwx`], [`write_sltwx`]).
+//!
+//! The [`stl`] module writes triangle meshes as binary or ASCII STL
+//! ([`write_stl_binary`], [`write_stl_ascii`]).
 
 mod canonical;
 mod manifest;
 mod packed;
+pub mod stl;
 mod unpacked;
 mod zip;
 
 pub use canonical::to_canonical_json;
 pub use manifest::{read_manifest, write_manifest, DocumentKind, Manifest, Units};
 pub use packed::{read_sltwx, write_sltwx};
+pub use stl::{write_stl_ascii, write_stl_binary, StlError};
 pub use unpacked::{read_unpacked, write_unpacked, Document};
 
 use std::fmt;
