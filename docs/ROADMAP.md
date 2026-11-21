@@ -53,7 +53,7 @@ Tools the Builder uses for the visuals in its QA reports (FACTORY §6b).
 
 ## M4: Files
 
-- [ ] M4-01 Native `.sltwx` part files per `docs/specs/FILE_FORMAT.md`: ZIP container, `manifest.json`, `model.json`, stable IDs, round-trip tests, plus the unpacked-folder form.
+- [x] M4-01 Native `.sltwx` part files per `docs/specs/FILE_FORMAT.md`: ZIP container, `manifest.json`, `model.json`, stable IDs, round-trip tests, plus the unpacked-folder form.
 - [ ] M4-04 Derived cache (`cache/*.brep`, `display.glb`, `thumbnail.png`) with `model_hash` staleness check.
 - [ ] M4-05 `sltwx pack` / `unpack` CLI and the published JSON Schema for format v0.1.
 - [ ] M4-02 STL export with tolerance options.
