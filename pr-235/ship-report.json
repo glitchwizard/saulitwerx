@@ -1,0 +1,78 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "sltwx pack/unpack binary and integration tests",
+      "ref": "3e056a3",
+      "task_id": "m4-05a-sltwx-cli",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-05a-sltwx-cli",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-05a-sltwx-cli",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-05a-sltwx-cli",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "New binary `sltwx` in `swx-io` (`src/bin/sltwx.rs`), with a doc comment describing its usage: `sltwx pack <folder> <file>`: `read_unpacked(folder)`, then `write_sltwx(file)`; `sltwx unpack <file> <folder>`: `read_sltwx(file)`, then `write_unpacked(folder)`, creating `<folder>` (its parent must exist); `sltwx --help` (or `-h`) prints the usage to stdout and exits 0.",
+      "Exit codes, never a panic: 0 on success; 2 with the usage on stderr for a missing, extra or unknown argument or subcommand; 1 with a one-line `sltwx: <error>` on stderr for any `FormatError` (its `Display` text) or when the output path already exists (it is never overwritten).",
+      "Integration tests using `env!(\"CARGO_BIN_EXE_sltwx\")` and temp paths under `std::env::temp_dir()` with unique names, removed at the end (no new dev-dependencies): pack the golden folder `crates/swx-io/tests/golden/bracket.sltwx/`, unpack the result to a new folder, and every JSON file of the new folder is byte-identical to the golden one; packing the golden folder twice gives byte-identical files; an existing output path gives exit 1 and leaves the file unchanged; `sltwx`, `sltwx pack onlyone` and `sltwx frob a b` give exit 2; unpacking a file containing the text `not a zip` gives exit 1, and stderr names the malformed-archive error from #202; an extension that doesn't match the manifest `kind` (packing to `out.sltwxa`) gives exit 1.",
+      "All existing `swx-io` tests pass unchanged; no test is weakened or removed.",
+      "No `unsafe`, and `swx-io` still has no workspace dependencies.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-21T08:25:18.950616053+00:00",
+    "constraints": [],
+    "created_at": "2026-11-21T08:24:23.352570162+00:00",
+    "description": "M4-05a: sltwx pack / unpack CLI between the unpacked folder and the .sltwx ZIP",
+    "project_id": "saulitwerx",
+    "scope": "crates/swx-io (new bin target and integration tests); PR #235",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 3,
+      "estimate": "small",
+      "id": "m4-05a-sltwx-cli",
+      "status": "completed",
+      "title": "sltwx pack/unpack binary in swx-io with integration tests",
+      "type": "implement"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
