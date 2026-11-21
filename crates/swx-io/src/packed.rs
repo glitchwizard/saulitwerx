@@ -6,7 +6,9 @@ use std::path::Path;
 
 use crate::unpacked::{check_extension, check_object, io_error, parse_object};
 use crate::zip;
-use crate::{read_manifest, to_canonical_json, write_manifest, Document, FormatError};
+use crate::{
+    read_manifest, to_canonical_json, write_manifest, Document, DocumentForm, FormatError,
+};
 
 const MANIFEST: &str = "manifest.json";
 const MODEL: &str = "model.json";
@@ -55,7 +57,7 @@ pub fn read_sltwx(path: &Path) -> Result<Document, FormatError> {
         FormatError::Json(m) => FormatError::Json(format!("{MANIFEST}: {m}")),
         other => other,
     })?;
-    check_extension(path, manifest.kind)?;
+    check_extension(path, DocumentForm::File, manifest.kind)?;
     let model_text = get(MODEL)?.ok_or(FormatError::MissingFile(MODEL.into()))?;
     let model = parse_object(MODEL, &model_text)?;
     let properties = match get(PROPERTIES)? {
@@ -86,7 +88,7 @@ pub fn read_sltwx(path: &Path) -> Result<Document, FormatError> {
 /// [`FormatError::MalformedArchive`] if an entry is too large for a non-ZIP64
 /// archive; [`FormatError::Io`] when the file can't be written.
 pub fn write_sltwx(path: &Path, doc: &Document) -> Result<(), FormatError> {
-    check_extension(path, doc.manifest.kind)?;
+    check_extension(path, DocumentForm::File, doc.manifest.kind)?;
     check_object(MODEL, &doc.model)?;
     if let Some(p) = &doc.properties {
         check_object(PROPERTIES, p)?;
@@ -410,6 +412,7 @@ mod tests {
         assert_eq!(
             write_sltwx(&wrong.0, &doc).unwrap_err(),
             FormatError::ExtensionMismatch {
+                form: DocumentForm::File,
                 extension: Some("sltwxa".into()),
                 kind: DocumentKind::Part
             }
@@ -418,10 +421,37 @@ mod tests {
         let good = TempFile::new("bracket.sltwx");
         write_sltwx(&good.0, &doc).unwrap();
         fs::copy(&good.0, &wrong.0).unwrap();
-        assert!(matches!(
-            read_sltwx(&wrong.0),
-            Err(FormatError::ExtensionMismatch { .. })
-        ));
+        assert_eq!(
+            read_sltwx(&wrong.0).unwrap_err().to_string(),
+            "file extension `.sltwxa` does not match the manifest kind `part` (expected `.sltwx`)"
+        );
+    }
+
+    #[test]
+    fn extension_messages_name_a_file() {
+        let doc = golden_doc();
+        let wrong = TempFile::new("bracket.sltwxd");
+        assert_eq!(
+            write_sltwx(&wrong.0, &doc).unwrap_err().to_string(),
+            "file extension `.sltwxd` does not match the manifest kind `part` (expected `.sltwx`)"
+        );
+        let bare = TempFile::new("bracket");
+        assert_eq!(
+            write_sltwx(&bare.0, &doc).unwrap_err(),
+            FormatError::ExtensionMismatch {
+                form: DocumentForm::File,
+                extension: None,
+                kind: DocumentKind::Part
+            }
+        );
+        assert!(!bare.0.exists(), "nothing is written on a mismatch");
+        let good = TempFile::new("bracket.sltwx");
+        write_sltwx(&good.0, &doc).unwrap();
+        fs::copy(&good.0, &bare.0).unwrap();
+        assert_eq!(
+            read_sltwx(&bare.0).unwrap_err().to_string(),
+            "file has no extension; the manifest kind `part` needs `.sltwx`"
+        );
     }
 
     #[test]

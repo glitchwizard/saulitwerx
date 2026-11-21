@@ -631,7 +631,9 @@ A unit that is not one of the seven in @sec-ref-expr, including an empty one, co
   [Any other field], [No], [Kept in `Manifest::extra` and written back unchanged.],
 )
 
-`FormatError` kinds: `Json` (not valid JSON; the message names the file), `MissingField` (a required field), `InvalidField` (a wrong value or type, or a model or properties that isn't an object), `UnsupportedVersion` (major version not 0), `Io` (a file or folder can't be read, written or removed, or isn't a folder), `MissingFile` (`manifest.json` or `model.json`), `ExtensionMismatch` (folder or file name and kind disagree), `MalformedArchive` (not a ZIP, cut short, a truncated or inconsistent entry, corrupt compressed data, or ZIP64, encryption or several disks), `UnsupportedMethod` (an entry compressed other than stored or deflate; names the entry and the method number), `CrcMismatch` (an entry fails its CRC-32 check; names the entry). The messages are in @sec-errors.
+`FormatError` kinds: `Json` (not valid JSON; the message names the file), `MissingField` (a required field), `InvalidField` (a wrong value or type, or a model or properties that isn't an object), `UnsupportedVersion` (major version not 0), `Io` (a file or folder can't be read, written or removed, or isn't a folder), `MissingFile` (`manifest.json` or `model.json`), `ExtensionMismatch` (folder or file name and kind disagree; holds `form`, `extension` and `kind`), `MalformedArchive` (not a ZIP, cut short, a truncated or inconsistent entry, corrupt compressed data, or ZIP64, encryption or several disks), `UnsupportedMethod` (an entry compressed other than stored or deflate; names the entry and the method number), `CrcMismatch` (an entry fails its CRC-32 check; names the entry). The messages are in @sec-errors.
+
+`DocumentForm` says which form a path names, so the message can name it: `Folder` (the unpacked form) or `File` (the packed form). `as_str` gives the word the message uses, `"folder"` or `"file"`.
 
 == Keyboard and mouse
 

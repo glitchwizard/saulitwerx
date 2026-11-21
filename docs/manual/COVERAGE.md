@@ -1,4 +1,4 @@
-manual-synced-to: b7ff03402d34661fda88776d5f58d62577325ed3
+manual-synced-to: 73980fef8c33c347cb8f66fb9f7e5b10cba4fe4a
 
 # Manual coverage
 
@@ -62,7 +62,7 @@ Everything a user can do or set on `main`, found from the code, `docs/ROADMAP.md
 | Document model errors (incl. `DuplicateParameter`, `InvalidParameterName`) | 17.5, 20.2 |
 | Sketch dimensions bound to parameters: `swx_sketch::params` `bind_dimension`, `apply_params`, `rename_bound`, `ParamError`; `Sketch::bindings`, `Sketch::set_dimension_value`; `SketchError::UnknownConstraint`, `NotADimension` | 4.8, 17.5, 19.14, 20.2 |
 | Expressions: `swx_core::expr` `parse`, `eval`, `Expr` (`names`), `Quantity` (`in_unit`), `Dim`, `Unit` (mm, cm, m, in, ft, deg, rad; `from_suffix`, `factor`, `dim`), `ExprError` kinds; grammar and limits | 4.8, 17.6, 19.15, 20.2 |
-| Document files (`swx-io`): `write_sltwx`, `read_sltwx` (packed ZIP form: stored and deflate entries, CRC-32 and size checks, other entries skipped, fixed dates, byte-identical rewrites; no ZIP64, encryption or multi-disk), `write_unpacked`, `read_unpacked`, `Document` (manifest, model, properties), `read_manifest`, `write_manifest`, `to_canonical_json`, `Manifest` (every field, `extra`), `Units` (`extra`), `DocumentKind` (`as_str`, extensions), `FormatError` (every kind and message, including `MalformedArchive`, `UnsupportedMethod`, `CrcMismatch`); folder- and file-name check (the message says "folder" for a file too), properties removal, unknown entries left alone | 18, 18.2, 19.16, 19.17, 20.2, 20.3, 20.4 |
+| Document files (`swx-io`): `write_sltwx`, `read_sltwx` (packed ZIP form: stored and deflate entries, CRC-32 and size checks, other entries skipped, fixed dates, byte-identical rewrites; no ZIP64, encryption or multi-disk), `write_unpacked`, `read_unpacked`, `Document` (manifest, model, properties), `read_manifest`, `write_manifest`, `to_canonical_json`, `Manifest` (every field, `extra`), `Units` (`extra`), `DocumentKind` (`as_str`, extensions), `FormatError` (every kind and message, including `MalformedArchive`, `UnsupportedMethod`, `CrcMismatch`); folder- and file-name check, `DocumentForm` (`Folder`, `File`, `as_str`; the message says "folder" or "file", M4-01e), properties removal, unknown entries left alone | 18, 18.2, 19.16, 19.17, 20.2, 20.3, 20.4 |
 | Units (mm; degrees for feature parameters, radians for arcs and kernel revolves) | 4.2, 19.16 |
 
 ## Examples the manual runs (`crates/*/examples/`)

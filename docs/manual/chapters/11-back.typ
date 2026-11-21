@@ -135,6 +135,11 @@
 
 = What's new
 
+== 2026-11-20: clearer file-name messages
+
+- *Changed:* when a document kept as one file has the wrong extension, or none, the message now says _file_ instead of _folder_ (@sec-files-mistakes). Messages about folders are unchanged.
+- Reference: `DocumentForm`, and the `form` that `ExtensionMismatch` now holds. Help: the two file messages are listed on their own.
+
 == 2026-11-17: a document in one file
 
 - *New:* write and read a Saulitwerx document as one file, a ZIP of the same files, the same bytes every time; turn a folder into a file and back (@sec-files-packed).
