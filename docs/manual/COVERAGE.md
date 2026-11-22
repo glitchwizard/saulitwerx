@@ -1,4 +1,4 @@
-manual-synced-to: dafab74b3a50af5d7a744565c5fafcdb53bc8bda
+manual-synced-to: 7721c3ffc5676ab969b13c9ff1fee3aba34a6260
 
 # Manual coverage
 
@@ -66,6 +66,8 @@ Everything a user can do or set on `main`, found from the code, `docs/ROADMAP.md
 | Stable IDs in a part's `model.json` (`swx-io`, M4-01f): ID arrays (`sketches`, `features`, `bodies`, `sketches[i].entities`, `sketches[i].constraints`), non-empty unique string `id`, absent array allowed, not-an-array `InvalidField`; sets sorted by `id` on write, `features` kept, nothing reordered on read, `doc` unchanged; parts only; `FormatError::InvalidId`, `DuplicateId` and their messages | 18.4, 18.5, 18.6, 19.18, 20.2 |
 | `sltwx` command (`swx-io`, M4-05a): `pack`, `unpack`, `--help`/`-h`; never overwrites (incl. links); `unpack`'s parent must exist; silent success; exit status 0/1/2; every message | 18.3, 18.6, 19.3, 19.4, 20.2, quick reference |
 | STL writers (`swx_io::stl`, M4-02a): `write_stl_binary`, `write_stl_ascii` (name sanitising, e notation), facet normals from winding, whole-mesh check before writing, `StlError` (every kind and message) | 6.7, 19.4, 19.17, 19.19, 20.2, 20.4 |
+| glTF writer (`swx_io::glb`, M4-04b): `write_glb` (header, JSON and BIN chunks, one node scaled 0.001, exact `POSITION` min/max, `u32` indices, deterministic, no normals), whole-mesh check before writing, `GlbError` (every kind and message, incl. `EmptyMesh`, `TooLarge`) | 6.8, 19.4, 19.17, 19.20, 20.2, 20.4 |
+| Manifest JSON Schema (`docs/specs/schema/manifest-0.1.json`, M4-05b): what it is, where it is, agrees with `read_manifest`, extra fields allowed | 18.5, 19.18 |
 | Units (mm; degrees for feature parameters, radians for arcs and kernel revolves) | 4.2, 19.16 |
 
 ## Examples the manual runs (`crates/*/examples/`)
@@ -117,6 +119,7 @@ Everything a user can do or set on `main`, found from the code, `docs/ROADMAP.md
 | `swx-io` `unpacked_document` | 18 |
 | `swx-io` `packed_document` | 18.2 |
 | `swx-io` `stl_mesh` | 6.7 |
+| `swx-io` `glb_mesh` | 6.8 |
 
 ## Not user-facing yet
 
@@ -124,5 +127,5 @@ Everything a user can do or set on `main`, found from the code, `docs/ROADMAP.md
 
 ## Backlog
 
-- Nothing built is undocumented. Next: when shells take walls of different thicknesses or join the history (later M3-06 slices), extend chapter 10. When sketch regions reach the extrude and the revolve (M3-01c, #106), rewrite chapters 7, 8, 13 and 14 so their tasks start from a sketch, and update the known limitations. When fillets and chamfers take lasting edge references or join the history (later M3-05 slices), rewrite chapter 9's tasks around them. When extrudes and revolves with join, cut or intersect report a face history built on `boolean_tracked`, add it to 7.6 and 6.4. When holes gain drill points, other thread series, or modeled threads, or join the history, extend chapter 11. When work features can be picked on a part, use lasting references, or join the history (later M3-08 slices), extend chapter 15. When bodies can be named, moved or kept in a part's history, extend 6.5. When lofts gain guide curves or sections with holes, or sweeps gain closed or 3D paths, twist or guide rails (later M3-11 slices), extend chapters 13 and 14. When helical sweeps gain a varying radius or pitch, a left hand, or modeled threads arrive (later MB-03 slices), extend 14.2 and chapter 11. When a part can be saved and opened, or the cache and `model_hash` check arrive (M4-04, #227), or the rest of M4-05, extend chapter 18, and move the first-part tutorial's save step onto it. When a part can be saved as STL in one step (M4-02b, #216), rewrite 6.7 around it, with a picture. When STEP import becomes a feature (M4-03), extend 6.6. The sweep's bend check (M3-11c) is documented in 14.
+- Nothing built is undocumented. Next: when shells take walls of different thicknesses or join the history (later M3-06 slices), extend chapter 10. When sketch regions reach the extrude and the revolve (M3-01c, #106), rewrite chapters 7, 8, 13 and 14 so their tasks start from a sketch, and update the known limitations. When fillets and chamfers take lasting edge references or join the history (later M3-05 slices), rewrite chapter 9's tasks around them. When extrudes and revolves with join, cut or intersect report a face history built on `boolean_tracked`, add it to 7.6 and 6.4. When holes gain drill points, other thread series, or modeled threads, or join the history, extend chapter 11. When work features can be picked on a part, use lasting references, or join the history (later M3-08 slices), extend chapter 15. When bodies can be named, moved or kept in a part's history, extend 6.5. When lofts gain guide curves or sections with holes, or sweeps gain closed or 3D paths, twist or guide rails (later M3-11 slices), extend chapters 13 and 14. When helical sweeps gain a varying radius or pitch, a left hand, or modeled threads arrive (later MB-03 slices), extend 14.2 and chapter 11. When a part can be saved and opened, or the cache and `model_hash` check arrive (M4-04, #227), or the rest of M4-05, extend chapter 18, and move the first-part tutorial's save step onto it. When a part can be saved as STL in one step (M4-02b, #216), rewrite 6.7 around it, with a picture. When a part's display mesh is kept as `cache/display.glb` in its document (later M4-04 slices), extend 6.8 and chapter 18. When more JSON Schemas are published (M4-05c, #236), extend the developers' note in 18.5. When STEP import becomes a feature (M4-03), extend 6.6. The sweep's bend check (M3-11c) is documented in 14.
 - Possible improvement: the variable-fillet picture (9.3) and the square-to-round loft (13) show faint tessellation ripples on curved faces, because `swx-qa render` has no finer-mesh option. Regenerate them if the renderer gains one.
