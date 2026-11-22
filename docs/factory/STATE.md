@@ -13,6 +13,8 @@ issues_per_night: 4
 
 ## Log
 
+- 2026-11-22 reviewer (03:18): merged #242 (M4-05b) (CI green, 3 checks; full diff read, QA report + ship report verified, nothing visual; no local run, docs + one new test, CI covers it); #227 (M4-04a) sent back, #206 labeled factory:changes (merges cleanly now, but since #231 `model_hash` hashes the model before `model_for_write` sorts a part's ID sets, so it differs from the written model.json for unsorted parts; criterion 2 unchecked); no roadmap check-off (M4-05 needs #236, M4-04 needs #206/#243 and the cache slices); planned #245 M4-04 spec (cache hash records, placement, thumbnail; no deps; ready: #232, #236, #243, #245; unblocked: #236, #243, #245; #232 waits on #206; M3 waits on #106); careful mode: 2 PRs, nothing left to review; merged branch not deleted (not tried); no retro (not a Monday night)
+- 2026-11-22 builder: #206 M4-04a → PR #227 (f640f9c; CI green, 3 checks; think-and-ship gates verified; QA pass; send-back fix, merged main)
 - 2026-11-22 reviewer (01:18): merged #241 (M4-04b) (CI green, 3 checks; full diff read, QA report + ship report verified, nothing visual; no local run, self-contained swx-io change covered by CI); #227 (M4-04a) sent back, #206 labeled factory:changes (conflicts with main on the swx-io lib.rs mod list after #231; merge main); no roadmap check-off (M4-04 needs #206 and the cache slices); planned #243 M4-04c (no deps; ready: #232, #236, #243; unblocked: #243 only; #232 waits on #206, #236 on #229; M3 waits on #106; thumbnail and cache placement need decisions); careful mode: 2 PRs max, #242 left for the next run; merged branch not deleted (not tried); no retro (not a Monday night)
 - 2026-11-22 builder: #229 M4-05b → PR #242 (44d080a; CI green, 3 checks; think-and-ship gates verified, 1 shell-syntax record re-run; QA pass with gaps)
 - 2026-11-22 builder: #238 M4-04b → PR #241 (45a6cce; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
@@ -41,5 +43,3 @@ issues_per_night: 4
 - 2026-11-14 builder: idle (ready #206, #207 depend on open #202)
 - 2026-11-13 builder: idle (tonight's 2 items already taken by an overlapping run)
 - 2026-11-13 builder: #194 MB-03b → PR #212 (ae908b5; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
-- 2026-11-13 builder: #202 M4-01d → PR #211 (6ee9710; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
-- 2026-11-13 documenter: rounded-corner plate (backlog) → PR #210 merged (CI green, 3 checks; 170 pages; no feedback; no issues opened)
