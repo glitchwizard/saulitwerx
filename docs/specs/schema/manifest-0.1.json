@@ -1,0 +1,79 @@
+{
+  "$id": "https://github.com/glitchwizard/saulitwerx/blob/main/docs/specs/schema/manifest-0.1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "description": "The manifest.json entry of a .sltwx, .sltwxa or .sltwxd container (docs/specs/FILE_FORMAT.md). Readers keep fields they do not know, so additional properties are allowed at the top level and inside units. The reference reader is read_manifest in crates/swx-io/src/manifest.rs.",
+  "properties": {
+    "created_by": {
+      "description": "Application and version that created the document.",
+      "type": "string"
+    },
+    "document_id": {
+      "description": "Stable document identity: a UUID in 8-4-4-4-12 hex form, upper or lower case, as read_manifest accepts.",
+      "pattern": "^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$",
+      "type": "string"
+    },
+    "format": {
+      "const": "sltwx",
+      "description": "Container format name. read_manifest accepts only \"sltwx\"."
+    },
+    "format_version": {
+      "description": "Format version as MAJOR.MINOR.PATCH in decimal digits. read_manifest accepts major version 0 only; newer minor and patch versions are read.",
+      "pattern": "^0+[.][0-9]+[.][0-9]+$",
+      "type": "string"
+    },
+    "kind": {
+      "description": "Which kind of document the container holds. read_manifest accepts exactly these three values.",
+      "enum": [
+        "part",
+        "assembly",
+        "drawing"
+      ],
+      "type": "string"
+    },
+    "model_hash": {
+      "description": "Optional hash of the canonical model.json: \"sha256:\" plus 64 lowercase hex digits, as read_manifest accepts.",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "saved_by": {
+      "description": "Application and version that last saved the document.",
+      "type": "string"
+    },
+    "units": {
+      "additionalProperties": true,
+      "description": "The document's units by unit name. read_manifest requires length, angle and mass as strings and keeps any other entries.",
+      "properties": {
+        "angle": {
+          "description": "Angle unit, e.g. \"deg\".",
+          "type": "string"
+        },
+        "length": {
+          "description": "Length unit, e.g. \"mm\".",
+          "type": "string"
+        },
+        "mass": {
+          "description": "Mass unit, e.g. \"kg\".",
+          "type": "string"
+        }
+      },
+      "required": [
+        "angle",
+        "length",
+        "mass"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "created_by",
+    "document_id",
+    "format",
+    "format_version",
+    "kind",
+    "saved_by",
+    "units"
+  ],
+  "title": "Saulitwerx manifest.json, format v0.1",
+  "type": "object"
+}
