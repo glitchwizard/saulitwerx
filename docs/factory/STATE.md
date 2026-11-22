@@ -13,6 +13,10 @@ issues_per_night: 4
 
 ## Log
 
+- 2026-11-22 reviewer (01:18): merged #241 (M4-04b) (CI green, 3 checks; full diff read, QA report + ship report verified, nothing visual; no local run, self-contained swx-io change covered by CI); #227 (M4-04a) sent back, #206 labeled factory:changes (conflicts with main on the swx-io lib.rs mod list after #231; merge main); no roadmap check-off (M4-04 needs #206 and the cache slices); planned #243 M4-04c (no deps; ready: #232, #236, #243; unblocked: #243 only; #232 waits on #206, #236 on #229; M3 waits on #106; thumbnail and cache placement need decisions); careful mode: 2 PRs max, #242 left for the next run; merged branch not deleted (not tried); no retro (not a Monday night)
+- 2026-11-22 builder: #229 M4-05b → PR #242 (44d080a; CI green, 3 checks; think-and-ship gates verified, 1 shell-syntax record re-run; QA pass with gaps)
+- 2026-11-22 builder: #238 M4-04b → PR #241 (45a6cce; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
+- 2026-11-21 documenter: M4-02a + M4-01f + M4-05a → PR #240 merged (CI green, 3 checks; 181 pages; no feedback; no issues opened)
 - 2026-11-21 reviewer (03:18): merged #231 (M4-01f) (CI green, 3 checks; full diff read, QA report + ship report verified, nothing visual; local fmt + swx-io clippy + 65 swx-io tests on main+#231) and #235 (M4-05a) (CI green, 3 checks; full diff read, QA report + ship report verified, nothing visual; local fmt + swx-io clippy + 65 + 8 swx-io tests on main+#231+#235); roadmap: M4-01 checked; planned #238 M4-04b (no deps; ready: #229, #232, #236, #238; unblocked: #229, #238; #236 waits on #229, #232 on #206; M3 waits on #106); nightly cap of 4 reviews reached, #227 left for the next run; merged branches not deleted (not tried); no retro (not a Monday night)
 - 2026-11-21 builder: #216 M4-02b → stalled, needs-human (cylinder volume criterion 0.1 % at deflection 0.01 is stricter than the deflection allows; measured 0.13 %; branch feat/216-export-stl, no PR)
 - 2026-11-21 builder: #206 M4-04a → PR #227 (b777c4e; CI green, 3 checks; think-and-ship gates verified; QA pass; send-back fix, merged main)
@@ -39,7 +43,3 @@ issues_per_night: 4
 - 2026-11-13 builder: #194 MB-03b → PR #212 (ae908b5; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
 - 2026-11-13 builder: #202 M4-01d → PR #211 (6ee9710; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
 - 2026-11-13 documenter: rounded-corner plate (backlog) → PR #210 merged (CI green, 3 checks; 170 pages; no feedback; no issues opened)
-- 2026-11-12 documenter: MB-03a + M4-01a/b/c + M3-12d → PR #209 merged (CI green, 3 checks; 164 pages; no feedback; no issues opened)
-- 2026-11-12 reviewer: merged #204 (M4-01c) (CI green, 3 checks; QA report + ship report verified, nothing visual; no local run, CI covers it) and #205 (MB-03a) (CI green, 3 checks; QA report + ship report + 2 images verified; no local run, independent of #204 and CI covers the occt job); no roadmap check-off (M4-01 needs #202, MB-03 needs the thread slices); planned #206 M4-04a, #207 M4-05a (both depend on #202; ready: #194, #202, #206, #207; #194, #202 unblocked and independent); merged branches not deleted (not tried); no retro (not a Monday night)
-- 2026-11-12 builder: #190 MB-03a → PR #205 (4e5a7bc; CI green, 3 checks; think-and-ship gates verified, 1 shell-syntax record re-run; QA pass)
-- 2026-11-12 builder: #199 M4-01c → PR #204 (03eb55e; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
