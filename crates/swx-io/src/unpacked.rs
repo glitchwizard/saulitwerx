@@ -9,6 +9,7 @@ use std::path::Path;
 
 use serde_json::Value;
 
+use crate::ids::{check_ids, model_for_write};
 use crate::{
     model_hash, read_manifest, to_canonical_json, write_manifest, DocumentForm, DocumentKind,
     FormatError, Manifest,
@@ -65,6 +66,9 @@ impl Document {
 ///   [`read_manifest`].
 /// - [`FormatError::ExtensionMismatch`]: `dir`'s extension doesn't match the
 ///   manifest's `kind`, which is authoritative.
+/// - [`FormatError::InvalidId`] / [`FormatError::DuplicateId`]: a part's
+///   `model.json` breaks the stable-ID rules (an ID array that is not an
+///   array is [`FormatError::InvalidField`]). Nothing is reordered on read.
 pub fn read_unpacked(dir: &Path) -> Result<Document, FormatError> {
     let meta = fs::metadata(dir).map_err(|e| io_error(dir, &e))?;
     if !meta.is_dir() {
@@ -82,6 +86,7 @@ pub fn read_unpacked(dir: &Path) -> Result<Document, FormatError> {
     check_extension(dir, DocumentForm::Folder, manifest.kind)?;
     let model_text = read_file(dir, MODEL)?.ok_or(FormatError::MissingFile(MODEL.into()))?;
     let model = parse_object(MODEL, &model_text)?;
+    check_ids(manifest.kind, &model)?;
     let properties = match read_file(dir, PROPERTIES)? {
         Some(text) => Some(parse_object(PROPERTIES, &text)?),
         None => None,
@@ -98,7 +103,10 @@ pub fn read_unpacked(dir: &Path) -> Result<Document, FormatError> {
 /// `dir` if it is missing.
 ///
 /// Each file is written in canonical form ([`to_canonical_json`];
-/// `manifest.json` through [`write_manifest`]). `properties.json` is written
+/// `manifest.json` through [`write_manifest`]). For a part, the set arrays of
+/// `model.json` (`sketches`, `bodies`, and each sketch's `entities` and
+/// `constraints`) are written sorted by `id` in byte order; `features` keep
+/// their order, and `doc` itself is not changed. `properties.json` is written
 /// when `doc.properties` is `Some` and removed when it is `None`. No other
 /// entry in `dir` is touched, so `cache/`, `thumbnail.png`, `attachments/`
 /// and unknown files stay as they were.
@@ -107,8 +115,10 @@ pub fn read_unpacked(dir: &Path) -> Result<Document, FormatError> {
 ///
 /// Nothing is written when `dir`'s extension doesn't match the manifest's
 /// `kind` ([`FormatError::ExtensionMismatch`]) or `model` or `properties` is
-/// not a JSON object ([`FormatError::InvalidField`] naming the file), since
-/// [`read_unpacked`] would reject the result. Otherwise
+/// not a JSON object ([`FormatError::InvalidField`] naming the file), or a
+/// part's IDs are invalid ([`FormatError::InvalidId`],
+/// [`FormatError::DuplicateId`]), since [`read_unpacked`] would reject the
+/// result. Otherwise
 /// [`FormatError::Io`] when `dir` or a file can't be created, written or
 /// removed.
 pub fn write_unpacked(dir: &Path, doc: &Document) -> Result<(), FormatError> {
@@ -117,9 +127,10 @@ pub fn write_unpacked(dir: &Path, doc: &Document) -> Result<(), FormatError> {
     if let Some(p) = &doc.properties {
         check_object(PROPERTIES, p)?;
     }
+    let model = model_for_write(doc.manifest.kind, &doc.model)?;
     fs::create_dir_all(dir).map_err(|e| io_error(dir, &e))?;
     write_file(dir, MANIFEST, &write_manifest(&doc.manifest))?;
-    write_file(dir, MODEL, &to_canonical_json(&doc.model))?;
+    write_file(dir, MODEL, &to_canonical_json(&model))?;
     let props = dir.join(PROPERTIES);
     match &doc.properties {
         Some(p) => write_file(dir, PROPERTIES, &to_canonical_json(p))?,
