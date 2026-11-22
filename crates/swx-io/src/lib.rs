@@ -8,9 +8,11 @@
 //! single ZIP archive ([`read_sltwx`], [`write_sltwx`]).
 //!
 //! The [`stl`] module writes triangle meshes as binary or ASCII STL
-//! ([`write_stl_binary`], [`write_stl_ascii`]).
+//! ([`write_stl_binary`], [`write_stl_ascii`]), and the [`glb`] module
+//! writes them as binary glTF 2.0 ([`write_glb`]).
 
 mod canonical;
+pub mod glb;
 mod ids;
 mod manifest;
 mod packed;
@@ -19,6 +21,7 @@ mod unpacked;
 mod zip;
 
 pub use canonical::to_canonical_json;
+pub use glb::{write_glb, GlbError};
 pub use manifest::{read_manifest, write_manifest, DocumentKind, Manifest, Units};
 pub use packed::{read_sltwx, write_sltwx};
 pub use stl::{write_stl_ascii, write_stl_binary, StlError};
