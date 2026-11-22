@@ -1,0 +1,86 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(io): binary glTF 2.0 (GLB) writer",
+      "ref": "45a6cce",
+      "task_id": "m4-04b-glb",
+      "type": "commit"
+    },
+    {
+      "description": "PR #241",
+      "ref": "https://github.com/glitchwizard/saulitwerx/pull/241",
+      "task_id": "m4-04b-glb",
+      "type": "pr"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt --all --check",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-04b-glb",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy --workspace --all-targets -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-04b-glb",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test --workspace",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-04b-glb",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "New public module `swx_io::glb` with `pub fn write_glb(positions: &[[f32; 3]], indices: &[u32], out: &mut impl Write) -> Result<(), GlbError>`, re-exported from the crate root, with a doc comment citing the glTF 2.0 specification.",
+      "Output layout: 12-byte header (magic `0x46546C67`, version `2`, total length equal to the number of bytes written, all little-endian `u32`); a JSON chunk (type `0x4E4F534A`) padded with spaces (`0x20`) to a multiple of 4 bytes; then a BIN chunk (type `0x004E4942`) padded with zeros to a multiple of 4 bytes.",
+      "The JSON has `asset.version` `\"2.0\"`, one scene with one node, one mesh with one primitive in mode `4` (triangles), a `POSITION` accessor (componentType `5126`, type `VEC3`, with `min` and `max` equal to the exact per-axis bounds of `positions`) and an index accessor (componentType `5125`, type `SCALAR`), one buffer, and two bufferViews (positions first at byteOffset 0, target `34962`; indices next, target `34963`). Positions are stored unchanged in millimetres, and the node has `scale` `[0.001, 0.001, 0.001]`, because glTF units are metres.",
+      "A documented `GlbError` with variants for: index count not a multiple of 3, index out of range, a non-finite coordinate, an empty mesh (no triangles), and an I/O error. Every check runs before the first byte is written, so on error `out` receives nothing. Nothing panics on bad input. (Reusing the STL validation is fine.)",
+      "Writing the same mesh twice gives byte-identical output.",
+      "Tests (reading the bytes back inside the test, no new dev-dependencies): for a 10 × 20 × 30 mm box (8 vertices, 12 triangles), the header length equals the output length; both chunk lengths are multiples of 4; the JSON parses with `serde_json`, the accessor counts are 8 and 36, and `min`/`max` are `[0, 0, 0]` and `[10, 20, 30]`; the BIN chunk is 240 bytes (96 position bytes and 144 index bytes) and its floats and indices equal the input exactly; and each of the five error cases gives its variant, with an empty `Vec<u8>` afterwards.",
+      "All existing `swx-io` tests pass unchanged; no test is weakened or removed. No `unsafe`.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-22T08:22:17.549891492+00:00",
+    "constraints": [],
+    "created_at": "2026-11-22T08:21:49.516124413+00:00",
+    "description": "M4-04b: swx-io: binary glTF 2.0 (GLB) writer for an indexed triangle mesh",
+    "project_id": "saulitwerx",
+    "scope": "",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 2,
+      "checks_count": 3,
+      "estimate": "small",
+      "id": "m4-04b-glb",
+      "status": "completed",
+      "title": "GLB writer in swx-io (PR #241)",
+      "type": "implement"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
