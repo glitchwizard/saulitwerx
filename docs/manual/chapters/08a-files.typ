@@ -242,6 +242,10 @@ Order matters only for features: they are the part's history (@ch-history), so t
 
 The manifest's checks, and the rest of the rules, are in @sec-ref-files.
 
+#for-developers[
+*Check a manifest from your own program.* The rules for `manifest.json` are also published as a #term(key: "JSON Schema")[JSON Schema], a standard description that JSON tools in any language can check a file against: `docs/specs/schema/manifest-0.1.json` in the source code, for format version 0.1. It sets the same required fields and allowed values as the table in @sec-ref-files, and, like Saulitwerx, it lets a manifest carry fields it doesn't know. `read_manifest` stays the final word; the project's tests check that the two agree. Schemas for `model.json` and `properties.json` aren't published yet.
+]
+
 == Common mistakes <sec-files-mistakes>
 
 #set par(justify: false)

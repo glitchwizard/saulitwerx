@@ -128,6 +128,7 @@ The output path must not exist, as a file, a folder or a link: `sltwx` never ove
   [`cargo run -p swx-io --example unpacked_document -- <dir>`], [Writes a part document folder `<dir>/plate.sltwx`, reads it back, and shows the errors (@sec-files). Needs no OpenCascade.],
   [`cargo run -p swx-io --example packed_document -- <dir>`], [Writes the same document as one file, `<dir>/plate.sltwx`, converts a folder to a file, and shows the errors (@sec-files-packed). Needs no OpenCascade.],
   [`cargo run -p swx-io --example stl_mesh -- <dir>`], [Writes a four-triangle mesh as `<dir>/corner.stl` (ASCII) and `<dir>/corner-binary.stl`, and shows the errors (@sec-stl). Needs no OpenCascade.],
+  [`cargo run -p swx-io --example glb_mesh -- <dir>`], [Writes the same mesh as `<dir>/corner.glb`, reads back its header and JSON, and shows the errors (@sec-glb). Needs no OpenCascade.],
   [`cargo build --release -p swx-io`], [Builds the `sltwx` command, at `target/release/sltwx` (@sec-ref-sltwx).],
   [`cargo run -p swx-kernel --example work_features`], [Builds work planes, axes and a point, and prints them (@sec-work). Needs no OpenCascade.],
   [`cargo run -p swx-kernel --features occt --example tilted_post -- <dir>`], [Stands a post at 30° on a plate, from a tilted work plane (@sec-work-use). A STEP file in `<dir>`.],
@@ -616,6 +617,7 @@ A unit that is not one of the seven in @sec-ref-expr, including an empty one, co
   header: ("Format", "Read / write", "Notes"),
   [STEP (`.step`, `.stp`), ISO 10303-21], [Both], [Solids only. Written in millimeters.],
   [STL (`.stl`), ASCII and binary], [Write], [Triangle meshes, in millimeters, from your program's own mesh (@sec-stl, @sec-ref-stl). Not yet straight from a part.],
+  [glTF 2.0 binary (`.glb`)], [Write], [Triangle meshes from your program's own mesh, in millimeters scaled to glTF's meters (@sec-glb, @sec-ref-glb). Not yet straight from a part.],
   [PNG (`.png`)], [Write], [Pictures from `swx-qa render` and `swx-qa sketch`.],
   [Saulitwerx document, unpacked form (a `.sltwx`, `.sltwxa` or `.sltwxd` folder)], [Both], [The manifest is checked in full; the model and properties are kept as JSON objects, not yet tied to a part (@ch-files, @sec-ref-files).],
   [Saulitwerx document, packed form (one `.sltwx`, `.sltwxa` or `.sltwxd` file, a ZIP)], [Both], [The same files as the unpacked form, deflate-compressed; checked as for a folder, plus each entry's CRC-32 and size (@sec-files-packed, @sec-ref-files).],
@@ -660,6 +662,8 @@ A unit that is not one of the seven in @sec-ref-expr, including an empty one, co
   [Any other field], [No], [Kept in `Manifest::extra` and written back unchanged.],
 )
 
+The same rules, as a JSON Schema (draft 2020-12) for format version 0.1: `docs/specs/schema/manifest-0.1.json` (@sec-files-rules).
+
 #block(breakable: false)[
 #ref-table(
   columns: (auto, auto, 1fr),
@@ -690,6 +694,18 @@ An absent array passes; one that isn't an array is `InvalidField` (`must be an a
 )
 
 `StlError` kinds: `IndexCountNotMultipleOf3` (holds the count), `IndexOutOfRange` (holds `index` and `vertex_count`), `NonFiniteCoordinate` (holds `vertex`), `TooManyTriangles` (binary only: more than a `u32` can count; holds the count), `Io` (writing to `out` failed; holds the message). The messages are in @sec-errors.
+
+== glTF files <sec-ref-glb>
+
+`swx_io::glb` writes a triangle mesh as binary glTF 2.0, a GLB file (@sec-glb). The mesh is the same `positions` and `indices` as for STL (@sec-ref-stl). The whole mesh is checked before the first byte is written, and the same mesh always gives the same bytes.
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("Call", "What it does"),
+  [`write_glb(positions, indices, out)`], [Writes a GLB file to `out` (any `Write`): a 12-byte header (`glTF`, version 2, total length), a JSON chunk padded with spaces to a multiple of 4 bytes, and a BIN chunk padded with zeros, holding the corners (three `f32` each) then the corner numbers (one `u32` each), all little-endian. The JSON describes one scene with one node, scaled by 0.001 (millimeters to meters), one mesh with one triangle list, a `POSITION` accessor with the exact `min` and `max` of the corners, and an index accessor. `asset.generator` is `"Saulitwerx"`. No normals, colors or materials.],
+)
+
+`GlbError` kinds: `IndexCountNotMultipleOf3` (holds the count), `IndexOutOfRange` (holds `index` and `vertex_count`), `NonFiniteCoordinate` (holds `vertex`), `EmptyMesh` (no triangles), `TooLarge` (the file would pass the 4 294 967 295 bytes the header can count; holds the length), `Io` (writing to `out` failed; holds the message). The messages are in @sec-errors.
 
 == Keyboard and mouse
 
