@@ -28,7 +28,7 @@ pub use glb::{write_glb, GlbError};
 pub use hash::{model_hash, sha256};
 pub use manifest::{read_manifest, write_manifest, DocumentKind, Manifest, Units};
 pub use packed::{read_sltwx, write_sltwx};
-pub use stl::{write_stl_ascii, write_stl_binary, StlError};
+pub use stl::{export_stl, write_stl_ascii, write_stl_binary, StlError, StlFormat, StlOptions};
 pub use unpacked::{read_unpacked, write_unpacked, Document};
 
 use std::fmt;

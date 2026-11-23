@@ -195,6 +195,7 @@ dependencies = [
  "flate2",
  "serde",
  "serde_json",
+ "swx-kernel",
 ]
 
 [[package]]
