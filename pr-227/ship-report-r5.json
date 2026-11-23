@@ -1,0 +1,85 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "fix(io): hash the model.json bytes the writers produce",
+      "ref": "a375792",
+      "task_id": "fix-206",
+      "type": "commit"
+    },
+    {
+      "description": "merge origin/main into feat/206-model-hash",
+      "ref": "a83f536",
+      "task_id": "fix-206",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt --all --check",
+      "passed": true,
+      "required": true,
+      "task_id": "fix-206",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy --workspace --all-targets -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "fix-206",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test --workspace",
+      "passed": true,
+      "required": true,
+      "task_id": "fix-206",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`pub fn sha256(bytes: &[u8]) -> [u8; 32]` in a new module, documented with the FIPS 180-4 citation. No `unsafe`, no new dependencies.",
+      "`pub fn model_hash(model: &serde_json::Value) -> String`: `\"sha256:\"` plus 64 lowercase hex digits of the SHA-256 of exactly the bytes `write_unpacked` writes for `model.json`. The result passes the existing manifest `model_hash` check.",
+      "`Document::refresh_model_hash(&mut self)` sets `manifest.model_hash` to `Some(model_hash(&self.model))`. `Document::cache_is_fresh(&self, recorded: &str) -> bool` is true only when `recorded` equals `model_hash(&self.model)`. `write_unpacked` and `write_sltwx` do not change: the golden files are still reproduced byte for byte.",
+      "Tests (no `occt`): FIPS 180-4 / NIST example vectors; padding boundaries 55, 56, 63, 64, 65 bytes; golden `bracket.sltwx` model_hash equals sha256 of model.json; refresh/cache_is_fresh true, false after change, malformed recorded false.",
+      "All existing `swx-io` tests pass unchanged; no test is weakened or removed.",
+      "No `unsafe`, and `swx-io` still has no workspace dependencies.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-23T08:22:27.104580444+00:00",
+    "constraints": [],
+    "created_at": "2026-11-23T08:22:10.505956413+00:00",
+    "description": "M4-04a: swx-io: SHA-256 model_hash of the canonical model.json and a cache staleness check",
+    "project_id": "saulitwerx",
+    "scope": "",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 2,
+      "checks_count": 3,
+      "estimate": "small",
+      "id": "fix-206",
+      "status": "completed",
+      "title": "#206 send-back: hash the written model.json bytes (PR #227)",
+      "type": "implement"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
