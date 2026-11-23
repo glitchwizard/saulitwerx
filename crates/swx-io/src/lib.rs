@@ -5,7 +5,9 @@
 //! [`write_manifest`]), the canonical JSON writer ([`to_canonical_json`])
 //! that every file of the format uses, and whole documents in the unpacked
 //! folder form ([`Document`], [`read_unpacked`], [`write_unpacked`]) and as a
-//! single ZIP archive ([`read_sltwx`], [`write_sltwx`]).
+//! single ZIP archive ([`read_sltwx`], [`write_sltwx`]). [`model_hash`]
+//! (SHA-256, [`sha256`]) tells whether a cache is stale
+//! ([`Document::cache_is_fresh`]).
 //!
 //! The [`stl`] module writes triangle meshes as binary or ASCII STL
 //! ([`write_stl_binary`], [`write_stl_ascii`]), and the [`glb`] module
@@ -13,6 +15,7 @@
 
 mod canonical;
 pub mod glb;
+mod hash;
 mod ids;
 mod manifest;
 mod packed;
@@ -22,6 +25,7 @@ mod zip;
 
 pub use canonical::to_canonical_json;
 pub use glb::{write_glb, GlbError};
+pub use hash::{model_hash, sha256};
 pub use manifest::{read_manifest, write_manifest, DocumentKind, Manifest, Units};
 pub use packed::{read_sltwx, write_sltwx};
 pub use stl::{write_stl_ascii, write_stl_binary, StlError};

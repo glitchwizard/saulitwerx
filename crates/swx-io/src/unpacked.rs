@@ -11,8 +11,8 @@ use serde_json::Value;
 
 use crate::ids::{check_ids, model_for_write};
 use crate::{
-    read_manifest, to_canonical_json, write_manifest, DocumentForm, DocumentKind, FormatError,
-    Manifest,
+    model_hash, read_manifest, to_canonical_json, write_manifest, DocumentForm, DocumentKind,
+    FormatError, Manifest,
 };
 
 const MANIFEST: &str = "manifest.json";
@@ -31,6 +31,33 @@ pub struct Document {
     pub model: Value,
     /// `properties.json`, if the document has one. Always a JSON object.
     pub properties: Option<Value>,
+}
+
+impl Document {
+    /// Sets `manifest.model_hash` to the hash of the `model.json` bytes the
+    /// writers produce: [`model_hash`] of `model` after the writers' own
+    /// preparation (a part's ID sets sorted by `id`, `ids.rs`).
+    pub fn refresh_model_hash(&mut self) {
+        self.manifest.model_hash = Some(self.written_model_hash());
+    }
+
+    /// Whether a cache built from the model hash `recorded` is still valid:
+    /// true only when `recorded` equals the hash
+    /// [`Document::refresh_model_hash`] records
+    /// (FILE_FORMAT.md: "If they differ, the cache is stale"). A malformed
+    /// `recorded` string is never equal, so it gives `false`.
+    pub fn cache_is_fresh(&self, recorded: &str) -> bool {
+        recorded == self.written_model_hash()
+    }
+
+    /// [`model_hash`] of the model as the writers write it. A model whose
+    /// IDs fail the writers' check can't be written; it is hashed as given.
+    fn written_model_hash(&self) -> String {
+        match model_for_write(self.manifest.kind, &self.model) {
+            Ok(model) => model_hash(&model),
+            Err(_) => model_hash(&self.model),
+        }
+    }
 }
 
 /// Reads the document in the unpacked folder `dir`
@@ -467,5 +494,51 @@ mod tests {
             e.to_string(),
             "folder has no extension; the manifest kind `part` needs `.sltwx`"
         );
+    }
+
+    #[test]
+    fn refreshed_model_hash_keeps_the_cache_fresh_until_the_model_changes() {
+        let mut doc = read_unpacked(&fixture()).unwrap();
+        doc.refresh_model_hash();
+        let recorded = doc.manifest.model_hash.clone().unwrap();
+        assert_eq!(recorded, model_hash(&doc.model));
+        // The refreshed hash passes the manifest's own `model_hash` check.
+        let reread = read_manifest(&write_manifest(&doc.manifest)).unwrap();
+        assert_eq!(reread.model_hash.as_deref(), Some(recorded.as_str()));
+        assert!(doc.cache_is_fresh(&recorded));
+
+        let obj = doc.model.as_object_mut().unwrap();
+        obj.insert("end_of_part".into(), Value::String("ft-other".into()));
+        assert!(!doc.cache_is_fresh(&recorded));
+        assert!(!doc.cache_is_fresh("sha256:xyz"));
+        assert!(!doc.cache_is_fresh(""));
+    }
+
+    #[test]
+    fn refreshed_model_hash_matches_written_model_json_for_unsorted_part() {
+        let mut doc = read_unpacked(&fixture()).unwrap();
+        // Append a body whose id sorts before `b-1`: the set is now out of
+        // `id` order, and the writers sort it.
+        let bodies = doc.model["bodies"].as_array_mut().unwrap();
+        let mut early = bodies[0].clone();
+        early["id"] = Value::String("b-0".into());
+        bodies.push(early);
+        assert_ne!(
+            to_canonical_json(&doc.model),
+            to_canonical_json(&model_for_write(doc.manifest.kind, &doc.model).unwrap())
+        );
+
+        doc.refresh_model_hash();
+        let recorded = doc.manifest.model_hash.clone().unwrap();
+        let tmp = TempDir::new("unsorted-hash");
+        let out = tmp.0.join("bracket.sltwx");
+        write_unpacked(&out, &doc).unwrap();
+        let written = fs::read(out.join(MODEL)).unwrap();
+        assert_eq!(
+            recorded,
+            format!("sha256:{}", crate::hash::hex(&crate::sha256(&written)))
+        );
+        assert!(doc.cache_is_fresh(&recorded));
+        assert_ne!(recorded, model_hash(&doc.model));
     }
 }
