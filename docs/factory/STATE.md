@@ -13,6 +13,10 @@ issues_per_night: 4
 
 ## Log
 
+- 2026-11-23 reviewer (01:17): merged #227 (M4-04a) (CI green, 3 checks; full diff read, QA report + ship report verified, nothing visual; no local run, self-contained swx-io change covered by CI) and #248 (M4-04c) (CI green, 3 checks incl. occt job; full diff read, QA report + ship report verified, 2 images checked; criterion-4 through-cut accepted as the issue's intent; no local run, CI's occt job runs the new tests); no roadmap check-off (M4-04 needs the cache-file slices after #245); re-queued #216 M4-02b as factory:ready (owner changed the volume criterion, removed needs-human); no new issues (ready: #216, #232, #236, #245, all unblocked; M3 waits on #106); careful mode: 2 PRs, nothing left to review; merged branches not deleted (not tried); retro PR #249 (3 changes, needs-human)
+- 2026-11-23 builder: #243 M4-04c → PR #248 (79c91aa; CI green, 3 checks; think-and-ship gates verified, 1 shell-syntax record re-run; QA pass with gaps)
+- 2026-11-23 builder: #206 M4-04a → PR #227 (a83f536; CI green, 3 checks; think-and-ship gates verified; QA pass; send-back fix, hash written bytes, merged main)
+- 2026-11-22 documenter: M4-04b + M4-05b → PR #247 merged (CI green, 3 checks; 186 pages; no feedback; no issues opened)
 - 2026-11-22 reviewer (03:18): merged #242 (M4-05b) (CI green, 3 checks; full diff read, QA report + ship report verified, nothing visual; no local run, docs + one new test, CI covers it); #227 (M4-04a) sent back, #206 labeled factory:changes (merges cleanly now, but since #231 `model_hash` hashes the model before `model_for_write` sorts a part's ID sets, so it differs from the written model.json for unsorted parts; criterion 2 unchecked); no roadmap check-off (M4-05 needs #236, M4-04 needs #206/#243 and the cache slices); planned #245 M4-04 spec (cache hash records, placement, thumbnail; no deps; ready: #232, #236, #243, #245; unblocked: #236, #243, #245; #232 waits on #206; M3 waits on #106); careful mode: 2 PRs, nothing left to review; merged branch not deleted (not tried); no retro (not a Monday night)
 - 2026-11-22 builder: #206 M4-04a → PR #227 (f640f9c; CI green, 3 checks; think-and-ship gates verified; QA pass; send-back fix, merged main)
 - 2026-11-22 reviewer (01:18): merged #241 (M4-04b) (CI green, 3 checks; full diff read, QA report + ship report verified, nothing visual; no local run, self-contained swx-io change covered by CI); #227 (M4-04a) sent back, #206 labeled factory:changes (conflicts with main on the swx-io lib.rs mod list after #231; merge main); no roadmap check-off (M4-04 needs #206 and the cache slices); planned #243 M4-04c (no deps; ready: #232, #236, #243; unblocked: #243 only; #232 waits on #206, #236 on #229; M3 waits on #106; thumbnail and cache placement need decisions); careful mode: 2 PRs max, #242 left for the next run; merged branch not deleted (not tried); no retro (not a Monday night)
@@ -39,7 +43,3 @@ issues_per_night: 4
 - 2026-11-16 builder: idle (only ready issues #206, #207 depend on open #202; PRs #211, #212 await review since 2026-11-13)
 - 2026-11-15 builder: idle (only ready issues #206, #207 depend on open #202; PRs #211, #212 await review since 2026-11-13)
 - 2026-11-15 builder: idle (only ready issues #206, #207 depend on open #202; PRs #211, #212 await review since 2026-11-13)
-- 2026-11-14 builder: idle (ready #206, #207 depend on open #202; no Reviewer run since 2026-11-12)
-- 2026-11-14 builder: idle (ready #206, #207 depend on open #202)
-- 2026-11-13 builder: idle (tonight's 2 items already taken by an overlapping run)
-- 2026-11-13 builder: #194 MB-03b → PR #212 (ae908b5; CI green, 3 checks; think-and-ship gates verified; QA pass with gaps)
