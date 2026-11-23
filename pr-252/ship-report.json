@@ -1,0 +1,76 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "PR #252 head",
+      "ref": "f974e19",
+      "task_id": "m4-04-spec-gates",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-04-spec-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-04-spec-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-04-spec-gates",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`docs/specs/M4-04.md` exists and states, with concrete answers: where each cache file records the `model_hash` it was built from (for example a sidecar such as `cache/index.json`, or inside each file), with the exact JSON or byte layout, and how a reader checks it; how `swx_io::Document` holds cache entries (field names and types), and that reading and writing a document without `cache/` stays byte-identical to today's golden files; which crate builds each cache file (`swx-io`, `swx-kernel`, `swx-qa` or another), checked against the dependency direction in `docs/ARCHITECTURE.md`; where a kernel shape is needed, how that fits `io → kernel`; how `thumbnail.png` is produced before M5 (for example with the `swx-qa` CPU renderer, or deferred), its size (256 × 256 per FILE_FORMAT.md) and how its staleness is checked; what a reader does with a stale, missing or unreadable cache file (ignore and rebuild; no error to the user); the test plan for the implementation, including one test where a model edit makes the cache stale.",
+      "The spec splits the implementation into `size:S`/`size:M` slices, each with outline acceptance criteria. It does not create those issues itself.",
+      "Any new third-party dependency is named in the spec, with its license, and is not added in this PR.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass (nothing under `crates/` changes, so the test run is a sanity check).",
+      "QA report (FACTORY §6b) posted on the PR. Visuals: `Nothing visual: spec only`."
+    ],
+    "completed_at": "2026-11-23T10:27:25.448082769+00:00",
+    "constraints": [],
+    "created_at": "2026-11-23T10:27:06.218096066+00:00",
+    "description": "M4-04 spec: derived cache layout, hash records and thumbnail",
+    "project_id": "saulitwerx",
+    "scope": "",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 3,
+      "estimate": "small",
+      "id": "m4-04-spec-gates",
+      "status": "completed",
+      "title": "Gates for PR #252 (M4-04 spec)",
+      "type": "docs"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
