@@ -1,0 +1,119 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(kernel): write and read a shape as OCCT BRep text",
+      "ref": "79c91aa",
+      "task_id": "impl-243",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt --all --check",
+      "passed": true,
+      "required": true,
+      "task_id": "impl-243",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy --workspace --all-targets -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "impl-243",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test --workspace",
+      "passed": false,
+      "required": true,
+      "task_id": "impl-243",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo test --workspace",
+      "passed": true,
+      "required": true,
+      "task_id": "impl-243",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-kernel --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "impl-243",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-kernel --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "impl-243",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-qa --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "impl-243",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-qa --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "impl-243",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "Two new `Kernel` trait methods, documented: `fn write_brep(&self, s: &Self::Shape) -> Result<String, KernelError>` and `fn read_brep(&self, text: &str) -> Result<Self::Shape, KernelError>`, implemented for `OcctKernel` through the C ABI shim (`BRepTools::Write` to a string stream, `BRepTools::Read` with a `BRep_Builder` from one). Shim functions are `noexcept` and catch all C++ exceptions; any new `unsafe` stays in `swx-kernel::ffi` with a comment per block.",
+      "The text is written without triangulation, so tessellating a shape first does not change its text. Lengths stay in millimetres.",
+      "Writing the same shape twice gives identical text, and writing, reading and writing again gives identical text.",
+      "Round trip (with `--features occt`), for each of: a 10 × 20 × 30 mm box; a cylinder of radius 5 mm and height 10 mm; and the box with that cylinder cut out of it (cylinder axis along z at x = 5, y = 10, so it goes through the box): the read shape's volume and surface area match the original's within a relative 1e-9, its bounding box matches within 1e-9 mm per coordinate, and its face count is equal. The box's volume is 6000 mm³ within 1e-9 relative.",
+      "Bad input gives a `KernelError` and no panic: an empty string, the text `not a brep`, and a valid text cut off halfway.",
+      "All existing tests pass unchanged; no test is weakened, removed or ignored.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and CI's `swx-kernel (occt)` job passes.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-23T08:42:09.713176152+00:00",
+    "constraints": [],
+    "created_at": "2026-11-23T08:41:43.383796226+00:00",
+    "description": "M4-04c: swx-kernel: write and read a shape as OCCT BRep text (for cache/body-<id>.brep)",
+    "project_id": "saulitwerx",
+    "scope": "",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 8,
+      "estimate": "medium",
+      "id": "impl-243",
+      "status": "completed",
+      "title": "#243 BRep text write/read in swx-kernel (PR #248)",
+      "type": "implement"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
