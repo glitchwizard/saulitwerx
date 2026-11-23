@@ -71,7 +71,7 @@ Issue title format: `M2-03: Solver constraints: coincident, horizontal, …`. Th
 
 For each open PR whose issue is labeled `factory:review`, oldest first:
 
-1. CI must be green. If it isn't, label the issue `factory:changes`, comment why, and go to the next PR. **A PR with no CI checks at all counts as red, and so does a PR that conflicts with `main`** (comment: merge `main` into the branch). One exception: when the conflict comes from a PR you merged earlier in this run and only touches lines both sides added (imports, `mod` lines, re-exports, dependency or test lists), merge `main` into the branch yourself, keeping both sides. Then run the §3 step 7 gates, push, wait for CI, and review it as usual. If `.github/workflows/ci.yml` is missing on `main`, merge nothing, open (or keep open) one `needs-human` issue titled "CI workflow missing", and skip to Plan.
+1. CI must be green. If it isn't, label the issue `factory:changes`, comment why, and go to the next PR. **A PR with no CI checks at all counts as red, and so does a PR that conflicts with `main`** (comment: merge `main` into the branch). One exception: when the conflict only touches lines both sides added (imports, `mod` lines, re-exports, doc-comment lists, dependency or test lists), whichever run merged the other side, merge `main` into the branch yourself, keeping both sides. Then run the §3 step 7 gates, push, wait for CI, and review it as usual. If `.github/workflows/ci.yml` is missing on `main`, merge nothing, open (or keep open) one `needs-human` issue titled "CI workflow missing", and skip to Plan.
 2. Read the issue and the full diff. Check:
    - every acceptance criterion is met and tested, and every box the Builder checked is actually true (uncheck any that aren't and send the PR back);
    - the PR has a QA report (§6b) for its current head commit, with all six sections. Open every image it embeds and check that it shows what the report claims (§6b, *Reviewer checks*);
@@ -89,7 +89,7 @@ For each open PR whose issue is labeled `factory:review`, oldest first:
 After reviewing, if fewer than **6** issues are labeled `factory:ready`:
 
 1. Take the next unchecked items from `docs/ROADMAP.md`, in order, that have no open issue yet. Search the issue titles for the item ID.
-2. Create issues until there are 6 ready, using the format in §2: a `Depends on:` line when an issue needs another open issue merged first, and the QA item last in the acceptance criteria. Make the acceptance criteria concrete and testable, with numbers and tolerances where geometry is involved.
+2. Create issues until there are 6 ready, using the format in §2: a `Depends on:` line when an issue needs another open issue merged first, and the QA item last in the acceptance criteria. Make the acceptance criteria concrete and testable, with numbers and tolerances where geometry is involved. Before creating the issue, check each number against the others: the stated sizes must fit the shape described (a cut that goes through a part is longer than the part), and a tolerance on a tessellated result must be larger than the error its deflection allows. Write that check in one line of Context.
 3. Keep at least **4** ready issues that are unblocked and independent of each other (§3), so the next Builder run can take four. When the next roadmap items form a dependency chain, also create the next _(parallel ok)_ item whose prerequisites are met.
 4. If an item needs a design decision first (e.g. M3-04 topological naming), create a `docs/specs/<id>.md` spec issue first.
 
@@ -225,7 +225,7 @@ The Builder records its gates (`ship_*`) through the think-and-ship MCP server. 
 
 1. Warm the build in Bash: `cargo test --workspace --no-run`. The server kills a check after 900 s.
 2. `ship_set_objective` with the issue title as `description` and its acceptance criteria copied verbatim. Then `ship_plan` (add one task) and `ship_start`.
-3. `ship_check` for each gate, always passing `command` and never `passed`: `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo test --workspace`. Add the commands of CI's `swx-kernel (occt)` job when the change touches `swx-kernel` or builds anything with its `occt` feature.
+3. `ship_check` for each gate, always passing `command` and never `passed`. Pass the bare gate command, with no pipes, redirections or bash-only syntax: the server runs it under `sh`. The gates are `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo test --workspace`. Add the commands of CI's `swx-kernel (occt)` job when the change touches `swx-kernel` or builds anything with its `occt` feature.
 4. `ship_complete` the task, then `ship_finalize` with the PR as an artifact.
 5. `ship_export` with `format: json`, and commit its `trace` to `qa-artifacts` as `pr-<N>/ship-report.json`, together with the QA images (§6b). Export before the next item's `ship_set_objective`, which clears the previous tasks.
 
