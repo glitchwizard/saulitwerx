@@ -103,9 +103,14 @@ pub(crate) fn hex(bytes: &[u8]) -> String {
     s
 }
 
-/// The `model_hash` of `model`: `"sha256:"` plus 64 lowercase hex digits of
-/// the SHA-256 of exactly the bytes [`crate::write_unpacked`] writes for
-/// `model.json` (its canonical JSON).
+/// The `model_hash` of `model` as given: `"sha256:"` plus 64 lowercase hex
+/// digits of the SHA-256 of its canonical JSON.
+///
+/// This is the hash of the written `model.json` only when `model` is already
+/// in written form. The writers sort a part's ID sets first (`ids.rs`), so
+/// for a document use [`crate::Document::refresh_model_hash`] and
+/// [`crate::Document::cache_is_fresh`], which hash exactly the bytes
+/// [`crate::write_unpacked`] writes.
 pub fn model_hash(model: &Value) -> String {
     format!(
         "sha256:{}",

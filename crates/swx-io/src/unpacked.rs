@@ -34,17 +34,29 @@ pub struct Document {
 }
 
 impl Document {
-    /// Sets `manifest.model_hash` to the [`model_hash`] of `model`.
+    /// Sets `manifest.model_hash` to the hash of the `model.json` bytes the
+    /// writers produce: [`model_hash`] of `model` after the writers' own
+    /// preparation (a part's ID sets sorted by `id`, `ids.rs`).
     pub fn refresh_model_hash(&mut self) {
-        self.manifest.model_hash = Some(model_hash(&self.model));
+        self.manifest.model_hash = Some(self.written_model_hash());
     }
 
     /// Whether a cache built from the model hash `recorded` is still valid:
-    /// true only when `recorded` equals the [`model_hash`] of `model`
+    /// true only when `recorded` equals the hash
+    /// [`Document::refresh_model_hash`] records
     /// (FILE_FORMAT.md: "If they differ, the cache is stale"). A malformed
     /// `recorded` string is never equal, so it gives `false`.
     pub fn cache_is_fresh(&self, recorded: &str) -> bool {
-        recorded == model_hash(&self.model)
+        recorded == self.written_model_hash()
+    }
+
+    /// [`model_hash`] of the model as the writers write it. A model whose
+    /// IDs fail the writers' check can't be written; it is hashed as given.
+    fn written_model_hash(&self) -> String {
+        match model_for_write(self.manifest.kind, &self.model) {
+            Ok(model) => model_hash(&model),
+            Err(_) => model_hash(&self.model),
+        }
     }
 }
 
@@ -500,5 +512,33 @@ mod tests {
         assert!(!doc.cache_is_fresh(&recorded));
         assert!(!doc.cache_is_fresh("sha256:xyz"));
         assert!(!doc.cache_is_fresh(""));
+    }
+
+    #[test]
+    fn refreshed_model_hash_matches_written_model_json_for_unsorted_part() {
+        let mut doc = read_unpacked(&fixture()).unwrap();
+        // Append a body whose id sorts before `b-1`: the set is now out of
+        // `id` order, and the writers sort it.
+        let bodies = doc.model["bodies"].as_array_mut().unwrap();
+        let mut early = bodies[0].clone();
+        early["id"] = Value::String("b-0".into());
+        bodies.push(early);
+        assert_ne!(
+            to_canonical_json(&doc.model),
+            to_canonical_json(&model_for_write(doc.manifest.kind, &doc.model).unwrap())
+        );
+
+        doc.refresh_model_hash();
+        let recorded = doc.manifest.model_hash.clone().unwrap();
+        let tmp = TempDir::new("unsorted-hash");
+        let out = tmp.0.join("bracket.sltwx");
+        write_unpacked(&out, &doc).unwrap();
+        let written = fs::read(out.join(MODEL)).unwrap();
+        assert_eq!(
+            recorded,
+            format!("sha256:{}", crate::hash::hex(&crate::sha256(&written)))
+        );
+        assert!(doc.cache_is_fresh(&recorded));
+        assert_ne!(recorded, model_hash(&doc.model));
     }
 }
