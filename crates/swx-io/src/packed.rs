@@ -4,6 +4,7 @@
 use std::fs;
 use std::path::Path;
 
+use crate::ids::{check_ids, model_for_write};
 use crate::unpacked::{check_extension, check_object, io_error, parse_object};
 use crate::zip;
 use crate::{
@@ -33,8 +34,9 @@ const PROPERTIES: &str = "properties.json";
 ///   method other than 0 or 8.
 /// - [`FormatError::CrcMismatch`]: a needed entry's data fails its CRC-32.
 /// - [`FormatError::MissingFile`]: no `manifest.json` or `model.json`.
-/// - [`FormatError::Json`] / [`FormatError::InvalidField`]: as for
-///   [`read_unpacked`](crate::read_unpacked).
+/// - [`FormatError::Json`] / [`FormatError::InvalidField`] /
+///   [`FormatError::InvalidId`] / [`FormatError::DuplicateId`]: as for
+///   [`read_unpacked`](crate::read_unpacked). Nothing is reordered on read.
 /// - [`FormatError::ExtensionMismatch`]: `path`'s extension doesn't match
 ///   the manifest's `kind`, which is authoritative.
 pub fn read_sltwx(path: &Path) -> Result<Document, FormatError> {
@@ -60,6 +62,7 @@ pub fn read_sltwx(path: &Path) -> Result<Document, FormatError> {
     check_extension(path, DocumentForm::File, manifest.kind)?;
     let model_text = get(MODEL)?.ok_or(FormatError::MissingFile(MODEL.into()))?;
     let model = parse_object(MODEL, &model_text)?;
+    check_ids(manifest.kind, &model)?;
     let properties = match get(PROPERTIES)? {
         Some(text) => Some(parse_object(PROPERTIES, &text)?),
         None => None,
@@ -76,7 +79,8 @@ pub fn read_sltwx(path: &Path) -> Result<Document, FormatError> {
 ///
 /// The entries are `manifest.json`, `model.json`, then `properties.json`
 /// when `doc.properties` is `Some`, in that order, each deflated, with the
-/// same canonical bytes [`write_unpacked`](crate::write_unpacked) writes.
+/// same canonical bytes [`write_unpacked`](crate::write_unpacked) writes,
+/// including a part's set arrays sorted by `id`.
 /// Entry timestamps are fixed (1980-01-01 00:00), so writing the same
 /// document twice gives byte-identical files.
 ///
@@ -84,7 +88,9 @@ pub fn read_sltwx(path: &Path) -> Result<Document, FormatError> {
 ///
 /// Nothing is written when `path`'s extension doesn't match the manifest's
 /// `kind` ([`FormatError::ExtensionMismatch`]) or `model` or `properties`
-/// is not a JSON object ([`FormatError::InvalidField`] naming the file).
+/// is not a JSON object ([`FormatError::InvalidField`] naming the file), or
+/// a part's IDs are invalid ([`FormatError::InvalidId`],
+/// [`FormatError::DuplicateId`]).
 /// [`FormatError::MalformedArchive`] if an entry is too large for a non-ZIP64
 /// archive; [`FormatError::Io`] when the file can't be written.
 pub fn write_sltwx(path: &Path, doc: &Document) -> Result<(), FormatError> {
@@ -93,8 +99,9 @@ pub fn write_sltwx(path: &Path, doc: &Document) -> Result<(), FormatError> {
     if let Some(p) = &doc.properties {
         check_object(PROPERTIES, p)?;
     }
+    let model = model_for_write(doc.manifest.kind, &doc.model)?;
     let manifest = write_manifest(&doc.manifest);
-    let model = to_canonical_json(&doc.model);
+    let model = to_canonical_json(&model);
     let properties = doc.properties.as_ref().map(to_canonical_json);
     let mut entries: Vec<(&str, &[u8])> =
         vec![(MANIFEST, manifest.as_bytes()), (MODEL, model.as_bytes())];

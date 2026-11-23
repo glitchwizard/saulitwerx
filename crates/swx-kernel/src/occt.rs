@@ -900,6 +900,19 @@ impl Kernel for OcctKernel {
             KernelError::Backend(format!("import_step from {} failed", path.display()))
         })
     }
+
+    fn write_brep(&self, s: &OcctShape) -> Result<String, KernelError> {
+        ffi::write_brep(&s.0).ok_or_else(|| KernelError::Backend("write_brep failed".into()))
+    }
+
+    fn read_brep(&self, text: &str) -> Result<OcctShape, KernelError> {
+        if text.trim().is_empty() {
+            return Err(KernelError::InvalidInput("BRep text is empty".into()));
+        }
+        ffi::read_brep(text)
+            .map(OcctShape)
+            .ok_or_else(|| KernelError::Backend("read_brep: not valid BRep text".into()))
+    }
 }
 
 #[cfg(test)]
@@ -3800,5 +3813,77 @@ mod tests {
         let exact = xz_face(&[[5.0, 0.0], [6.0, 0.0], [6.0, 2.0], [5.0, 2.0]]);
         invalid(K.helical_sweep(&exact, a, 2.0, 3.0), "less than the pitch");
         assert_profile_unchanged(&p, 0.5);
+    }
+
+    /// Box 10 x 20 x 30 mm; cylinder r 5, h 10; and the box with a cylinder
+    /// of radius 5 along z at x = 5, y = 10 cut through it (#243).
+    fn brep_cases() -> Vec<(&'static str, OcctShape)> {
+        let bx = K.make_box([0.0; 3], [10.0, 20.0, 30.0]).unwrap();
+        let cyl = K.make_cylinder([0.0; 3], 5.0, 10.0).unwrap();
+        let through = K.make_cylinder([5.0, 10.0, -1.0], 5.0, 32.0).unwrap();
+        let cut = K.cut(&bx, &through).unwrap();
+        vec![("box", bx), ("cylinder", cyl), ("box minus cylinder", cut)]
+    }
+
+    fn assert_rel_brep(name: &str, what: &str, a: f64, b: f64) {
+        assert!((a - b).abs() <= 1e-9 * b.abs(), "{name}: {what} {a} vs {b}");
+    }
+
+    #[test]
+    fn brep_round_trip_keeps_volume_area_bbox_and_faces() {
+        for (name, s) in brep_cases() {
+            let text = K.write_brep(&s).unwrap();
+            let r = K.read_brep(&text).unwrap();
+            assert_rel_brep(name, "volume", K.volume(&r).unwrap(), K.volume(&s).unwrap());
+            assert_rel_brep(
+                name,
+                "area",
+                K.surface_area(&r).unwrap(),
+                K.surface_area(&s).unwrap(),
+            );
+            let (a, b) = (K.bounding_box(&r).unwrap(), K.bounding_box(&s).unwrap());
+            for i in 0..3 {
+                assert!((a.min[i] - b.min[i]).abs() <= 1e-9, "{name}: bbox min");
+                assert!((a.max[i] - b.max[i]).abs() <= 1e-9, "{name}: bbox max");
+            }
+            assert_eq!(
+                K.face_count(&r).unwrap(),
+                K.face_count(&s).unwrap(),
+                "{name}"
+            );
+        }
+        let bx = &brep_cases()[0].1;
+        let v = K
+            .volume(&K.read_brep(&K.write_brep(bx).unwrap()).unwrap())
+            .unwrap();
+        assert_rel_brep("box", "volume", v, 6000.0);
+    }
+
+    #[test]
+    fn brep_text_is_stable_and_has_no_triangulation() {
+        for (name, s) in brep_cases() {
+            let first = K.write_brep(&s).unwrap();
+            assert_eq!(K.write_brep(&s).unwrap(), first, "{name}: write twice");
+            let again = K.write_brep(&K.read_brep(&first).unwrap()).unwrap();
+            assert_eq!(again, first, "{name}: write, read, write");
+            K.tessellate(&s, 0.1).unwrap();
+            assert_eq!(K.write_brep(&s).unwrap(), first, "{name}: after tessellate");
+            assert!(
+                first.contains("Triangulations 0"),
+                "{name}: no triangulation"
+            );
+        }
+    }
+
+    #[test]
+    fn bad_brep_text_is_an_error() {
+        assert!(matches!(K.read_brep(""), Err(KernelError::InvalidInput(_))));
+        assert!(K.read_brep("not a brep").is_err());
+        let text = K.write_brep(&brep_cases()[2].1).unwrap();
+        // Cut off halfway, and at every other eighth of the text.
+        for eighth in 1..8 {
+            let cut = &text[..text.len() * eighth / 8];
+            assert!(K.read_brep(cut).is_err(), "cut at {eighth}/8");
+        }
     }
 }

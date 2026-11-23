@@ -545,6 +545,21 @@ pub trait Kernel {
     ///
     /// A missing, unreadable or malformed file is an error.
     fn import_step(&self, path: &Path) -> Result<Self::Shape, KernelError>;
+
+    /// `s` as OCCT BRep text, the format of `cache/body-<id>.brep`
+    /// (`docs/specs/FILE_FORMAT.md`; OCCT documentation, "BRep Format", as
+    /// written by `BRepTools::Write`).
+    ///
+    /// The text holds the exact geometry and topology only, never a
+    /// triangulation, so tessellating `s` first does not change it. Lengths
+    /// stay in millimetres. The format version is pinned, and the same shape
+    /// always gives the same text.
+    fn write_brep(&self, s: &Self::Shape) -> Result<String, KernelError>;
+    /// Reads OCCT BRep text written by [`Kernel::write_brep`] (or
+    /// `BRepTools::Write`) back into a shape.
+    ///
+    /// Text that isn't BRep, or yields no shape, is an error.
+    fn read_brep(&self, text: &str) -> Result<Self::Shape, KernelError>;
 }
 
 /// Rejects a size that is not finite or not strictly positive.

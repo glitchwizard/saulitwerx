@@ -5,12 +5,18 @@
 //! [`write_manifest`]), the canonical JSON writer ([`to_canonical_json`])
 //! that every file of the format uses, and whole documents in the unpacked
 //! folder form ([`Document`], [`read_unpacked`], [`write_unpacked`]) and as a
-//! single ZIP archive ([`read_sltwx`], [`write_sltwx`]).
+//! single ZIP archive ([`read_sltwx`], [`write_sltwx`]). [`model_hash`]
+//! (SHA-256, [`sha256`]) tells whether a cache is stale
+//! ([`Document::cache_is_fresh`]).
 //!
 //! The [`stl`] module writes triangle meshes as binary or ASCII STL
-//! ([`write_stl_binary`], [`write_stl_ascii`]).
+//! ([`write_stl_binary`], [`write_stl_ascii`]), and the [`glb`] module
+//! writes them as binary glTF 2.0 ([`write_glb`]).
 
 mod canonical;
+pub mod glb;
+mod hash;
+mod ids;
 mod manifest;
 mod packed;
 pub mod stl;
@@ -18,6 +24,8 @@ mod unpacked;
 mod zip;
 
 pub use canonical::to_canonical_json;
+pub use glb::{write_glb, GlbError};
+pub use hash::{model_hash, sha256};
 pub use manifest::{read_manifest, write_manifest, DocumentKind, Manifest, Units};
 pub use packed::{read_sltwx, write_sltwx};
 pub use stl::{export_stl, write_stl_ascii, write_stl_binary, StlError, StlFormat, StlOptions};
@@ -105,6 +113,21 @@ pub enum FormatError {
     /// An archive entry's data does not match its recorded CRC-32. Holds the
     /// entry's name.
     CrcMismatch(String),
+    /// An element of a part's ID array (FILE_FORMAT.md, "`model.json`
+    /// rules") is not an object with a non-empty string `id`.
+    InvalidId {
+        /// The array's path, e.g. `"bodies"` or `"sketches[0].constraints"`.
+        array: String,
+        /// The element's position in the array.
+        index: usize,
+    },
+    /// Two elements of a part's ID array have the same `id`.
+    DuplicateId {
+        /// The array's path, e.g. `"bodies"` or `"sketches[0].entities"`.
+        array: String,
+        /// The repeated `id`.
+        id: String,
+    },
 }
 
 impl fmt::Display for FormatError {
@@ -130,6 +153,13 @@ impl fmt::Display for FormatError {
             ),
             FormatError::CrcMismatch(entry) => {
                 write!(f, "archive entry `{entry}` fails its CRC-32 check")
+            }
+            FormatError::InvalidId { array, index } => write!(
+                f,
+                "`{array}[{index}]` needs a non-empty string `id`"
+            ),
+            FormatError::DuplicateId { array, id } => {
+                write!(f, "duplicate id `{id}` in `{array}`")
             }
             FormatError::ExtensionMismatch {
                 form,

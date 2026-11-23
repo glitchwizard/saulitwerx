@@ -14,6 +14,7 @@
 #include <BRepAlgoAPI_Cut.hxx>
 #include <BRepAlgoAPI_Fuse.hxx>
 #include <BRepBndLib.hxx>
+#include <BRepBuilderAPI_Copy.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepBuilderAPI_MakeVertex.hxx>
@@ -36,6 +37,7 @@
 #include <BRepPrimAPI_MakeRevol.hxx>
 #include <BRepPrimAPI_MakeSphere.hxx>
 #include <BRepTools.hxx>
+#include <BRep_Builder.hxx>
 #include <BRep_Tool.hxx>
 #include <Bnd_Box.hxx>
 #include <GCPnts_AbscissaPoint.hxx>
@@ -57,6 +59,7 @@
 #include <TopoDS_Shape.hxx>
 #include <TopoDS_Vertex.hxx>
 #include <TopoDS_Wire.hxx>
+#include <TopTools_FormatVersion.hxx>
 #include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
 #include <TopTools_IndexedMapOfShape.hxx>
 #include <TopTools_ListOfShape.hxx>
@@ -80,9 +83,12 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <memory>
 #include <mutex>
+#include <sstream>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -1669,6 +1675,75 @@ int swx_occt_import_step(const char* path, SwxShape** out) noexcept {
             return -1;
         }
         return emit(reader.OneShape(), out);
+    } catch (...) {
+        return -1;
+    }
+}
+
+// Writes a shape as OCCT BRep text (OCCT documentation, "BRep Format") into
+// `buf`, without triangulation or normals, in the pinned format version 1
+// (version 2 adds derived curve-on-surface UV points, which pick up rounding
+// noise on a write/read/write cycle).
+// `*len` receives the text length in bytes (no NUL). Returns 0 when it fit in
+// `cap` bytes, -1 otherwise (then `*len` says how much room is needed, or is
+// 0 on a real failure).
+int swx_occt_write_brep(const SwxShape* s, char* buf, size_t cap, size_t* len) noexcept {
+    if (s == nullptr || len == nullptr) {
+        return -1;
+    }
+    *len = 0;
+    try {
+        if (s->shape.IsNull()) {
+            return -1;
+        }
+        // Write a topology copy (geometry shared, no mesh) whose "checked"
+        // flags are all cleared: meshing and analysis toggle that flag on
+        // the original, and it is written into the text.
+        TopoDS_Shape copy = BRepBuilderAPI_Copy(s->shape, Standard_False, Standard_False).Shape();
+        TopTools_IndexedMapOfShape all;
+        TopExp::MapShapes(copy, all);
+        copy.Checked(Standard_False);
+        for (int i = 1; i <= all.Extent(); ++i) {
+            TopoDS_Shape sub = all(i);
+            sub.Checked(Standard_False);
+        }
+        std::ostringstream stream;
+        BRepTools::Write(copy, stream, Standard_False, Standard_False,
+                         TopTools_FormatVersion_VERSION_1);
+        if (!stream) {
+            return -1;
+        }
+        const std::string text = stream.str();
+        *len = text.size();
+        if (text.size() > cap || buf == nullptr) {
+            return -1;
+        }
+        std::memcpy(buf, text.data(), text.size());
+        return 0;
+    } catch (...) {
+        *len = 0;
+        return -1;
+    }
+}
+
+// Reads OCCT BRep text (`len` bytes at `text`, not NUL-terminated) back into
+// a shape. Fails when the text is not BRep or yields no shape.
+int swx_occt_read_brep(const char* text, size_t len, SwxShape** out) noexcept {
+    if (text == nullptr || out == nullptr) {
+        return -1;
+    }
+    try {
+        std::istringstream stream(std::string(text, len));
+        // A read past the end of cut-off text throws (caught below) instead
+        // of leaving OCCT's reader looping on a failed stream.
+        stream.exceptions(std::ios::failbit | std::ios::badbit);
+        TopoDS_Shape shape;
+        BRep_Builder builder;
+        BRepTools::Read(shape, stream, builder);
+        if (shape.IsNull()) {
+            return -1;
+        }
+        return emit(shape, out);
     } catch (...) {
         return -1;
     }
