@@ -283,6 +283,21 @@ Every message starts `sltwx: `. Any document-file message above can follow it, w
   [`could not write STL: …`], [Writing failed, for example a full disk. The rest is the system's reason.],
 )
 
+=== From glTF files
+
+`swx_io::glb` messages have no prefix (@sec-ref-glb). The first three are the same as for STL, above.
+
+#ref-table(
+  columns: (1fr, 1fr),
+  header: ("Message", "Meaning and fix"),
+  [`index count 2 is not a multiple of 3`], [The triangle list doesn't hold whole triangles.],
+  [`index 7 is out of range for a mesh with 4 vertices`], [A triangle names a corner that isn't in the corner list.],
+  [`vertex 1 has a non-finite coordinate`], [A corner's position is infinite or not a number.],
+  [`the mesh has no triangles`], [The triangle list is empty, so there is nothing to show. Check that the program that made the mesh produced one.],
+  [`… bytes do not fit in a GLB file`], [The file would be over 4 GB. Use a coarser mesh.],
+  [`could not write GLB: …`], [Writing failed, for example a full disk. The rest is the system's reason.],
+)
+
 == Questions
 
 *Is there a version with windows and buttons?* Not yet. The desktop app is a later milestone; see *Coming next*.
@@ -314,7 +329,7 @@ Every message starts `sltwx: `. Any document-file message above can follow it, w
 - A sweep moves one flat profile without holes along an open path of lines and arcs in one plane, or around a helix of one radius and one pitch: no closed, spline or other 3D paths, no twist or change of size. A bend must be wider than the profile: the check uses the profile's farthest point from the path's start, so it can refuse a bend that would just fit on the profile's narrow side (@ch-sweep).
 - Extrudes, revolves, lofts, sweeps, fillets, chamfers, shells, holes, drafts and work features aren't recorded in a part's history, so they don't rebuild when a parameter changes.
 - `model.json` isn't yet filled from a part or read back into one, so work can't be saved with its history (@ch-files). A single file can't hold more than 4 GB (no ZIP64).
-- STL files are written from a mesh your program gives; a part can't yet be saved as STL in one step (@sec-stl). STL can't be read.
+- STL files are written from a mesh your program gives; a part can't yet be saved as STL in one step (@sec-stl). STL can't be read. The same goes for GLB files (@sec-glb), which hold only the shape, with no colors or materials.
 - `swx-qa sketch` draws only its two built-in sketches. Your own sketches need a short program (@sec-picture-sketch). Sketch pictures show no dimension arrows and no marks for constraints such as horizontal.
 - A parameter's unit is free text. Only the seven units of @sec-ref-expr are understood by formulas; any other unit counts as none.
 - When a new value breaks a formula that depends on it, the formula keeps its old value without an error (@sec-param-formulas).

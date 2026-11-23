@@ -37,6 +37,10 @@
     ("Mesh", [A surface broken into many small flat triangles, as 3D printers and many viewers want it.]),
     ("STL", [A common file format for a mesh, listing each triangle's corners and normal. It comes as ASCII text or as binary.]),
     ("Normal", [The direction straight out of a plane or a face, at right angles to it. Each triangle in an STL file has one.]),
+    ("glTF", [An open standard file format for 3D scenes and meshes, made to load quickly in viewers and web pages. It measures in meters.]),
+    ("GLB", [The one-file, binary form of glTF: a header, a JSON chunk describing the scene, and a binary chunk with the mesh's numbers.]),
+    ("Chunk", [One labelled block of a file, such as the JSON or the binary part of a GLB file.]),
+    ("JSON Schema", [A standard way of writing down, in JSON, which fields a JSON file must or may have and what values they can take, so a program can check a file against it.]),
     ("E notation", [A way of writing numbers with a power of ten: `1e1` is 1 × 10¹, which is 10, and `2.5e-1` is 0.25.]),
     ("Packed form", [A Saulitwerx document kept as one file, a ZIP archive of its files, rather than as a folder.]),
     ("ZIP", [A standard way of squeezing several files into one smaller file, called an archive, that almost any computer can open.]),
@@ -141,6 +145,12 @@
 }
 
 = What's new
+
+== 2026-11-22: glTF files and the manifest schema
+
+- *New for developers:* write any triangle mesh as a binary glTF file (GLB), at its true size, for 3D viewers and web pages (@sec-glb).
+- *New for developers:* the rules of `manifest.json` are published as a JSON Schema, so other programs can check a manifest (@sec-files-rules).
+- Reference: glTF files (@sec-ref-glb), the GLB format row, and a new sample. Help: the glTF messages, and the known limitations updated. Glossary: chunk, GLB, glTF and JSON Schema.
 
 == 2026-11-21: the `sltwx` command, IDs in a part, and STL files
 
@@ -326,7 +336,7 @@ These are the next items on the public roadmap. None of them works yet. When one
   [More part features], [Shells with walls of different thicknesses; fillets, chamfers, shells, holes, drafts, lofts, sweeps and work features kept in a part's history.],
   [Threads], [Model real screw threads, outside on a shaft or inside a hole, built on the helical sweep.],
   [Lasting references], [A feature built on a face or an edge keeps finding it when earlier features change.],
-  [Part files], [Save a part with its full history in a document file and open it again; stored previews; a check that a document's stored results still match its model.],
+  [Part files], [Save a part with its full history in a document file and open it again; stored previews and display meshes; a check that a document's stored results still match its model.],
   [STL and STEP], [Save a part as an STL file for 3D printing in one step, with a chosen fineness; bring in a STEP file as the first feature of a part.],
   [Desktop app], [A window with a 3D view, a model browser, sketch mode and property panels.],
 )

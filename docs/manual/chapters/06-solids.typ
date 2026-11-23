@@ -308,3 +308,43 @@ The program is `crates/swx-io/examples/stl_mesh.rs`. A mesh is two lists: the co
 #tip(title: [A part's own mesh])[The geometry engine's `tessellate` (@sec-ref-kernel) breaks a solid into a mesh whose `positions` and `indices` fit these writers as they are, already counterclockwise from outside. Hand them over to save a part of your own as STL.]
 
 #caution(title: [Get the winding right])[The writer works out each triangle's normal from the order of its corners. Corners listed clockwise give a normal that points into the part, and many programs then show the triangle as a hole or turn the part inside out. If a mesh looks inside out in another program, swap two corners of every triangle.]
+
+== Write a mesh as a glTF file <sec-glb>
+
+STL suits a 3D printer, but a web page, a phone or a design-review viewer that shows a part in 3D usually wants #term(key: "glTF")[glTF] instead: an open standard for 3D scenes, made to load quickly. Its one-file form, #term(key: "GLB")[GLB], holds a short text description of the scene followed by the mesh's numbers in binary.
+
+Two things set it apart from STL. It stores each corner once and lists each triangle by its three corner numbers, the same way Saulitwerx keeps a mesh, so a large mesh takes less room. And it has units: glTF measures in meters. Saulitwerx keeps the corners in millimeters and tells the viewer to scale them by 0.001, so a 10 mm part shows at its true size of 0.01 m.
+
+*In Saulitwerx today:* `swx-io` writes any triangle mesh your program gives it as a GLB file, with no colors and no normals; viewers work out the shading from the triangles. Keeping a part's mesh as a GLB file inside its document file, so the part shows at once when opened, is planned (*Coming next*). This section needs no OpenCascade.
+
+#task-intro(
+  goal: [Write the same small mesh as a GLB file, read what it holds, and see the errors.],
+  needs: [Saulitwerx built from source (@ch-install). OpenCascade isn't needed.],
+  time: [5 minutes.],
+)
+
+#steps(
+  [#block(breakable: false)[Run the sample program, and tell it to write into a folder called `glb`:
+  #term-block("cargo run -p swx-io --example glb_mesh -- glb")
+  It writes the file, reads back what is in it, then tries four broken meshes on purpose:
+  #term-block(label: "Output", "wrote glb/corner.glb (688 bytes)\nheader: magic glTF, version 2, length 688\nchunks: JSON 564 bytes, BIN 96 bytes\nnode: {\"mesh\":0,\"scale\":[0.001,0.001,0.001]}\ncorners: {\"bufferView\":0,\"componentType\":5126,\"count\":4,\n    \"max\":[10.0,10.0,10.0],\"min\":[0.0,0.0,0.0],\"type\":\"VEC3\"}\ntriangles: 12 indices, 4 triangles\nhalf a triangle -> error: index count 2 is not a multiple of 3\nno such corner -> error: index 7 is out of range for a mesh with 4\n    vertices\nnot a number -> error: vertex 1 has a non-finite coordinate\nno triangles -> error: the mesh has no triangles\nbytes written by the failed tries: 0")
+  Two long lines are wrapped here to fit the page.]],
+  [Read the first three lines. The mesh is the corner cut off a 10 mm cube from @sec-stl. The file starts with the letters `glTF` and the version, 2, so any program can tell what it is. Then come two #term(key: "chunk")[chunks]: the scene description in JSON, and the corners and triangles in binary, 96 bytes of them.],
+  [Read the `node` line. The scene has one node, which holds the mesh and scales it by 0.001 on each axis: millimeters to meters.],
+  [Read the `corners` line. There are 4 corners (`count`), each three numbers (`VEC3`), and the file states the smallest and largest of them: from 0 to 10 mm on every axis. A viewer uses these to frame the part before it reads a single triangle. The 12 corner numbers make 4 triangles.],
+  [Read the errors. They are the same checks as for STL, plus one: a mesh with no triangles at all is refused, because there would be nothing to show. As for STL, the mesh is checked in full before the first byte is written.],
+)
+
+#result[A GLB file of the mesh, at its true size, ready for a 3D viewer, a web page or a game engine.]
+
+#block(breakable: false)[
+=== How the sample is built
+
+The program is `crates/swx-io/examples/glb_mesh.rs`. The mesh is the same two lists as for STL (@sec-stl), and the call takes anything you can write bytes to:
+
+```rust
+write_glb(&positions, &indices, &mut out)?;
+```
+]
+
+#tip(title: [STL or GLB?])[For a 3D printer, STL: every printing program reads it. To show a part on screen, GLB: it is smaller for a large mesh, carries its units, and loads quickly. Binary STL takes 50 bytes for each triangle; GLB takes 12 for each triangle and 12 for each corner, and in a part's mesh most corners are shared by several triangles. In this tiny sample the scene description outweighs the saving, so the GLB is the larger file.]
