@@ -253,14 +253,73 @@ The program is `crates/swx-kernel/examples/multi_body.rs`. It does three things.
 
 `import_step` reads any STEP file, and `swx-qa render --step` draws one (@ch-pictures). Everything in the file comes in as one shape. Saulitwerx can't edit an imported shape yet; using it as a starting feature is on the roadmap.
 
-== Write a mesh as an STL file <sec-stl>
+== Save a part as an STL file <sec-stl-export>
 
 #idx("STL")
 A 3D printer, and the slicing program that prepares a print, don't want a solid's exact curved faces. They want a #term[mesh]: the surface broken into many small flat triangles, like a geodesic dome. The most common file for a mesh is #term[STL]. It lists the triangles one by one, each with its three corners and the direction it faces, called its #term[normal]. STL has two forms: ASCII, which is plain text you can read, and binary, which is smaller and quicker to load. Both hold the same triangles.
 
 STL keeps only the shape's surface, more coarsely than a STEP file and with no units: by custom, and in Saulitwerx, its numbers are millimeters. Use it to print a part, or to hand it to a program that wants a mesh. Keep the document file (@ch-files) or a STEP file for anything you will edit or build on.
 
-*In Saulitwerx today:* `swx-io` writes any triangle mesh your program gives it, in either form. Saving a part as STL in one step, with a chosen fineness, is planned (*Coming next*). This section needs no OpenCascade.
+#idx("deflection")
+A mesh only comes close to a curved face: a round wall becomes a ring of flat strips. How close is set by the #term[deflection], the farthest any triangle may stray from the true surface, in millimeters. A smaller deflection gives a smoother mesh, with more triangles and a bigger file. A larger one gives fewer, larger triangles, and a round part comes out visibly faceted, like a pencil (@fig-stl-fineness). Flat faces don't change: they need only a few triangles, however small the deflection. Saulitwerx uses 0.01 mm unless you choose otherwise, well below the smallest step most 3D printers can make, so the facets don't show in a print.
+
+#image-row(
+  (
+    // cargo run -p swx-qa --features occt --example stl_fineness -- docs/manual/img
+    ("img/stl-coarse.png", "Deflection 1 mm: 100 triangles", "A flat round disc whose curved side is made of 26 wide flat strips, so its outline is visibly a many-sided polygon"),
+    ("img/stl-fine.png", "Deflection 0.01 mm: 560 triangles", "The same disc with 141 narrow strips around its side, so its outline looks smoothly round"),
+  ),
+  caption: [The triangles `export_stl` writes for a disc 40 mm across and 8 mm thick, at two deflections. Lines show where the strips of the round side meet. The flat top and bottom look the same in both.],
+) <fig-stl-fineness>
+
+*In Saulitwerx today:* `swx-io` saves any solid as an STL file in one step, binary or ASCII, at the deflection you choose. It needs OpenCascade, and for now a short program, since there is no app yet. STL files can't be read.
+
+#task-intro(
+  goal: [Save a round part as STL three ways, compare the files, and see the deflection error.],
+  needs: [Saulitwerx built from source with OpenCascade (@ch-install).],
+  time: [5 minutes.],
+)
+
+#steps(
+  [#block(breakable: false)[Run the sample program, and tell it to write into a folder called `stl`:
+  #term-block("cargo run -p swx-io --features occt --example export_part_stl -- stl")
+  It makes a disc 40 mm across and 8 mm thick, saves it three times, then tries a deflection of 0 on purpose:
+  #term-block(label: "Output", "part volume 10053.10 mm³\nwrote stl/disc.stl (28084 bytes, 560 triangles)\nwrote stl/disc-coarse.stl (5084 bytes, 100 triangles)\nwrote stl/disc-text.stl (111154 bytes), first line: solid disc-text\ndeflection 0 -> error: deflection 0 mm is invalid: it must be finite and\n    greater than 0\nstl/disc-bad.stl exists: false")
+  One long line is wrapped here to fit the page.]],
+  [Read the first two `wrote` lines. `disc.stl` uses the defaults, binary at 0.01 mm: 560 triangles. `disc-coarse.stl` uses 1 mm: 100 triangles, in a file less than a fifth of the size. A binary file is always 84 bytes plus 50 for each triangle.],
+  [Compare the two meshes in @fig-stl-fineness. At 1 mm the round side is 26 flat strips, and the outline is a polygon you can see. At 0.01 mm it is 141 strips, and looks round. The coarse facets stray only about 0.15 mm, well inside 1 mm: the geometry engine also limits how far the surface may turn within one triangle, so a round face is never cut into very few strips.],
+  [Read the third `wrote` line. `disc-text.stl` is the fine mesh again, as ASCII text: about four times the size of the binary file. Its first line names the solid after the file, `disc-text`.],
+  [Read the error. A deflection must be a number greater than 0. It is checked before anything else, so no file is made: `disc-bad.stl` doesn't exist.],
+)
+
+#result[A round part saved as STL, smooth or coarse as you chose, ready for a 3D printer's slicing program.]
+
+#block(breakable: false)[
+=== How the sample is built
+
+The program is `crates/swx-io/examples/export_part_stl.rs`. It makes the disc with the geometry engine (@sec-ref-kernel), then saves it:
+
+#steps(
+  [*With the defaults,* binary at 0.01 mm:
+  ```rust
+  export_stl(&k, &part, &path, &StlOptions::default())?;
+  ```],
+  [*With your own settings,* a deflection in millimeters and a form:
+  ```rust
+  let options = StlOptions { deflection_mm: 1.0,
+                             format: StlFormat::Binary };
+  export_stl(&k, &part, &path, &options)?;
+  ```],
+)
+]
+
+#tip(title: [Choosing a deflection])[Keep the default, 0.01 mm, for printing. Choose about 0.1 mm for a quick look in another program or a smaller file: round faces still look round. Larger values suit only rough previews. A finer mesh than you need costs file size and slicing time, and adds nothing a printer can make.]
+
+#caution(title: [Binary unless you need text])[Choose ASCII only to read a file yourself or for a program that asks for it: the same triangles take about four times the space.]
+
+== Write your own mesh as an STL file <sec-stl>
+
+#for-developers[When your program makes a mesh itself, rather than a solid, `swx-io` writes it as STL directly, in either form. This section needs no OpenCascade.]
 
 #task-intro(
   goal: [Write a small mesh as an ASCII and a binary STL file, read the ASCII one, and see the errors.],
@@ -276,10 +335,10 @@ STL keeps only the shape's surface, more coarsely than a STEP file and with no u
   One long line is wrapped here to fit the page.]],
   [Read the first two lines. The mesh is a corner cut off a 10 mm cube: a small pyramid with four triangular faces. As text it takes 619 bytes; in binary, 284. A binary file is always 84 bytes plus 50 for each triangle, so a part's mesh of many thousands of triangles stays far smaller in binary.],
   [#block(breakable: false)[Look at the ASCII file:
-  #term-block("cat stl/corner.stl")
-  It names the solid, then lists each triangle (`facet`) with its normal and its three corners (`vertex`), in millimeters:
-  #term-block(label: "Output", "solid corner\n  facet normal 0e0 0e0 -1e0\n    outer loop\n      vertex 0e0 0e0 0e0\n      vertex 0e0 1e1 0e0\n      vertex 1e1 0e0 0e0\n    endloop\n  endfacet\n  …\n  facet normal 5.7735026e-1 5.7735026e-1 5.7735026e-1\n    outer loop\n      vertex 1e1 0e0 0e0\n      vertex 0e0 1e1 0e0\n      vertex 0e0 0e0 1e1\n    endloop\n  endfacet\nendsolid corner")
-  The middle two triangles are left out here. Numbers are in #term[e notation]: `1e1` is 1 × 10¹, which is 10, and `5.7735026e-1` is 0.57735026. The first triangle lies on the floor and faces straight down, −Z; the last is the sloping face, and faces up and out equally along X, Y and Z.]],
+  #term-block("cat stl/corner.stl")]
+  #block(breakable: false)[It names the solid, then lists each triangle (`facet`) with its normal and its three corners (`vertex`), in millimeters:
+  #term-block(label: "Output", "solid corner\n  facet normal 0e0 0e0 -1e0\n    outer loop\n      vertex 0e0 0e0 0e0\n      vertex 0e0 1e1 0e0\n      vertex 1e1 0e0 0e0\n    endloop\n  endfacet\n  …\n  facet normal 5.7735026e-1 5.7735026e-1 5.7735026e-1\n    outer loop\n      vertex 1e1 0e0 0e0\n      vertex 0e0 1e1 0e0\n      vertex 0e0 0e0 1e1\n    endloop\n  endfacet\nendsolid corner")]
+  The middle two triangles are left out here. Numbers are in #term[e notation]: `1e1` is 1 × 10¹, which is 10, and `5.7735026e-1` is 0.57735026. The first triangle lies on the floor and faces straight down, −Z; the last is the sloping face, and faces up and out equally along X, Y and Z.],
   [Read the errors. Every triangle needs three corners, so two numbers are half a triangle. A triangle can't use corner 7 of a mesh with four corners. A corner whose position isn't a number is refused. The mesh is checked in full before the first byte is written, so a broken mesh never leaves half a file behind.],
 )
 
@@ -305,7 +364,7 @@ The program is `crates/swx-io/examples/stl_mesh.rs`. A mesh is two lists: the co
 )
 ]
 
-#tip(title: [A part's own mesh])[The geometry engine's `tessellate` (@sec-ref-kernel) breaks a solid into a mesh whose `positions` and `indices` fit these writers as they are, already counterclockwise from outside. Hand them over to save a part of your own as STL.]
+#tip(title: [A part's own mesh])[To save a solid, use `export_stl` (@sec-stl-export): it breaks the solid into triangles and calls these writers for you. The geometry engine's `tessellate` (@sec-ref-kernel) gives the same mesh, if your program needs to change it before writing.]
 
 #caution(title: [Get the winding right])[The writer works out each triangle's normal from the order of its corners. Corners listed clockwise give a normal that points into the part, and many programs then show the triangle as a hole or turn the part inside out. If a mesh looks inside out in another program, swap two corners of every triangle.]
 

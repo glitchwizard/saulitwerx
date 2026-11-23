@@ -22,3 +22,7 @@ crc32fast = "1"
 
 [lints]
 workspace = true
+
+[[example]]
+name = "export_part_stl"
+required-features = ["occt"]

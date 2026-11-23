@@ -2,7 +2,7 @@
 
 = Saulitwerx document files <ch-files>
 
-#for-developers[This chapter calls `swx-io`, the crate that reads and writes Saulitwerx's own files, from Rust. It needs no OpenCascade.]
+#for-developers[This chapter calls `swx-io`, the crate that reads and writes Saulitwerx's own files, from Rust. Only @sec-files-brep needs OpenCascade.]
 
 #idx("document file")
 A STEP file (@ch-solids) keeps only the finished shape. Open it again and you get a solid you can't edit: the sketches, dimensions, parameters and history that made it are gone. To come back to a design and change it, you need a file that keeps all of that. Saulitwerx has its own file for this, the #term[document file], and its layout is published in full, so any program may read or write it.
@@ -31,7 +31,7 @@ The same files can be kept in two ways, and both carry the same name:
 
 Each file is written the same way every time, with its names in alphabetical order and one value per line, in either form. So the same document always gives the same bytes, and when you keep a design under version control a change shows up as a change to just the lines it touched.
 
-*In Saulitwerx today:* `swx-io` reads and writes both forms and checks the manifest, and the `sltwx` command turns a folder into a file and back (@sec-files-sltwx). In a part's `model.json`, every sketch, feature and body, and every piece and rule of a sketch, must carry its own ID, and the file is written in a fixed order (@sec-files-ids). Beyond that, `model.json` and `properties.json` are read and written as plain JSON objects: Saulitwerx can't yet fill `model.json` from a part's history or build a part from it, so a part can't be saved and opened again yet. The stored pictures and previews are planned (*Coming next*).
+*In Saulitwerx today:* `swx-io` reads and writes both forms and checks the manifest, and the `sltwx` command turns a folder into a file and back (@sec-files-sltwx). In a part's `model.json`, every sketch, feature and body, and every piece and rule of a sketch, must carry its own ID, and the file is written in a fixed order (@sec-files-ids). Beyond that, `model.json` and `properties.json` are read and written as plain JSON objects: Saulitwerx can't yet fill `model.json` from a part's history or build a part from it, so a part can't be saved and opened again yet. Stored results are planned (*Coming next*); the first pieces are in @sec-files-hash and @sec-files-brep.
 
 // Keeps the task's heading and intro with its first step.
 #pagebreak(weak: true)
@@ -230,6 +230,80 @@ Order matters only for features: they are the part's history (@ch-history), so t
 #result[A part's model written in one fixed order, with every ID checked on the way in and out.]
 
 #note(title: [Reading never reorders])[Saulitwerx checks the IDs when it reads a part, and refuses a file that breaks the rules, but it gives you the lists in the order the file has them. Only writing sorts. Your program's own copy of the model isn't changed either: the sorted lists go only into the file.]
+
+== Tell whether a cache is up to date <sec-files-hash>
+
+#idx("cache")
+Rebuilding a part from its history takes time, and a large part takes longer. So a document may also keep a #term[cache]: results worked out from the model, such as the finished solid of each body, a mesh to show on screen and a small preview picture, stored so the part can be shown at once when it is opened. A cache saves time only while it still matches the model. After the model changes, it shows an old version of the part, and must be thrown away and built again.
+
+#idx("hash")
+To tell whether it still matches, Saulitwerx uses a #term[hash]: a short code worked out from every byte of a file. The same file always gives the same hash; change a single byte and the hash comes out completely different. Saulitwerx uses #term[SHA-256], a published standard hash, written as `sha256:` and 64 hexadecimal digits. The manifest's `model_hash` records the hash of `model.json`, and each cache file records the hash of the model it was built from. When the two differ, the cache is #term(key: "stale")[stale]: ignore it and rebuild.
+
+*In Saulitwerx today:* `swx-io` works out a part's model hash, records it in the manifest, and tells whether a hash still matches the model. Documents don't hold a cache yet: nothing writes or reads cache files, and reading a document doesn't compare `model_hash` with `model.json`.
+
+#task-intro(
+  goal: [Record a part's model hash, check it against the file on disk, and see a change make it stale.],
+  needs: [Saulitwerx built from source (@ch-install). OpenCascade isn't needed.],
+  time: [5 minutes.],
+)
+
+#steps(
+  [#block(breakable: false)[Run the sample program, and tell it to write into the folder `files`:
+  #term-block("cargo run -p swx-io --example model_hash -- files")
+  It records the hash, writes the part to `files/hashed.sltwx`, hashes the `model.json` it wrote, then checks the recorded hash three times:
+  #term-block(label: "Output", "recorded in the manifest:\n  sha256:f678c9dc3c8e4664ba758f003d5388a4c4db9d70ce5df9eaabc54abf28eb6c3b\nhash of the written model.json:\n  sha256:f678c9dc3c8e4664ba758f003d5388a4c4db9d70ce5df9eaabc54abf28eb6c3b\nfresh after reading back:   true\nfresh after an edit:        false\nfresh for a malformed hash: false")]],
+  [Compare the two hashes. The hash recorded in the manifest is the hash of the `model.json` on disk. The sample's model lists its bodies out of order, and the writer sorts them (@sec-files-ids); the recorded hash is of the file as written, sorted.],
+  [#block(breakable: false)[Look at the manifest. Its `model_hash` field now carries the hash:
+  #term-block("grep -o 'sha256:[0-9a-f]*' files/hashed.sltwx/manifest.json")
+  #term-block(label: "Output", "sha256:f678c9dc3c8e4664ba758f003d5388a4c4db9d70ce5df9eaabc54abf28eb6c3b")]],
+  [Read the three checks. Read back unchanged, the document still matches the hash, so a cache built from it would be fresh. After one parameter changes from 10 mm to 12 mm, it no longer matches: the cache would be stale. A hash that isn't a proper SHA-256 never matches.],
+)
+
+#result[A part whose manifest records the hash of its model, and a check that tells at once whether results built from that model are still good.]
+
+#block(breakable: false)[
+=== How the sample is built
+
+The program is `crates/swx-io/examples/model_hash.rs`. It builds a `Document` as in @sec-files, then:
+
+```rust
+doc.refresh_model_hash();                // sets manifest.model_hash
+let ok = doc.cache_is_fresh(&recorded);  // true while the model matches
+```
+]
+
+#note(title: [Hash the document, not the value])[`model_hash(value)` hashes a JSON value exactly as given. For a part whose lists aren't yet sorted by ID, that differs from the hash of the file Saulitwerx writes. Use `refresh_model_hash` and `cache_is_fresh` on the `Document`: they hash exactly what is written.]
+
+#block(breakable: false)[
+== Keep a solid's exact shape as text <sec-files-brep>
+
+#for-developers[This section calls the geometry engine, so it needs OpenCascade.]
+
+#idx("BRep")
+A cache keeps the finished solid of each body as a #term[BRep] text file (`cache/body-<id>.brep`). BRep, short for _boundary representation_, describes a solid by its faces, edges and corners and the exact surfaces and curves they lie on: the same exact shape a STEP file holds, not a mesh. The format is OpenCascade's own published text format, so reading it back gives the geometry engine the very same solid, with nothing to work out again.
+]
+
+*In Saulitwerx today:* the geometry engine writes any solid as BRep text and reads it back. Nothing writes the text into a document yet; that comes with the cache.
+
+#task-intro(
+  goal: [Write a plate with a hole as BRep text, read it back, and compare.],
+  needs: [Saulitwerx built from source with OpenCascade (@ch-install).],
+  time: [5 minutes.],
+)
+
+#steps(
+  [#block(breakable: false)[Run the sample program:
+  #term-block("cargo run -p swx-kernel --features occt --example brep_text -- plate.brep")
+  It writes the plate from @ch-first as `plate.brep`, reads it back, then tries two bad texts on purpose:
+  #term-block(label: "Output", "wrote plate.brep (3323 bytes, 352 lines)\nTriangulations 0\noriginal:  4607.30 mm³, 7 faces\nread back: 4607.30 mm³, 7 faces\nsame text again: true\nempty -> error: invalid input: BRep text is empty\nnot BRep -> error: kernel failure: read_brep: not valid BRep text")]],
+  [Read the second line. `Triangulations 0` means the text holds no mesh at all, only the exact shape. Breaking the solid into triangles first, for a picture or an STL file, doesn't change the text.],
+  [Compare the next two lines. The solid read back has the same volume and the same seven faces. Writing it again gives exactly the same text: a solid always gives the same bytes. Lengths stay in millimeters.],
+  [Read the errors. Empty text is refused before the geometry engine sees it; text the engine can't read as BRep, including a file cut short, is refused by the engine.],
+)
+
+#result[A solid kept as text and brought back exactly, the way a cache will keep each body.]
+
+The program is `crates/swx-kernel/examples/brep_text.rs`. It calls `write_brep(s)`, which returns the text, and `read_brep(text)`, which returns the solid.
 
 == What is read and written <sec-files-rules>
 
