@@ -1,0 +1,110 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "PR #251 head",
+      "ref": "63c7866",
+      "task_id": "m4-02b-gates",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-02b-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-02b-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-02b-gates",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "clippy swx-io occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-02b-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "test swx-io occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-02b-gates",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "clippy swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-02b-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "test swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-02b-gates",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`pub struct StlOptions { pub deflection_mm: f64, pub format: StlFormat }` and `pub enum StlFormat { Binary, Ascii }`, documented. `StlOptions::default()` is deflection 0.01 mm, binary.",
+      "`pub fn export_stl<K: Kernel>(kernel: &K, shape: &K::Shape, path: &Path, options: &StlOptions) -> Result<(), StlError>`. A `deflection_mm` that is not finite or not greater than 0 returns a new `StlError` variant naming the value, before any tessellation or file is created. Kernel errors are carried in a new `StlError` variant.",
+      "With `--features occt`, a 20 × 10 × 5 mm box (built as in `crates/swx-kernel/examples/extrude_plate.rs`) exports 12 or more triangles whose bounding box is 20 × 10 × 5 within 1e-4 mm, and the signed volume of the mesh (sum of tetrahedra from the origin) is 1000 mm³ within 1e-3.",
+      "With `--features occt`, for a cylinder of radius 5 mm and height 10 mm, export at deflections 0.1 mm and 0.01 mm and verify that 0.01 mm produces more triangles. Export the same cylinder separately at 0.003 mm deflection and verify that its signed mesh volume is within 0.1% of π·25·10 mm³.",
+      "With `--features occt`, the mesh is closed: every undirected edge (after merging equal positions) is used by exactly two triangles.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and `cargo clippy -p swx-io --features occt --all-targets -- -D warnings && cargo test -p swx-io --features occt` pass.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-23T10:22:02.058783464+00:00",
+    "constraints": [],
+    "created_at": "2026-11-23T10:21:33.865805281+00:00",
+    "description": "M4-02b: swx-io: export_stl of a kernel shape with a deflection (tolerance) option",
+    "project_id": "saulitwerx",
+    "scope": "",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 7,
+      "estimate": "small",
+      "id": "m4-02b-gates",
+      "status": "completed",
+      "title": "Gates for PR #251 (export_stl)",
+      "type": "test"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
