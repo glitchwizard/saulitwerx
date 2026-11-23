@@ -225,6 +225,13 @@ extern "C" {
     ) -> c_int;
     fn swx_occt_export_step(s: *const RawShape, path: *const c_char) -> c_int;
     fn swx_occt_import_step(path: *const c_char, out: *mut *mut RawShape) -> c_int;
+    fn swx_occt_write_brep(
+        s: *const RawShape,
+        buf: *mut c_char,
+        cap: usize,
+        len: *mut usize,
+    ) -> c_int;
+    fn swx_occt_read_brep(text: *const c_char, len: usize, out: *mut *mut RawShape) -> c_int;
     fn swx_occt_tessellate(
         s: *const RawShape,
         deflection: c_double,
@@ -1000,6 +1007,49 @@ pub(crate) fn import_step(path: &CStr) -> Option<ShapeHandle> {
     // and is not retained; `raw` is a valid out-pointer that receives a new,
     // independently owned handle on success.
     let status = unsafe { swx_occt_import_step(path.as_ptr(), &mut raw) };
+    take(status, raw)
+}
+
+/// `s` as OCCT BRep text (no triangulation). `None` on any failure, or if
+/// the text isn't UTF-8.
+pub(crate) fn write_brep(s: &ShapeHandle) -> Option<String> {
+    // First call with no buffer to learn the length, then once with exactly
+    // that room; a size change between the calls counts as a failure.
+    let mut len = 0usize;
+    // SAFETY: `s` is a live handle read-only for the call; a null buffer
+    // with `cap` 0 is never written; `len` is a valid writable `usize`
+    // (`size_t` layout). No pointer is retained.
+    unsafe { swx_occt_write_brep(s.0.as_ptr(), ptr::null_mut(), 0, &mut len) };
+    if len == 0 {
+        return None;
+    }
+    let mut buf = vec![0u8; len];
+    let mut written = 0usize;
+    // SAFETY: `s` is live; `buf` is a valid writable buffer of exactly `len`
+    // bytes and the shim writes at most `cap` = `len` of them; `written` is a
+    // valid writable `usize`. No pointer is retained.
+    let status = unsafe {
+        swx_occt_write_brep(
+            s.0.as_ptr(),
+            buf.as_mut_ptr().cast::<c_char>(),
+            len,
+            &mut written,
+        )
+    };
+    if status != 0 || written != len {
+        return None;
+    }
+    String::from_utf8(buf).ok()
+}
+
+/// Reads OCCT BRep text back into a shape. `None` on any failure.
+pub(crate) fn read_brep(text: &str) -> Option<ShapeHandle> {
+    let mut raw = ptr::null_mut();
+    // SAFETY: `text` points to `text.len()` readable bytes that outlive the
+    // call and are not retained (the shim copies them); `raw` is a valid
+    // out-pointer that receives a new, independently owned handle on success.
+    let status =
+        unsafe { swx_occt_read_brep(text.as_ptr().cast::<c_char>(), text.len(), &mut raw) };
     take(status, raw)
 }
 
