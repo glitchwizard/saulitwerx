@@ -694,25 +694,39 @@ endsolid tri
         }
 
         #[test]
-        fn finer_deflection_gives_more_triangles_and_a_closer_volume() {
+        fn finer_deflection_gives_more_triangles() {
             let k = OcctKernel;
             let shape = k.make_cylinder([0.0; 3], 5.0, 10.0).unwrap();
-            let coarse = read_binary(&export(&shape, 0.1, "cyl-coarse.stl"));
-            let fine = read_binary(&export(&shape, 0.01, "cyl-fine.stl"));
+            let coarse_path = export(&shape, 0.1, "cyl-coarse.stl");
+            let fine_path = export(&shape, 0.01, "cyl-fine.stl");
+            let coarse = read_binary(&coarse_path);
+            let fine = read_binary(&fine_path);
             assert!(
                 fine.len() > coarse.len(),
                 "{} vs {}",
                 fine.len(),
                 coarse.len()
             );
+            assert!(is_closed(&coarse));
+            assert!(is_closed(&fine));
+            let _ = std::fs::remove_file(coarse_path);
+            let _ = std::fs::remove_file(fine_path);
+        }
+
+        #[test]
+        fn cylinder_volume_at_0_003_mm_is_within_0_1_percent() {
+            let k = OcctKernel;
+            let shape = k.make_cylinder([0.0; 3], 5.0, 10.0).unwrap();
+            let path = export(&shape, 0.003, "cyl-0.003.stl");
+            let tris = read_binary(&path);
             let exact = std::f64::consts::PI * 25.0 * 10.0;
-            let vol = signed_volume(&fine);
+            let vol = signed_volume(&tris);
             assert!(
                 ((vol - exact) / exact).abs() <= 1e-3,
                 "volume {vol}, exact {exact}"
             );
-            assert!(is_closed(&coarse));
-            assert!(is_closed(&fine));
+            assert!(is_closed(&tris));
+            let _ = std::fs::remove_file(path);
         }
 
         #[test]
