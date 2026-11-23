@@ -68,6 +68,8 @@ Every message starts with `swx-qa: `. No picture is written when there is an err
   [`invalid input: adjacent needs two different kinds, got edge and edge`], [`adjacent` was asked for the same kind it starts from. Ask for another kind: the faces or vertices of an edge (@sec-topology).],
   [`invalid input: face index 7 is out of range: the shape has 7 faces`], [The index is past the last sub-shape of its kind. Indices start at 0, so the last is the count minus 1. An index from another shape, or from before a change, can also be out of range (@sec-topology).],
   [`kernel failure: <operation> failed`], [OpenCascade couldn't complete the operation. For a cut, check that the tool solid overlaps the part (@ch-solids). For a `fillet` or a `chamfer`, the size is too large for the faces next to the edges: make it smaller (@sec-fillet-mistakes). For a `shell`, the walls are too thick for the part: keep them under half its narrowest width (@sec-shell-mistakes). For a `draft`, a face can't be tilted, such as one parallel to the neutral plane (@sec-draft-mistakes). For a `loft`, two sections may be in the same place (@sec-loft-mistakes).],
+  [`invalid input: BRep text is empty`], [`read_brep` was given no text, or only spaces. Check that the file was read, and isn't empty (@sec-files-brep).],
+  [`kernel failure: read_brep: not valid BRep text`], [The text isn't BRep, or was cut short. Write it again from the solid with `write_brep`. A cache can always be rebuilt from the model, so a damaged one can simply be replaced.],
   [`invalid input: the edge list is empty`], [A fillet or a chamfer was given no edges. Give at least one (@ch-fillet).],
   [`invalid input: the face list is empty`], [A shell was given no faces to open, or a draft no faces to tilt. Give at least one (@ch-shell, @ch-draft).],
   [`invalid input: vertex 1 is not on edge 11`], [A variable fillet's start vertex isn't one of its edge's two ends. Ask `adjacent` for the edge's vertices (@sec-fillet-variable).],
@@ -281,6 +283,8 @@ Every message starts `sltwx: `. Any document-file message above can follow it, w
   [`vertex 1 has a non-finite coordinate`], [A corner's position is infinite or not a number, often from dividing by zero. Fix the program that made the mesh.],
   [`… triangles do not fit in a binary STL file`], [More than 4 294 967 295 triangles. Use a coarser mesh.],
   [`could not write STL: …`], [Writing failed, for example a full disk. The rest is the system's reason.],
+  [`deflection 0 mm is invalid: it must be finite and greater than 0`], [From `export_stl`: the deflection is 0, less than 0, or not a number. Use 0.01 mm unless you need otherwise (@sec-stl-export). No file is made.],
+  [`could not tessellate the shape: …`], [From `export_stl`: the geometry engine couldn't break the shape into triangles. The rest is the kernel message, below.],
 )
 
 === From glTF files
@@ -304,7 +308,7 @@ Every message starts `sltwx: `. Any document-file message above can follow it, w
 
 *Can I open files from other CAD programs?* Yes, if you save them as STEP first. Saulitwerx doesn't read any program's own native file format, and won't.
 
-*Can I 3D-print a part?* Not in one step yet. A program can write any triangle mesh as an STL file, which 3D-printing programs read (@sec-stl); saving a part as STL directly is planned.
+*Can I 3D-print a part?* Yes. Save it as an STL file with `export_stl`, which every 3D-printing program reads (@sec-stl-export). For now that takes a short program; the desktop app will make it a menu choice.
 
 *Can I save my design and edit it later?* Not yet. Today you can save solids as STEP, which keeps the shape but not the history. Saulitwerx can write and read its own document files, as a folder or as one file (@ch-files), but can't yet store a part's history in them or rebuild a part from one.
 
@@ -329,7 +333,8 @@ Every message starts `sltwx: `. Any document-file message above can follow it, w
 - A sweep moves one flat profile without holes along an open path of lines and arcs in one plane, or around a helix of one radius and one pitch: no closed, spline or other 3D paths, no twist or change of size. A bend must be wider than the profile: the check uses the profile's farthest point from the path's start, so it can refuse a bend that would just fit on the profile's narrow side (@ch-sweep).
 - Extrudes, revolves, lofts, sweeps, fillets, chamfers, shells, holes, drafts and work features aren't recorded in a part's history, so they don't rebuild when a parameter changes.
 - `model.json` isn't yet filled from a part or read back into one, so work can't be saved with its history (@ch-files). A single file can't hold more than 4 GB (no ZIP64).
-- STL files are written from a mesh your program gives; a part can't yet be saved as STL in one step (@sec-stl). STL can't be read. The same goes for GLB files (@sec-glb), which hold only the shape, with no colors or materials.
+- A solid can be saved as STL in one step (@sec-stl-export), but STL can't be read. GLB files are written only from a mesh your program gives (@sec-glb), and hold only the shape, with no colors or materials.
+- A document's model hash can be recorded and checked (@sec-files-hash), but documents hold no cache yet, and reading one doesn't check the hash.
 - `swx-qa sketch` draws only its two built-in sketches. Your own sketches need a short program (@sec-picture-sketch). Sketch pictures show no dimension arrows and no marks for constraints such as horizontal.
 - A parameter's unit is free text. Only the seven units of @sec-ref-expr are understood by formulas; any other unit counts as none.
 - When a new value breaks a formula that depends on it, the formula keeps its old value without an error (@sec-param-formulas).

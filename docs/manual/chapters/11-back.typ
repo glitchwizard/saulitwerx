@@ -34,6 +34,12 @@
     ("ID", [In a part's `model.json`, the short text name, such as `sketch-1`, that a sketch, feature, body, sketch piece or rule keeps for as long as it exists. No two in the same list are alike.]),
     ("Set", [A list where only what is in it counts, not the order. Saulitwerx writes a part's sets sorted by ID.]),
     ("sltwx command", [The command that turns a Saulitwerx document folder into one file (`pack`) and back (`unpack`).]),
+    ("Deflection", [For a mesh, the farthest any triangle may stray from the true surface, in mm. Smaller gives a smoother mesh with more triangles.]),
+    ("Cache", [Results worked out from a document's model and stored with it, such as each body's solid and a preview, so the part shows at once. It can always be rebuilt.]),
+    ("Hash", [A short code worked out from every byte of a file. Change one byte and the hash changes completely, so equal hashes mean the same file.]),
+    ("SHA-256", [A published standard hash, 64 hexadecimal digits long. Saulitwerx writes it as `sha256:` and the digits.]),
+    ("Stale", [Said of a cache built from an older version of the model, whose hash no longer matches. Ignore it and rebuild.]),
+    ("BRep", [Boundary representation: a solid described by its faces, edges and corners and the exact surfaces and curves they lie on. Also the text file OpenCascade keeps one in.]),
     ("Mesh", [A surface broken into many small flat triangles, as 3D printers and many viewers want it.]),
     ("STL", [A common file format for a mesh, listing each triangle's corners and normal. It comes as ASCII text or as binary.]),
     ("Normal", [The direction straight out of a plane or a face, at right angles to it. Each triangle in an STL file has one.]),
@@ -145,6 +151,14 @@
 }
 
 = What's new
+
+== 2026-11-23: save a part as STL, and the model hash
+
+- *New:* save a solid as an STL file in one step, binary or ASCII, with the deflection you choose, 0.01 mm unless you say otherwise (@sec-stl-export). A new picture compares a coarse and a fine mesh.
+- *New for developers:* record the hash of a part's model in its manifest, and tell whether results built from the model are still up to date (@sec-files-hash).
+- *New for developers:* keep a solid's exact shape as BRep text and read it back unchanged (@sec-files-brep).
+- *Changed:* writing your own mesh as STL is now a section for developers (@sec-stl).
+- Reference: `export_stl` and its options, `model_hash`, `sha256`, `refresh_model_hash`, `cache_is_fresh`, `write_brep`, `read_brep`, the BRep format row, and four new samples. Help: the deflection, tessellation and BRep messages, the 3D-printing answer, and the known limitations updated. Glossary: BRep, cache, deflection, hash, SHA-256 and stale.
 
 == 2026-11-22: glTF files and the manifest schema
 
@@ -336,8 +350,8 @@ These are the next items on the public roadmap. None of them works yet. When one
   [More part features], [Shells with walls of different thicknesses; fillets, chamfers, shells, holes, drafts, lofts, sweeps and work features kept in a part's history.],
   [Threads], [Model real screw threads, outside on a shaft or inside a hole, built on the helical sweep.],
   [Lasting references], [A feature built on a face or an edge keeps finding it when earlier features change.],
-  [Part files], [Save a part with its full history in a document file and open it again; stored previews and display meshes; a check that a document's stored results still match its model.],
-  [STL and STEP], [Save a part as an STL file for 3D printing in one step, with a chosen fineness; bring in a STEP file as the first feature of a part.],
+  [Part files], [Save a part with its full history in a document file and open it again; stored solids, previews and display meshes, rebuilt when the model hash says they are stale.],
+  [STEP], [Bring in a STEP file as the first feature of a part.],
   [Desktop app], [A window with a 3D view, a model browser, sketch mode and property panels.],
 )
 
@@ -413,6 +427,7 @@ Later milestones add assemblies, 2D drawings and exploded views. The full plan i
         [`work_axis_on`], [axis on edge or round face],
         [`boolean_tracked`], [Boolean + face history],
         [`export_step` · `import_step`], [STEP file out / in],
+        [`export_stl`], [STL file for printing],
       )
     ],
   )

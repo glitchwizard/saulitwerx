@@ -126,3 +126,7 @@ required-features = ["occt"]
 [[example]]
 name = "work_midplane"
 required-features = ["occt"]
+
+[[example]]
+name = "brep_text"
+required-features = ["occt"]

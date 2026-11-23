@@ -20,3 +20,7 @@ swx-sketch = { path = "../swx-sketch" }
 
 [lints]
 workspace = true
+
+[[example]]
+name = "stl_fineness"
+required-features = ["occt"]

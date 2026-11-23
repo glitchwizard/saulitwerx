@@ -127,8 +127,12 @@ The output path must not exist, as a file, a folder or a link: `sltwx` never ove
   [`cargo run -p swx-kernel --features occt --example helical_spring -- <dir>`], [Winds a circle into a coil spring and a rectangle into a square ridge around a helix, and shows the errors (@sec-helix). STEP files in `<dir>`.],
   [`cargo run -p swx-io --example unpacked_document -- <dir>`], [Writes a part document folder `<dir>/plate.sltwx`, reads it back, and shows the errors (@sec-files). Needs no OpenCascade.],
   [`cargo run -p swx-io --example packed_document -- <dir>`], [Writes the same document as one file, `<dir>/plate.sltwx`, converts a folder to a file, and shows the errors (@sec-files-packed). Needs no OpenCascade.],
+  [`cargo run -p swx-io --features occt --example export_part_stl -- <dir>`], [Saves a disc as `<dir>/disc.stl` (defaults), `<dir>/disc-coarse.stl` (1 mm) and `<dir>/disc-text.stl` (ASCII), and shows the deflection error (@sec-stl-export).],
+  [`cargo run -p swx-qa --features occt --example stl_fineness -- <dir> [<W>x<H>]`], [Draws the disc's STL triangles at 1 mm and 0.01 mm as `<dir>/stl-coarse.png` and `<dir>/stl-fine.png`, default 900x700 (@fig-stl-fineness).],
   [`cargo run -p swx-io --example stl_mesh -- <dir>`], [Writes a four-triangle mesh as `<dir>/corner.stl` (ASCII) and `<dir>/corner-binary.stl`, and shows the errors (@sec-stl). Needs no OpenCascade.],
   [`cargo run -p swx-io --example glb_mesh -- <dir>`], [Writes the same mesh as `<dir>/corner.glb`, reads back its header and JSON, and shows the errors (@sec-glb). Needs no OpenCascade.],
+  [`cargo run -p swx-io --example model_hash -- <dir>`], [Records a part's model hash, writes `<dir>/hashed.sltwx`, and checks the hash before and after an edit (@sec-files-hash). Needs no OpenCascade.],
+  [`cargo run -p swx-kernel --features occt --example brep_text -- <file>`], [Writes the plate with a hole as BRep text in `<file>`, reads it back, and shows the errors (@sec-files-brep).],
   [`cargo build --release -p swx-io`], [Builds the `sltwx` command, at `target/release/sltwx` (@sec-ref-sltwx).],
   [`cargo run -p swx-kernel --example work_features`], [Builds work planes, axes and a point, and prints them (@sec-work). Needs no OpenCascade.],
   [`cargo run -p swx-kernel --features occt --example tilted_post -- <dir>`], [Stands a post at 30° on a plate, from a tilted work plane (@sec-work-use). A STEP file in `<dir>`.],
@@ -182,6 +186,8 @@ The `occt` feature switches on OpenCascade. It is off by default, so a plain bui
   [`tessellate(s, deflection)`], [Breaks the surface into triangles, no farther than `deflection` (mm, > 0) from the true surface.],
   [`export_step(s, path)`], [Writes a STEP file in millimeters, replacing any existing file.],
   [`import_step(path)`], [Reads everything in a STEP file as one shape.],
+  [`write_brep(s)`], [`s` as BRep text, OpenCascade's published text format (@sec-files-brep): exact geometry and topology, never a mesh, in mm. The same shape always gives the same text; tessellating `s` first doesn't change it.],
+  [`read_brep(text)`], [The shape in BRep `text`, as written by `write_brep`. Empty text is `InvalidInput`; text that isn't BRep, or is cut short, is `Backend`.],
 )
 
 All positions must be finite numbers; all sizes finite and greater than zero.
@@ -616,8 +622,9 @@ A unit that is not one of the seven in @sec-ref-expr, including an empty one, co
   columns: (auto, auto, 1fr),
   header: ("Format", "Read / write", "Notes"),
   [STEP (`.step`, `.stp`), ISO 10303-21], [Both], [Solids only. Written in millimeters.],
-  [STL (`.stl`), ASCII and binary], [Write], [Triangle meshes, in millimeters, from your program's own mesh (@sec-stl, @sec-ref-stl). Not yet straight from a part.],
+  [STL (`.stl`), ASCII and binary], [Write], [A solid at a chosen deflection (@sec-stl-export), or your program's own mesh (@sec-stl); in millimeters (@sec-ref-stl).],
   [glTF 2.0 binary (`.glb`)], [Write], [Triangle meshes from your program's own mesh, in millimeters scaled to glTF's meters (@sec-glb, @sec-ref-glb). Not yet straight from a part.],
+  [BRep text (`.brep`)], [Both], [One solid's exact shape, in millimeters, through the geometry engine (@sec-files-brep). For a document's cache; not yet stored in documents.],
   [PNG (`.png`)], [Write], [Pictures from `swx-qa render` and `swx-qa sketch`.],
   [Saulitwerx document, unpacked form (a `.sltwx`, `.sltwxa` or `.sltwxd` folder)], [Both], [The manifest is checked in full; the model and properties are kept as JSON objects, not yet tied to a part (@ch-files, @sec-ref-files).],
   [Saulitwerx document, packed form (one `.sltwx`, `.sltwxa` or `.sltwxd` file, a ZIP)], [Both], [The same files as the unpacked form, deflate-compressed; checked as for a folder, plus each entry's CRC-32 and size (@sec-files-packed, @sec-ref-files).],
@@ -644,6 +651,10 @@ A unit that is not one of the seven in @sec-ref-expr, including an empty one, co
   [`read_sltwx(path)`], [Reads the `Document` in the ZIP archive `path`. Entries may be stored (method 0) or deflated (method 8); each one needed is checked against its CRC-32 and uncompressed size. `manifest.json` and `model.json` required, `properties.json` optional; other entries (`cache/…`, `thumbnail.png`, `attachments/…`) skipped. Then the same checks as `read_unpacked`. Not read: ZIP64, encrypted and multi-disk archives.],
   [`read_manifest(text)`], [Reads and checks the text of a `manifest.json` (rules below).],
   [`write_manifest(m)`], [The text of a `manifest.json` for `m`, in canonical form, extra fields included, `model_hash` left out when `None`.],
+  [`model_hash(v)`], [`sha256:` and the 64 lowercase hexadecimal digits of the SHA-256 of `v`'s canonical JSON, for `v` exactly as given (@sec-files-hash).],
+  [`sha256(bytes)`], [The 32-byte SHA-256 digest of `bytes` (FIPS 180-4).],
+  [`Document::refresh_model_hash()`], [Sets `manifest.model_hash` to the hash of the `model.json` the writers write: after a part's sets are sorted by `id`. A part whose IDs break the rules is hashed as given.],
+  [`Document::cache_is_fresh(recorded)`], [`true` only when `recorded` equals the hash `refresh_model_hash` would record; a cache stamped with it still matches the model. Any other text, malformed or not, gives `false`.],
   [`to_canonical_json(v)`], [Any JSON-representable value as canonical JSON: names in byte order at every level, 2-space indent, one member or element per line, `": "` after each name, `{}` and `[]` for empty ones, other characters kept as UTF-8, one newline at the end. The same value always gives the same text.],
   [`Document`], [`manifest` (a `Manifest`), `model` (a JSON object), `properties` (`Option`, a JSON object).],
   [`DocumentKind`], [`Part` (`"part"`, `.sltwx`), `Assembly` (`"assembly"`, `.sltwxa`), `Drawing` (`"drawing"`, `.sltwxd`). `as_str()` gives the name.],
@@ -684,7 +695,16 @@ An absent array passes; one that isn't an array is `InvalidField` (`must be an a
 
 == STL files <sec-ref-stl>
 
-`swx_io::stl` writes a triangle mesh as STL (@sec-stl). A mesh is `positions`, a list of `[f32; 3]` corners in millimeters, and `indices`, a list of `u32` corner numbers, three per triangle, counterclockwise as seen from outside. Each facet's normal is worked out from its corners in that order: the unit vector along (b − a) × (c − a), or 0 0 0 for a triangle with no area. The whole mesh is checked before the first byte is written.
+`export_stl(kernel, shape, path, options)` saves a solid as an STL file in one step (@sec-stl-export). It checks the deflection first, so a bad one makes no file; then tessellates `shape` with `kernel` at that deflection, builds the whole file in memory with the writers below, and writes it to `path`, replacing any file there. In ASCII, the solid is named after the file, without its extension. It needs the `occt` feature of `swx-io` for a real solid.
+
+#ref-table(
+  columns: (auto, auto, 1fr),
+  header: ("Option", "Default", "Allowed values"),
+  [`StlOptions::deflection_mm`], [0.01], [How far, in mm, a triangle may stray from the true surface. Finite and > 0; smaller gives more triangles.],
+  [`StlOptions::format`], [`Binary`], [`StlFormat::Binary` or `StlFormat::Ascii`.],
+)
+
+`swx_io::stl` also writes a triangle mesh of your own as STL (@sec-stl). A mesh is `positions`, a list of `[f32; 3]` corners in millimeters, and `indices`, a list of `u32` corner numbers, three per triangle, counterclockwise as seen from outside. Each facet's normal is worked out from its corners in that order: the unit vector along (b − a) × (c − a), or 0 0 0 for a triangle with no area. The whole mesh is checked before the first byte is written.
 
 #ref-table(
   columns: (auto, 1fr),
@@ -693,7 +713,7 @@ An absent array passes; one that isn't an array is `InvalidField` (`must be an a
   [`write_stl_ascii(name, positions, indices, out)`], [Writes ASCII STL: `solid <name>`, then per triangle `facet normal`, `outer loop`, three `vertex` lines, `endloop`, `endfacet`, then `endsolid <name>`. Numbers in e notation, the shortest form that reads back to the same `f32` (`1e1`, `-2.5e-1`). Control and non-ASCII characters in `name` become `_`; an empty name gives `solid` and `endsolid` alone.],
 )
 
-`StlError` kinds: `IndexCountNotMultipleOf3` (holds the count), `IndexOutOfRange` (holds `index` and `vertex_count`), `NonFiniteCoordinate` (holds `vertex`), `TooManyTriangles` (binary only: more than a `u32` can count; holds the count), `Io` (writing to `out` failed; holds the message). The messages are in @sec-errors.
+`StlError` kinds: `IndexCountNotMultipleOf3` (holds the count), `IndexOutOfRange` (holds `index` and `vertex_count`), `NonFiniteCoordinate` (holds `vertex`), `TooManyTriangles` (binary only: more than a `u32` can count; holds the count), `Io` (writing to `out` failed; holds the message), and from `export_stl` only `InvalidDeflection` (holds the value) and `Kernel` (the shape couldn't be tessellated; holds the `KernelError`). The messages are in @sec-errors.
 
 == glTF files <sec-ref-glb>
 
