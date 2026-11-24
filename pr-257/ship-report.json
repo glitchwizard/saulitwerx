@@ -1,0 +1,131 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "PR #257 head",
+      "ref": "ec4cc10",
+      "task_id": "gates-232",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt --all --check",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-232",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy --workspace --all-targets -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-232",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test --workspace",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-232",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-io --features occt --all-targets -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-232",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-io --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-232",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-kernel --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-232",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-kernel --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-232",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-qa --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-232",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-qa --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-232",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`swx-core`: `FeatureKind::ImportedSolid { attachment: String, sha256: String }`. It reports no inputs and no parameters, and editing an unrelated parameter does not mark it dirty (spec §6 test 4).",
+      "`swx-io`: `Document` gains `attachments: BTreeMap<String, Vec<u8>>`, read and written under `attachments/` in both the unpacked folder and the `.sltwx` ZIP, names in sorted order. A 3-byte and a 100 KB attachment round-trip byte for byte through `write_unpacked`/`read_unpacked` and `write_sltwx`/`read_sltwx` (test 1). Existing golden files are still reproduced byte for byte.",
+      "`model.json` reads and writes `import_step` feature entries with `source.attachment`, `source.sha256`, `source.original_name` as in spec §1; write → read gives the same fields and a second write is byte-identical (test 2).",
+      "`embed_step(doc, path)` and `rebuild_imported(kernel, doc, id)` behave as spec §1–§3 say. Without OCCT, a missing attachment, a SHA-256 mismatch (one byte flipped) and a file without the `ISO-10303-21;` header each give the exact message from spec §3 (test 3).",
+      "With `--features occt`, round trip (test 5): a 40 × 25 × 10 mm box, `export_step`, `embed_step`, `write_sltwx`, `read_sltwx`, `rebuild_imported` gives volume 10 000 mm³ and bounding box (0, 0, 0)–(40, 25, 10), both within 1e-6 relative; the embedded bytes equal the exported file and `source.sha256` matches them. Same through the unpacked form.",
+      "With `--features occt`, units (test 6): replacing `SI_UNIT(.MILLI.,.METRE.)` with `SI_UNIT($,.METRE.)` in the exported text gives a 40 000 × 25 000 × 10 000 mm box, volume 1e13 mm³ within 1e-6 relative. (The spec's §4 calls this \"test 3\"; it is test 6.)",
+      "With `--features occt`, a file with a valid header and a truncated body gives `STEP import of … failed: …` at import and adds nothing to the document (test 7).",
+      "`Kernel::import_step` gets a doc comment on unit conversion citing ISO 10303-41 and the OCCT STEP translator guide (`xstep.cascade.unit`), as spec §4 says.",
+      "One appended ADR line in `docs/ARCHITECTURE.md` records the `swx-io → swx-kernel` path dependency and its `occt` feature (skip if #216 already added it). No new third-party dependency.",
+      "All existing tests pass unchanged; no test is weakened or removed.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and `cargo clippy -p swx-io --features occt --all-targets -- -D warnings && cargo test -p swx-io --features occt` pass.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-24T08:26:05.487673522+00:00",
+    "constraints": [],
+    "created_at": "2026-11-24T08:25:34.208607921+00:00",
+    "description": "M4-03a: STEP import as an embedded dumb solid feature",
+    "project_id": "saulitwerx",
+    "scope": "",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 9,
+      "estimate": null,
+      "id": "gates-232",
+      "status": "completed",
+      "title": "Run the gates for PR #257 at ec4cc10",
+      "type": "test"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
