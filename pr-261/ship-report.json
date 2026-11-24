@@ -1,0 +1,83 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(io): JSON Schema for a part's model.json, format v0.1",
+      "ref": "a4d3e8a",
+      "task_id": "m4-05c",
+      "type": "commit"
+    },
+    {
+      "description": "PR #261",
+      "ref": "https://github.com/glitchwizard/saulitwerx/pull/261",
+      "task_id": "m4-05c",
+      "type": "pr"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt --all --check",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-05c",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy --workspace --all-targets -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-05c",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test --workspace",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-05c",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "New `docs/specs/schema/model-part-0.1.json`: JSON Schema draft 2020-12 (`\"$schema\": \"https://json-schema.org/draft/2020-12/schema\"`), with `title` and `description`, canonical style (2-space indent, keys sorted), and: `type: object`, no top-level `required`, and no `additionalProperties: false` at any level (readers keep unknown fields); `properties` for `parameters`, `origin`, `sketches`, `features`, `end_of_part` and `bodies` (`end_of_part`: `type: string`; the arrays: `type: array`); each of the five ID arrays has `items` of `type: object` with `required: [\"id\"]` and `id`: `type: string`, `minLength: 1`; sketch `entities` and `constraints` are nested under `sketches.items.properties`; each ID array's `description` says IDs are unique within the array and that every array except `features` is written sorted by `id` (rules a schema cannot express; `swx-io` enforces them).",
+      "`docs/specs/schema/README.md` lists the new file in one line.",
+      "New integration test `crates/swx-io/tests/model_schema.rs` (schema read by path from `CARGO_MANIFEST_DIR`): the schema parses and is byte-identical to its canonical form; every top-level key of `crates/swx-io/tests/golden/bracket.sltwx/model.json` is in the schema's top-level `properties`; the test walks the schema's `properties` / `items` / `required` / `type` / `minLength` keywords (a small checker in the test, those keywords only): the golden model passes, and a copy with (1) an entity without `id`, (2) `\"id\": 5` on a body, (3) `\"id\": \"\"` on a feature fails the checker **and** is rejected by `read_unpacked`; a copy with two bodies sharing an `id` passes the checker but is rejected by `read_unpacked` (documents the rule the schema can't express).",
+      "All existing tests pass unchanged; no test is weakened or removed.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-24T10:28:53.723691562+00:00",
+    "constraints": [],
+    "created_at": "2026-11-24T10:28:44.275075890+00:00",
+    "description": "M4-05c: publish the JSON Schema for a part's model.json, format v0.1",
+    "project_id": "saulitwerx",
+    "scope": "docs/specs/schema/ and crates/swx-io/tests/ only",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 2,
+      "checks_count": 3,
+      "estimate": "small",
+      "id": "m4-05c",
+      "status": "completed",
+      "title": "Part model.json schema v0.1, README line, model_schema.rs test",
+      "type": "implement"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
