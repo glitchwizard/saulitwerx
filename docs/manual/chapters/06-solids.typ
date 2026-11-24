@@ -251,7 +251,7 @@ The program is `crates/swx-kernel/examples/multi_body.rs`. It does three things.
 
 == Open a STEP file from another program
 
-`import_step` reads any STEP file, and `swx-qa render --step` draws one (@ch-pictures). Everything in the file comes in as one shape. Saulitwerx can't edit an imported shape yet; using it as a starting feature is on the roadmap.
+`import_step` reads any STEP file, and `swx-qa render --step` draws one (@ch-pictures). Everything in the file comes in as one shape, in millimeters whatever unit the file was written in. To keep the file with a part, bring it in as a feature: @sec-files-import. An imported shape can be built on, but its own sizes can't be changed.
 
 == Save a part as an STL file <sec-stl-export>
 

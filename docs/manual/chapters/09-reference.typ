@@ -132,6 +132,8 @@ The output path must not exist, as a file, a folder or a link: `sltwx` never ove
   [`cargo run -p swx-io --example stl_mesh -- <dir>`], [Writes a four-triangle mesh as `<dir>/corner.stl` (ASCII) and `<dir>/corner-binary.stl`, and shows the errors (@sec-stl). Needs no OpenCascade.],
   [`cargo run -p swx-io --example glb_mesh -- <dir>`], [Writes the same mesh as `<dir>/corner.glb`, reads back its header and JSON, and shows the errors (@sec-glb). Needs no OpenCascade.],
   [`cargo run -p swx-io --example model_hash -- <dir>`], [Records a part's model hash, writes `<dir>/hashed.sltwx`, and checks the hash before and after an edit (@sec-files-hash). Needs no OpenCascade.],
+  [`cargo run -p swx-io --example document_cache -- <dir>`], [Writes `<dir>/cached.sltwx` with a mesh in its cache, reads it back after an edit, a damaged file and a broken index, and shows the cache-path error (@sec-files-cache). Needs no OpenCascade.],
+  [`cargo run -p swx-io --features occt --example import_step_part -- <dir>`], [Saves a block as `<dir>/block.step`, brings it into the part `<dir>/bracket.sltwx`, rebuilds it (`<dir>/rebuilt.step`), and shows the import and rebuild errors (@sec-files-import).],
   [`cargo run -p swx-kernel --features occt --example brep_text -- <file>`], [Writes the plate with a hole as BRep text in `<file>`, reads it back, and shows the errors (@sec-files-brep).],
   [`cargo build --release -p swx-io`], [Builds the `sltwx` command, at `target/release/sltwx` (@sec-ref-sltwx).],
   [`cargo run -p swx-kernel --example work_features`], [Builds work planes, axes and a point, and prints them (@sec-work). Needs no OpenCascade.],
@@ -621,12 +623,12 @@ A unit that is not one of the seven in @sec-ref-expr, including an empty one, co
 #ref-table(
   columns: (auto, auto, 1fr),
   header: ("Format", "Read / write", "Notes"),
-  [STEP (`.step`, `.stp`), ISO 10303-21], [Both], [Solids only. Written in millimeters.],
+  [STEP (`.step`, `.stp`), ISO 10303-21], [Both], [Solids only. Written in millimeters; read in the file's own length unit and converted to millimeters (millimeters when it names none). Can be kept inside a part (@sec-files-import).],
   [STL (`.stl`), ASCII and binary], [Write], [A solid at a chosen deflection (@sec-stl-export), or your program's own mesh (@sec-stl); in millimeters (@sec-ref-stl).],
   [glTF 2.0 binary (`.glb`)], [Write], [Triangle meshes from your program's own mesh, in millimeters scaled to glTF's meters (@sec-glb, @sec-ref-glb). Not yet straight from a part.],
-  [BRep text (`.brep`)], [Both], [One solid's exact shape, in millimeters, through the geometry engine (@sec-files-brep). For a document's cache; not yet stored in documents.],
+  [BRep text (`.brep`)], [Both], [One solid's exact shape, in millimeters, through the geometry engine (@sec-files-brep). For a document's cache (@sec-files-cache).],
   [PNG (`.png`)], [Write], [Pictures from `swx-qa render` and `swx-qa sketch`.],
-  [Saulitwerx document, unpacked form (a `.sltwx`, `.sltwxa` or `.sltwxd` folder)], [Both], [The manifest is checked in full; the model and properties are kept as JSON objects, not yet tied to a part (@ch-files, @sec-ref-files).],
+  [Saulitwerx document, unpacked form (a `.sltwx`, `.sltwxa` or `.sltwxd` folder)], [Both], [The manifest is checked in full; the model and properties are kept as JSON objects, not yet tied to a part; embedded files and the cache are kept byte for byte (@ch-files, @sec-ref-files).],
   [Saulitwerx document, packed form (one `.sltwx`, `.sltwxa` or `.sltwxd` file, a ZIP)], [Both], [The same files as the unpacked form, deflate-compressed; checked as for a folder, plus each entry's CRC-32 and size (@sec-files-packed, @sec-ref-files).],
 )
 
@@ -645,10 +647,10 @@ A unit that is not one of the seven in @sec-ref-expr, including an empty one, co
 #ref-table(
   columns: (auto, 1fr),
   header: ("Call", "What it does"),
-  [`write_unpacked(dir, doc)`], [Writes `doc` to the folder `dir`, made if missing: `manifest.json`, `model.json`, and `properties.json` when `doc.properties` is `Some` (deleted when `None`). Other entries in `dir` are left alone. A part's set arrays are written sorted by `id` (rules below); `doc` itself isn't changed. Nothing is written when `dir`'s extension doesn't match the manifest's kind, the model or properties isn't a JSON object, or a part's IDs break the rules.],
-  [`read_unpacked(dir)`], [Reads the `Document` in the folder `dir`. `manifest.json` and `model.json` required, `properties.json` optional; other entries not read. Checks the manifest, then the extension against its kind, then that the model is a JSON object and, for a part, its IDs, then the properties. Nothing is reordered.],
-  [`write_sltwx(path, doc)`], [Writes `doc` to the single file `path` as a ZIP archive, replacing any file there: `manifest.json`, `model.json`, then `properties.json` when `doc.properties` is `Some`, in that order, each deflated (method 8), with the same text `write_unpacked` writes and every date set to 1980-01-01 00:00, so the same document always gives the same bytes. A part's sets are sorted as for `write_unpacked`. Nothing is written when `path`'s extension doesn't match the manifest's kind, the model or properties isn't a JSON object, or a part's IDs break the rules. No ZIP64: an entry over 4 GB is refused.],
-  [`read_sltwx(path)`], [Reads the `Document` in the ZIP archive `path`. Entries may be stored (method 0) or deflated (method 8); each one needed is checked against its CRC-32 and uncompressed size. `manifest.json` and `model.json` required, `properties.json` optional; other entries (`cache/…`, `thumbnail.png`, `attachments/…`) skipped. Then the same checks as `read_unpacked`. Not read: ZIP64, encrypted and multi-disk archives.],
+  [`write_unpacked(dir, doc)`], [Writes `doc` to the folder `dir`, made if missing: `manifest.json`, `model.json`, and `properties.json` when `doc.properties` is `Some` (deleted when `None`); each of `doc.attachments` as `attachments/<name>`, deleting other files directly in `attachments/`; and with `doc.cache` `Some`, its files and `cache/index.json`, deleting other files in `cache/` and an unlisted `thumbnail.png` (with `None`, `cache/` and `thumbnail.png` are left alone). Other entries in `dir` are left alone. A part's set arrays are written sorted by `id` (rules below); `doc` itself isn't changed. Nothing is written when `dir`'s extension doesn't match the manifest's kind, the model or properties isn't a JSON object, a part's IDs break the rules, an attachment name isn't a plain file name, or a cache entry has a bad path or `model_hash`.],
+  [`read_unpacked(dir)`], [Reads the `Document` in the folder `dir`. `manifest.json` and `model.json` required, `properties.json` optional; the files directly in `attachments/` go into `attachments`; `cache/index.json` and the files it lists go into `cache` (cache rules below); other entries not read. Checks the manifest, then the extension against its kind, then that the model is a JSON object and, for a part, its IDs, then the properties. Nothing is reordered.],
+  [`write_sltwx(path, doc)`], [Writes `doc` to the single file `path` as a ZIP archive, replacing any file there: `manifest.json`, `model.json`, then `properties.json` when `doc.properties` is `Some`, then `attachments/<name>` in name order, then the cache's files in path order and `cache/index.json` last, each deflated (method 8), with the same text `write_unpacked` writes and every date set to 1980-01-01 00:00, so the same document always gives the same bytes. A part's sets are sorted as for `write_unpacked`. Nothing is written when `path`'s extension doesn't match the manifest's kind, the model or properties isn't a JSON object, or a part's IDs break the rules. No ZIP64: an entry over 4 GB is refused.],
+  [`read_sltwx(path)`], [Reads the `Document` in the ZIP archive `path`. Entries may be stored (method 0) or deflated (method 8); each one needed is checked against its CRC-32 and uncompressed size. `manifest.json` and `model.json` required, `properties.json` optional; `attachments/<name>` and the cache read as for `read_unpacked`; other entries skipped. Then the same checks as `read_unpacked`. Not read: ZIP64, encrypted and multi-disk archives.],
   [`read_manifest(text)`], [Reads and checks the text of a `manifest.json` (rules below).],
   [`write_manifest(m)`], [The text of a `manifest.json` for `m`, in canonical form, extra fields included, `model_hash` left out when `None`.],
   [`model_hash(v)`], [`sha256:` and the 64 lowercase hexadecimal digits of the SHA-256 of `v`'s canonical JSON, for `v` exactly as given (@sec-files-hash).],
@@ -656,7 +658,12 @@ A unit that is not one of the seven in @sec-ref-expr, including an empty one, co
   [`Document::refresh_model_hash()`], [Sets `manifest.model_hash` to the hash of the `model.json` the writers write: after a part's sets are sorted by `id`. A part whose IDs break the rules is hashed as given.],
   [`Document::cache_is_fresh(recorded)`], [`true` only when `recorded` equals the hash `refresh_model_hash` would record; a cache stamped with it still matches the model. Any other text, malformed or not, gives `false`.],
   [`to_canonical_json(v)`], [Any JSON-representable value as canonical JSON: names in byte order at every level, 2-space indent, one member or element per line, `": "` after each name, `{}` and `[]` for empty ones, other characters kept as UTF-8, one newline at the end. The same value always gives the same text.],
-  [`Document`], [`manifest` (a `Manifest`), `model` (a JSON object), `properties` (`Option`, a JSON object).],
+  [`Document::fresh_cache_file(path)`], [The bytes of the cache file `path`, such as `"cache/display.glb"`, when the document's cache holds it and its `model_hash` passes `cache_is_fresh`; otherwise `None` (@sec-files-cache).],
+  [`embed_step(kernel, doc, path)`], [Brings the STEP file `path` into the part `doc` and returns its `ImportStepFeature` (@sec-files-import). The file must start `ISO-10303-21;` and the geometry engine must read it as a shape with volume. Its bytes go into `attachments` as `<id>.step`; `model.json` gets an `import_step` feature named `Imported<N>` (the lowest `N` not taken) after `end_of_part` (which moves to it) or at the end, and a body named after the file without its extension. On any error `doc` is unchanged. Returns a `StepImportError`.],
+  [`rebuild_imported(kernel, doc, id)`], [The shape of the `import_step` feature `id`, read from its embedded copy after checking the copy's SHA-256. Returns a `StepImportError`.],
+  [`Document`], [`manifest` (a `Manifest`), `model` (a JSON object), `properties` (`Option`, a JSON object), `attachments` (file name → bytes, for `attachments/<name>`), `cache` (`Option<Cache>`).],
+  [`Cache`, `CacheEntry`], [`Cache::entries`: container path → `CacheEntry { model_hash, bytes }`. A path is `thumbnail.png` or `cache/<name>`, `<name>` a plain file name other than `index.json`; `model_hash` is `sha256:` and 64 lowercase hexadecimal digits.],
+  [`ImportStepFeature`], [`id`, `name`, `attachment` (`attachments/<id>.step`), `sha256`, `original_name` (file name only, for show), `suppressed`. In `model.json`: `type` `"import_step"` (`IMPORT_STEP`), `op` `"new_solid"`, and `attachment`, `sha256` and `original_name` under `source`.],
   [`DocumentKind`], [`Part` (`"part"`, `.sltwx`), `Assembly` (`"assembly"`, `.sltwxa`), `Drawing` (`"drawing"`, `.sltwxd`). `as_str()` gives the name.],
 )
 
@@ -673,7 +680,20 @@ A unit that is not one of the seven in @sec-ref-expr, including an empty one, co
   [Any other field], [No], [Kept in `Manifest::extra` and written back unchanged.],
 )
 
-The same rules, as a JSON Schema (draft 2020-12) for format version 0.1: `docs/specs/schema/manifest-0.1.json` (@sec-files-rules).
+The same rules, as a JSON Schema (draft 2020-12) for format version 0.1: `docs/specs/schema/manifest-0.1.json`. A part's `model.json` has one too: `docs/specs/schema/model-part-0.1.json` (@sec-files-rules).
+
+#block(breakable: false)[
+#ref-table(
+  columns: (1.3fr, 1fr),
+  header: ("Cache rule", "What happens"),
+  [No `cache/index.json`, or it isn't JSON, isn't an object, has a `cache_format` other than `1`, or its `entries` isn't a list], [`cache` is `None`. Never an error.],
+  [An entry with a bad `path`, `model_hash` or `sha256`], [That entry is dropped.],
+  [A listed file that is missing, or whose bytes don't match its `sha256`], [That entry is dropped.],
+  [A file in `cache/` the index doesn't list], [Not read.],
+  [An entry whose `model_hash` isn't the model's current hash], [Kept in `cache`, but `fresh_cache_file` gives `None`: it is stale.],
+  [Writing], [`cache/index.json` is written from `cache`: `cache_format` 1, then `entries` sorted by `path`, each with its `model_hash`, `path` and the `sha256` of its bytes. Freshness isn't checked.],
+)
+]
 
 #block(breakable: false)[
 #ref-table(

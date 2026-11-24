@@ -28,6 +28,9 @@
     ("Pitch", [How far a helix rises in one full turn; for a screw thread, the distance from one ridge to the next.]),
     ("Helix", [A curve that circles an axis at a fixed distance while rising the same amount each turn, like the handrail of a spiral staircase.]),
     ("Helical sweep", [A sweep whose path is a helix, for springs, coils and threads.]),
+    ("Attachment", [A file made elsewhere, such as a STEP file, kept byte for byte inside a Saulitwerx document, in its `attachments/` folder.]),
+    ("Dumb solid", [A solid with no history of its own, such as one brought in from a STEP file. Later features can build on it, but its own sizes can't be changed.]),
+    ("Cache index", [In a document's cache, the file `cache/index.json` that lists every cache file with its own hash and the model hash it was built from.]),
     ("Document file", [A Saulitwerx file that keeps a design with everything needed to edit it: a part (`.sltwx`), an assembly (`.sltwxa`) or a drawing (`.sltwxd`).]),
     ("JSON", [A plain-text way of writing down named values, readable by people and programs. Saulitwerx document files are written in it.]),
     ("Manifest", [The small file in a Saulitwerx document, `manifest.json`, that says what the document is, which format version wrote it, its id and its units.]),
@@ -151,6 +154,14 @@
 }
 
 = What's new
+
+== 2026-11-24: STEP files inside a part, and a document's cache
+
+- *New for developers:* bring a STEP file into a part as an imported feature. The file is kept inside the document, so the part works wherever the original goes, and the solid is read back from that copy (@sec-files-import).
+- *New for developers:* keep a cache in a document: stored results stamped with the model hash, handed out only while they still match the model, and set aside without an error when they are damaged (@sec-files-cache).
+- *New for developers:* a part's `model.json` has a published JSON Schema (@sec-files-rules).
+- *Changed:* reading and writing a document now keeps its embedded files and its cache (@sec-files-rules). How a STEP file's length unit is read is now described (@sec-files-import).
+- Reference: `embed_step`, `rebuild_imported`, `fresh_cache_file`, `Cache`, `CacheEntry`, `ImportStepFeature`, the cache rules, and two new samples. Help: the STEP-import and cache messages, and the known limitations updated. Glossary: attachment, cache index and dumb solid.
 
 == 2026-11-23: save a part as STL, and the model hash
 
@@ -350,8 +361,7 @@ These are the next items on the public roadmap. None of them works yet. When one
   [More part features], [Shells with walls of different thicknesses; fillets, chamfers, shells, holes, drafts, lofts, sweeps and work features kept in a part's history.],
   [Threads], [Model real screw threads, outside on a shaft or inside a hole, built on the helical sweep.],
   [Lasting references], [A feature built on a face or an edge keeps finding it when earlier features change.],
-  [Part files], [Save a part with its full history in a document file and open it again; stored solids, previews and display meshes, rebuilt when the model hash says they are stale.],
-  [STEP], [Bring in a STEP file as the first feature of a part.],
+  [Part files], [Save a part with its full history in a document file and open it again; its cache of solids, display mesh and preview built from the part, and rebuilt when it is stale.],
   [Desktop app], [A window with a 3D view, a model browser, sketch mode and property panels.],
 )
 

@@ -26,3 +26,7 @@ workspace = true
 [[example]]
 name = "export_part_stl"
 required-features = ["occt"]
+
+[[example]]
+name = "import_step_part"
+required-features = ["occt"]

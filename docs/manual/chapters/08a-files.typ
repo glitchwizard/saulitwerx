@@ -2,7 +2,7 @@
 
 = Saulitwerx document files <ch-files>
 
-#for-developers[This chapter calls `swx-io`, the crate that reads and writes Saulitwerx's own files, from Rust. Only @sec-files-brep needs OpenCascade.]
+#for-developers[This chapter calls `swx-io`, the crate that reads and writes Saulitwerx's own files, from Rust. Only @sec-files-import and @sec-files-brep need OpenCascade.]
 
 #idx("document file")
 A STEP file (@ch-solids) keeps only the finished shape. Open it again and you get a solid you can't edit: the sketches, dimensions, parameters and history that made it are gone. To come back to a design and change it, you need a file that keeps all of that. Saulitwerx has its own file for this, the #term[document file], and its layout is published in full, so any program may read or write it.
@@ -17,11 +17,16 @@ There are three kinds of document, told apart by the end of their name:
   [Drawing], [`.sltwxd`], [2D drawings of parts and assemblies (later milestones).],
 )
 
-A document is a set of small text files in #term[JSON], a plain-text way of writing down named values that people and programs can both read:
+At its heart, a document is a set of small text files in #term[JSON], a plain-text way of writing down named values that people and programs can both read:
 
 - *`manifest.json`* (#term[manifest]) says what the document is: its kind, the format version that wrote it, its id, its units, and which program made and last saved it.
 - *`model.json`* holds the design itself, and is what Saulitwerx rebuilds the part from.
 - *`properties.json`*, if present, holds facts about the document such as a part number or a material.
+
+Two more kinds of content are optional:
+
+- *`attachments/`* holds files the design is built from that were made elsewhere, kept byte for byte: today, a STEP file brought into a part (@sec-files-import).
+- *`cache/`* and *`thumbnail.png`* hold results worked out from the model, kept so the part can be shown at once when it is opened (@sec-files-cache). They can always be worked out again.
 
 #idx("ZIP")
 The same files can be kept in two ways, and both carry the same name:
@@ -31,7 +36,7 @@ The same files can be kept in two ways, and both carry the same name:
 
 Each file is written the same way every time, with its names in alphabetical order and one value per line, in either form. So the same document always gives the same bytes, and when you keep a design under version control a change shows up as a change to just the lines it touched.
 
-*In Saulitwerx today:* `swx-io` reads and writes both forms and checks the manifest, and the `sltwx` command turns a folder into a file and back (@sec-files-sltwx). In a part's `model.json`, every sketch, feature and body, and every piece and rule of a sketch, must carry its own ID, and the file is written in a fixed order (@sec-files-ids). Beyond that, `model.json` and `properties.json` are read and written as plain JSON objects: Saulitwerx can't yet fill `model.json` from a part's history or build a part from it, so a part can't be saved and opened again yet. Stored results are planned (*Coming next*); the first pieces are in @sec-files-hash and @sec-files-brep.
+*In Saulitwerx today:* `swx-io` reads and writes both forms and checks the manifest, and the `sltwx` command turns a folder into a file and back (@sec-files-sltwx). In a part's `model.json`, every sketch, feature and body, and every piece and rule of a sketch, must carry its own ID, and the file is written in a fixed order (@sec-files-ids). A STEP file can be brought into a part and kept inside it (@sec-files-import), and a document can carry a cache that knows when it is out of date (@sec-files-cache). Beyond that, `model.json` and `properties.json` are read and written as plain JSON objects: Saulitwerx can't yet fill `model.json` from a part's history or build a part from it, so a part can't be saved and opened again yet.
 
 // Keeps the task's heading and intro with its first step.
 #pagebreak(weak: true)
@@ -81,13 +86,15 @@ The program is `crates/swx-io/examples/unpacked_document.rs`. It does three thin
       extra: BTreeMap::new(),
   };
   ```],
-  [*Make the document.* A `Document` is the manifest, the model and the optional properties, the last two as JSON objects:
+  [*Make the document.* A `Document` is the manifest, the model and the optional properties, the last two as JSON objects, plus its embedded files and its cache, both empty here:
   ```rust
   let doc = Document {
       manifest,
       model: json!({ "parameters": [{ "name": "thickness",
                                       "expr": "10 mm" }] }),
       properties: Some(json!({ "part_number": "PL-001" })),
+      attachments: BTreeMap::new(),   // no embedded files
+      cache: None,                    // no cache
   };
   ```],
   [*Write it, and read it back.* The folder is made if it's missing:
@@ -231,6 +238,83 @@ Order matters only for features: they are the part's history (@ch-history), so t
 
 #note(title: [Reading never reorders])[Saulitwerx checks the IDs when it reads a part, and refuses a file that breaks the rules, but it gives you the lists in the order the file has them. Only writing sorts. Your program's own copy of the model isn't changed either: the sorted lists go only into the file.]
 
+== Bring a STEP file into a part <sec-files-import>
+
+#for-developers[This section calls the geometry engine, so it needs OpenCascade.]
+
+#idx("imported solid")
+Sooner or later you'll want to build on a shape someone else made: a motor from a supplier's catalog, or a bracket drawn in another program. They send it as a STEP file (@ch-solids). A STEP file holds only the finished shape, with none of the sketches and features that made it, so it comes into your part as a #term[dumb solid]: a solid with no history of its own, which later features can build on but whose own sizes you can't change.
+
+Saulitwerx copies the whole STEP file into the document, as an #term[attachment], and adds one feature to the part's history, named `Imported1` (then `Imported2`, and so on). Keeping a copy means the part keeps working when the original file is moved, renamed or deleted, and you can send the part to someone without the STEP file. Whenever the part is rebuilt, the solid is read again from that copy.
+
+#idx("units")
+The STEP file says what unit its lengths are in, and they are converted to millimeters as it is read: a 1 inch cube comes in as a 25.4 mm cube, its true size. A file that doesn't say is read as millimeters. Importing never changes the part's own units.
+
+*In Saulitwerx today:* `swx-io` brings a STEP file into a part document, saves the copy with it in both forms, and reads the solid back from the copy. The imported solid is one body, however many solids the file holds; it can't be moved or turned as it comes in, and a part's history isn't rebuilt yet (@ch-history), so your program asks for the solid itself.
+
+#task-intro(
+  goal: [Bring a STEP file into a new part, save the part as one file, get the solid back from it, and see the errors.],
+  needs: [Saulitwerx built from source with OpenCascade, and `swx-qa` built with it too (@ch-install).],
+  time: [10 minutes.],
+)
+
+#steps(
+  [#block(breakable: false)[Run the sample program, and tell it to work in a folder called `import`:
+  #term-block("cargo run -p swx-io --features occt --example import_step_part -- import")
+  It makes a block with a hole and saves it as `block.step`, standing in for a file from another program. Then it brings the file into a new part, saves the part as `bracket.sltwx`, reads it back, and gets the solid from the copy inside. Last come five errors on purpose:
+  #term-block(label: "Output", "wrote import/block.step: 9497.35 mm³\nimported as feature Imported1 from block.step\nattachments: [\"ft-ec796e41.step\"]\n…  (the model, shown in step 3)\nrebuilt from import/bracket.sltwx: 9497.35 mm³, 40 x 25 x 10 mm\nmissing file -> error: cannot read STEP file `import/missing.step`: No\n    such file or directory (os error 2)\nnot STEP -> error: `import/notes.txt` is not a STEP file (ISO 10303-21\n    header missing)\ncut short -> error: STEP import of `import/cut-short.step` failed: kernel\n    failure: import_step from import/cut-short.step failed\ndamaged copy -> error: Imported1: embedded STEP file\n    `attachments/ft-ec796e41.step` is damaged (sha256 does not match)\nmissing copy -> error: Imported1: embedded STEP file\n    `attachments/ft-ec796e41.step` is missing")
+  The geometry engine's own reports, rows of `*`, are left out, and five long lines are wrapped here to fit the page. Your ID, `ft-ec796e41` here, will be different: it is taken from the file's hash (@sec-files-hash), and a STEP file records the moment it was written.]],
+  [Read the first two lines. The block is 40 × 25 × 10 = 10000 mm³, less a hole 8 mm across: π × 4² × 10 = 502.65 mm³. It came into the part as `Imported1`, and its copy is kept under the name `ft-ec796e41.step`, after the feature's ID.],
+  [#block(breakable: false)[Look at the part's model:
+  #term-block("unzip -p import/bracket.sltwx model.json")
+  It has one feature and one body:
+  #term-block(label: "Output", "{\n  \"bodies\": [\n    {\n      \"created_by\": \"ft-ec796e41\",\n      \"id\": \"b-ec796e41\",\n      \"name\": \"block\"\n    }\n  ],\n  \"features\": [\n    {\n      \"id\": \"ft-ec796e41\",\n      \"name\": \"Imported1\",\n      \"op\": \"new_solid\",\n      \"source\": {\n        \"attachment\": \"attachments/ft-ec796e41.step\",\n        \"original_name\": \"block.step\",\n        \"sha256\": \"sha256:ec796e41bf594f7ed07b58d9334f57ca44c00fbd6158d8b\n    b6aa5075622fc2d18\"\n      },\n      \"suppressed\": false,\n      \"type\": \"import_step\"\n    }\n  ]\n}")
+  The hash is wrapped here to fit the page. The feature says where its copy is (`attachment`), the copy's hash (`sha256`), and the name of the file you picked (`original_name`), for show only: Saulitwerx never opens that file again. The body is named after the file, without its `.step`.]],
+  [#block(breakable: false)[List what the part's file holds:
+  #term-block("unzip -l import/bracket.sltwx")
+  The STEP file sits inside, after the manifest and the model:
+  #term-block(label: "Output", "Archive:  import/bracket.sltwx\n  Length      Date    Time    Name\n---------  ---------- -----   ----\n      273  1980-01-01 00:00   manifest.json\n      496  1980-01-01 00:00   model.json\n    19036  1980-01-01 00:00   attachments/ft-ec796e41.step\n---------                     -------\n    19805                     3 files")]],
+  [Read the `rebuilt` line. The solid read back from the copy has the same volume, and the block's size, 40 × 25 × 10 mm.],
+  [#block(breakable: false)[Draw it. The sample also saved the rebuilt solid as `rebuilt.step`:
+  #term-block("target/release/swx-qa render --step import/rebuilt.step -o rebuilt.png")
+  Open `rebuilt.png`. You should see the block of @fig-import-rebuilt.]],
+  [Read the first three errors. They come when you import, and leave the part as it was. A file that isn't there can't be read. A file that doesn't start the way every STEP file does (`ISO-10303-21;`) is refused before the geometry engine sees it. A STEP file cut short is refused by the geometry engine, which prints its reason above the message.],
+  [Read the last two. They come when the part is rebuilt: the program changed one byte of the copy, then deleted it. The part still opens, but the feature fails and names its copy. A damaged copy is caught by its hash.],
+)
+
+#result[A part that carries a STEP file inside it, and gets the same solid back from it, wherever the original file goes.]
+
+// cargo run -p swx-io --features occt --example import_step_part -- import
+// swx-qa render --step import/rebuilt.step --size 900x700 -o docs/manual/img/import-rebuilt.png
+#shot(
+  "img/import-rebuilt.png",
+  width: 65%,
+  alt: "A rectangular block with one round hole through the middle of its top face",
+  caption: [The block rebuilt from the STEP file kept inside `bracket.sltwx`: 40 × 25 × 10 mm with a hole 8 mm across, 9497.35 mm³, the same as the file that went in.],
+) <fig-import-rebuilt>
+
+#block(breakable: false)[
+=== How the sample is built
+
+The program is `crates/swx-io/examples/import_step_part.rs`. It does two things.
+
+#steps(
+  [*Bring the file in.* `embed_step` checks the file, has the geometry engine read it, then adds the copy, the feature and the body to the document, and returns the feature:
+  ```rust
+  let feature = embed_step(&k, &mut doc, &step)?;
+  // feature.name: "Imported1"; feature.id: "ft-…"
+  ```],
+  [*Get the solid back* from the copy, here after saving and reading the part:
+  ```rust
+  let solid = rebuild_imported(&k, &back, &feature.id)?;
+  ```],
+)
+]
+
+#tip(title: [Where the new feature goes])[The import is added at the end of the history. If the model is rolled back (its `end_of_part`, @sec-roll-back), it goes just after the rollback marker, and the marker moves down to it, so the solid you just brought in is the last feature built.]
+
+#caution(title: [The copy doesn't follow the original])[Changes to the original STEP file never reach the part. To use a newer version, import it again: it comes in as a new feature, `Imported2`, beside the old one. A command to replace a feature's file is planned.]
+
 == Tell whether a cache is up to date <sec-files-hash>
 
 #idx("cache")
@@ -239,7 +323,7 @@ Rebuilding a part from its history takes time, and a large part takes longer. So
 #idx("hash")
 To tell whether it still matches, Saulitwerx uses a #term[hash]: a short code worked out from every byte of a file. The same file always gives the same hash; change a single byte and the hash comes out completely different. Saulitwerx uses #term[SHA-256], a published standard hash, written as `sha256:` and 64 hexadecimal digits. The manifest's `model_hash` records the hash of `model.json`, and each cache file records the hash of the model it was built from. When the two differ, the cache is #term(key: "stale")[stale]: ignore it and rebuild.
 
-*In Saulitwerx today:* `swx-io` works out a part's model hash, records it in the manifest, and tells whether a hash still matches the model. Documents don't hold a cache yet: nothing writes or reads cache files, and reading a document doesn't compare `model_hash` with `model.json`.
+*In Saulitwerx today:* `swx-io` works out a part's model hash, records it in the manifest, and tells whether a hash still matches the model. A document can carry a cache, each file stamped with this hash (@sec-files-cache). Reading a document doesn't compare the manifest's `model_hash` with `model.json`: it is the cache's own stamps that count.
 
 #task-intro(
   goal: [Record a part's model hash, check it against the file on disk, and see a change make it stale.],
@@ -274,6 +358,77 @@ let ok = doc.cache_is_fresh(&recorded);  // true while the model matches
 
 #note(title: [Hash the document, not the value])[`model_hash(value)` hashes a JSON value exactly as given. For a part whose lists aren't yet sorted by ID, that differs from the hash of the file Saulitwerx writes. Use `refresh_model_hash` and `cache_is_fresh` on the `Document`: they hash exactly what is written.]
 
+== Keep a cache in a document <sec-files-cache>
+
+A document's cache is a set of files kept beside the model: in `cache/`, plus a preview picture, `thumbnail.png`, at the top. One more file, `cache/index.json`, the cache's #term(key: "cache index")[index], lists them all. For each one it records the hash of the file itself, so damage shows, and the model hash it was built from, so a change to the model shows. The files are:
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("File", "Holds"),
+  [`cache/body-<id>.brep`], [The finished solid of one body, as BRep text (@sec-files-brep). `<id>` is the body's ID.],
+  [`cache/display.glb`], [A mesh of the whole part, as a glTF file (@sec-glb), to show it on screen.],
+  [`thumbnail.png`], [A small preview picture of the part.],
+)
+
+The cache is never needed. Saulitwerx can always work everything out again from `model.json`, so a cache that is missing, damaged or out of date is quietly set aside, never reported as an error. Opening a document never fails because of its cache.
+
+*In Saulitwerx today:* `swx-io` reads and writes a document's cache and its index, in both forms, and hands out a cache file only while it is fresh. Your program fills the cache: nothing builds the files from a part yet, and nothing makes a thumbnail.
+
+#task-intro(
+  goal: [Keep a mesh in a part's cache, read it back, and see an edit, damage and a broken index set it aside.],
+  needs: [Saulitwerx built from source (@ch-install), and the `sltwx` command (@sec-files-sltwx). OpenCascade isn't needed.],
+  time: [5 minutes.],
+)
+
+#steps(
+  [#block(breakable: false)[Run the sample program, and tell it to write into the folder `files`:
+  #term-block("cargo run -p swx-io --example document_cache -- files")
+  It makes a small mesh, stamps it with the part's model hash, and writes the part with the mesh in its cache. Then it reads it back four ways, and tries one mistake on purpose:
+  #term-block(label: "Output", "wrote files/cached.sltwx\nfresh mesh after reading back: true\nafter an edit: fresh mesh false, entries kept 1\ndamaged mesh: read ok, fresh mesh false, entries kept 0\nbroken index: read ok, cache none\nbad path -> error: invalid field `cache`: \"cache/meshes/display.glb\" is\n    not `thumbnail.png` or `cache/<name>`\nfiles/bad.sltwx exists: false")
+  One long line is wrapped here to fit the page.]],
+  [#block(breakable: false)[Look at the index:
+  #term-block("cat files/cached.sltwx/cache/index.json")
+  It lists the one file, with the model hash it was built from and its own hash:
+  #term-block(label: "Output", "{\n  \"cache_format\": 1,\n  \"entries\": [\n    {\n      \"model_hash\": \"sha256:a6d70ddcb1d1182c1f879b1982851fb7cd0b184cb9185c\n    26d2f6b8f742f30a61\",\n      \"path\": \"cache/display.glb\",\n      \"sha256\": \"sha256:17b2924df5cb4eed9f449547ef7c67d7c02cd58d1c3e32648d\n    155e930b61c91d\"\n    }\n  ]\n}")
+  Both hashes are wrapped here to fit the page. The `model_hash` is the same one the manifest records.]],
+  [Read the second line. Read back unchanged, the mesh is there and fresh: a program may show it at once.],
+  [Read the third line. After one parameter changes from 10 mm to 12 mm, the mesh is still held, but no longer handed out as fresh: it shows the old part. A program would build it again, and store the new one the next time it saves.],
+  [Read the next two lines. The program wrote a second copy of the part and changed one byte of its mesh: reading works, and the damaged file is simply dropped. Then it replaced the index with text that isn't JSON: reading still works, and the part has no cache at all.],
+  [Read the error. Cache files live directly in `cache/`, or are `thumbnail.png`; a path with another folder in it is refused, and nothing is written.],
+  [#block(breakable: false)[Pack the part into one file, and list what it holds:
+  #term-block("target/release/sltwx pack files/cached.sltwx cached.sltwx\nunzip -l cached.sltwx")
+  The cache comes after the model, with its index last:
+  #term-block(label: "Output", "Archive:  cached.sltwx\n  Length      Date    Time    Name\n---------  ---------- -----   ----\n      364  1980-01-01 00:00   manifest.json\n       87  1980-01-01 00:00   model.json\n      688  1980-01-01 00:00   cache/display.glb\n      276  1980-01-01 00:00   cache/index.json\n---------                     -------\n     1415                     4 files")]],
+)
+
+#result[A part that carries a ready-made mesh, used only while it still matches the model, and set aside without fuss when it doesn't.]
+
+#block(breakable: false)[
+=== How the sample is built
+
+The program is `crates/swx-io/examples/document_cache.rs`. It builds a `Document` as in @sec-files, then:
+
+#steps(
+  [*Stamp the file and keep it.* The cache maps each path to its bytes and the model hash it was built from:
+  ```rust
+  doc.refresh_model_hash();
+  let hash = doc.manifest.model_hash.clone().unwrap_or_default();
+  let mut cache = Cache::default();
+  cache.entries.insert("cache/display.glb".into(),
+                       CacheEntry { model_hash: hash, bytes: glb });
+  doc.cache = Some(cache);
+  ```],
+  [*Ask for it back.* `fresh_cache_file` gives the bytes only while the file is fresh, and `None` otherwise:
+  ```rust
+  if let Some(bytes) = back.fresh_cache_file("cache/display.glb") {
+      /* show it */
+  }
+  ```],
+)
+]
+
+#note(title: [Writing with and without a cache])[A document read without a cache index has `cache: None`, and writing it as a folder leaves any `cache/` folder there alone. With `Some`, the folder is made to match: cache files the document doesn't hold are deleted, `thumbnail.png` too. Writing never checks freshness, so after you change a model, build the cache again or set it to `None` before you save.]
+
 #block(breakable: false)[
 == Keep a solid's exact shape as text <sec-files-brep>
 
@@ -283,7 +438,7 @@ let ok = doc.cache_is_fresh(&recorded);  // true while the model matches
 A cache keeps the finished solid of each body as a #term[BRep] text file (`cache/body-<id>.brep`). BRep, short for _boundary representation_, describes a solid by its faces, edges and corners and the exact surfaces and curves they lie on: the same exact shape a STEP file holds, not a mesh. The format is OpenCascade's own published text format, so reading it back gives the geometry engine the very same solid, with nothing to work out again.
 ]
 
-*In Saulitwerx today:* the geometry engine writes any solid as BRep text and reads it back. Nothing writes the text into a document yet; that comes with the cache.
+*In Saulitwerx today:* the geometry engine writes any solid as BRep text and reads it back, and a document's cache can hold the text (@sec-files-cache). Nothing builds it from a part's bodies yet: your program writes each body's text and puts it in the cache itself.
 
 #task-intro(
   goal: [Write a plate with a hole as BRep text, read it back, and compare.],
@@ -307,17 +462,22 @@ The program is `crates/swx-kernel/examples/brep_text.rs`. It calls `write_brep(s
 
 == What is read and written <sec-files-rules>
 
-- *Reading* (`read_unpacked`) needs `manifest.json` and `model.json`; `properties.json` is optional. Anything else in the folder is left alone. The manifest is checked first, then the folder's name against its kind, then the other two files, which must each be a JSON object.
+- *Reading* (`read_unpacked`) needs `manifest.json` and `model.json`; `properties.json` is optional. The files directly in `attachments/` are read as the document's embedded files. The cache index and the files it lists are read as its cache; a missing or unreadable index means no cache, and a listed file that is missing or doesn't match its hash is dropped, never an error. Anything else in the folder is left alone. The manifest is checked first, then the folder's name against its kind, then the other two files, which must each be a JSON object.
 - *A part's IDs* are checked when a part is read, after the model is found to be an object, and again before it is written (@sec-files-ids). Assemblies and drawings aren't checked yet.
-- *Writing* (`write_unpacked`) checks the name, the two objects and a part's IDs before it writes anything, so it never writes a document it would refuse to read back. A part's sets are written sorted by ID; its features keep their order. It writes the three files, deletes `properties.json` when the document has no properties, and leaves everything else in the folder as it was.
-- *Reading one file* (`read_sltwx`) needs the same two files, inside the ZIP. Each one is unpacked, then checked against its CRC-32 and its recorded size, so damage is reported rather than read. Anything else in the file, such as stored previews, is skipped. After that, the checks are the same as for a folder.
-- *Writing one file* (`write_sltwx`) makes the same checks, and the same sorting, before it writes anything, then writes `manifest.json`, `model.json` and `properties.json` (when the document has properties), in that order, each compressed, with the fixed date. It replaces the whole file.
+- *Writing* (`write_unpacked`) checks the name, the two objects, a part's IDs, the embedded files' names and the cache's paths and hashes before it writes anything, so it never writes a document it would refuse to read back. A part's sets are written sorted by ID; its features keep their order. It writes the three files, deletes `properties.json` when the document has no properties, and writes each embedded file into `attachments/`, deleting any there the document doesn't hold. With a cache, it writes the cache files and the index, and deletes other files in `cache/`, and `thumbnail.png` when the cache has none; without one, it leaves `cache/` and `thumbnail.png` alone. Everything else in the folder stays as it was.
+- *Reading one file* (`read_sltwx`) needs the same two files, inside the ZIP. Each entry it reads is unpacked, then checked against its CRC-32 and its recorded size, so damage is reported rather than read. Embedded files and the cache are read as for a folder; anything else in the file is skipped. After that, the checks are the same as for a folder.
+- *Writing one file* (`write_sltwx`) makes the same checks, and the same sorting, before it writes anything, then writes `manifest.json`, `model.json` and `properties.json` (when the document has properties), then the embedded files by name, then the cache files by path with `cache/index.json` last, each compressed, with the fixed date. It replaces the whole file.
 - *One manifest at a time.* `read_manifest` checks the text of a `manifest.json` on its own, and `write_manifest` writes one. `to_canonical_json` writes any JSON value the way every document file is written.
 
 The manifest's checks, and the rest of the rules, are in @sec-ref-files.
 
 #for-developers[
-*Check a manifest from your own program.* The rules for `manifest.json` are also published as a #term(key: "JSON Schema")[JSON Schema], a standard description that JSON tools in any language can check a file against: `docs/specs/schema/manifest-0.1.json` in the source code, for format version 0.1. It sets the same required fields and allowed values as the table in @sec-ref-files, and, like Saulitwerx, it lets a manifest carry fields it doesn't know. `read_manifest` stays the final word; the project's tests check that the two agree. Schemas for `model.json` and `properties.json` aren't published yet.
+*Check a document from your own program.* The rules for `manifest.json` and for a part's `model.json` are also published as #term(key: "JSON Schema")[JSON Schemas], standard descriptions that JSON tools in any language can check a file against. They are in the source code, for format version 0.1:
+
+- `docs/specs/schema/manifest-0.1.json` sets the same required fields and allowed values as the table in @sec-ref-files.
+- `docs/specs/schema/model-part-0.1.json` describes a part's model: its ID lists (each item an object with a non-empty text `id`), its `parameters`, its `origin` and its rollback marker, `end_of_part`. A schema can't say that IDs are unique or sorted; Saulitwerx checks that itself (@sec-files-ids).
+
+Like Saulitwerx, both let a file carry fields they don't know. Saulitwerx's own reader stays the final word; the project's tests check that each schema agrees with it. No schema is published yet for `properties.json`, an assembly or a drawing.
 ]
 
 == Common mistakes <sec-files-mistakes>
@@ -337,4 +497,8 @@ The manifest's checks, and the rest of the rules, are in @sec-ref-files.
 - *An item without an ID.* #raw("`bodies[1]` needs a non-empty string `id`"). That item has no `"id"`, an empty one, or one that isn't text (`"id": 7` is a number, so it doesn't count). Give it a text ID. A list that isn't a list at all gives #raw("invalid field `bodies`: must be an array").
 - *Converting onto an existing name.* `sltwx: plate.sltwx: already exists`. `sltwx` never overwrites. Delete the old copy first, or choose another name.
 - *Unpacking into a folder that isn't there.* `sltwx: copy/plate.sltwx: parent folder does not exist`. `unpack` makes the last folder in the path, not the ones above it. Make them first with `mkdir -p copy`.
+- *A text file named `.step`.* #raw("`notes.txt` is not a STEP file (ISO 10303-21 header missing)"). Every STEP file starts with `ISO-10303-21;`. Ask for the file again, saved as STEP from the program that made it.
+- *A STEP file the geometry engine can't read.* #raw("STEP import of `part.step` failed: …"). The file is damaged or cut short. The geometry engine prints its reason above the message.
+- *A damaged or missing copy of an imported file.* #raw("Imported1: embedded STEP file `attachments/ft-ec796e41.step` is damaged (sha256 does not match)"), or #raw("… is missing"). Something changed or deleted the copy inside the document. The part still opens; use an earlier copy of the document, or import the STEP file again.
+- *A cache file outside `cache/`.* #raw("invalid field `cache`: \"cache/meshes/display.glb\" is not `thumbnail.png` or `cache/<name>`"). Keep cache files directly in `cache/`, with no folders inside it.
 - *A file from a future version.* `unsupported format_version "1.0.0": only major version 0 is supported`. This Saulitwerx can't read it; use a newer one.
