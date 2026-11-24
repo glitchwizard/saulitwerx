@@ -256,8 +256,27 @@ For an unknown entity, `infer` and `add_inferred` give the sketch messages above
   [#raw("duplicate id `body-2` in `bodies`")], [Two items in one of a part's ID arrays share an ID. Give one a new ID (@sec-files-ids).],
   [#raw("`bodies[1]` needs a non-empty string `id`")], [That item of a part's ID array has no `id`, an empty one, or one that isn't text. The array is named by its path, such as #raw("sketches[0].constraints") (@sec-files-ids).],
   [#raw("invalid field `bodies`: must be an array")], [One of a part's ID arrays isn't a list. Write it in square brackets.],
+  [#raw("invalid field `cache`: \"cache/meshes/display.glb\" is not `thumbnail.png` or `cache/<name>`")], [A cache file's path has a folder in it, or isn't in `cache/`. Nothing is written. Keep cache files directly in `cache/` (@sec-files-cache). A malformed `model_hash` in a cache entry is refused the same way.],
+  [#raw("invalid field `attachments`: …")], [An embedded file's name isn't a plain file name: it is empty, holds a `/` or `\`, or is `.` or `..`. Nothing is written.],
 )
 ]
+
+=== From importing STEP files
+
+The first five come from `embed_step`, when you import, and leave the part as it was. The last three come from `rebuild_imported`, when the solid is read back from the part; the part itself still opens (@sec-files-import).
+
+#ref-table(
+  columns: (1fr, 1fr),
+  header: ("Message", "Meaning and fix"),
+  [#raw("cannot read STEP file `import/missing.step`: No such file or directory (os error 2)")], [The file isn't there, or can't be read. Check the path.],
+  [#raw("`import/notes.txt` is not a STEP file (ISO 10303-21 header missing)")], [The file doesn't start with `ISO-10303-21;`, as every STEP file does. Ask for the file again, saved as STEP.],
+  [#raw("STEP import of `import/cut-short.step` failed: kernel failure: import_step from import/cut-short.step failed")], [The geometry engine couldn't read the file: it is damaged or cut short. Its reason is printed just above.],
+  [#raw("`part.step` contains no solid")], [The file holds only surfaces, curves or points, with no volume. Ask for a STEP file of the solid.],
+  [#raw("cannot import into this document: only a part can import a STEP file")], [Import into a part (`.sltwx`), not an assembly or a drawing. The same start covers a `model.json` whose `features` or `bodies` isn't a list.],
+  [#raw("no `import_step` feature with id `ft-1`")], [The part has no imported feature with that ID. Use the `id` that `embed_step` returned.],
+  [#raw("Imported1: embedded STEP file `attachments/ft-ec796e41.step` is missing"), #raw("… is damaged (sha256 does not match)")], [The copy inside the document was deleted or changed. Use an earlier copy of the document, or import the STEP file again.],
+  [#raw("Imported1: STEP import failed: …")], [The geometry engine couldn't read the copy, though its hash matches. The reason follows the colon.],
+)
 
 === From `sltwx`
 
@@ -271,6 +290,8 @@ Every message starts `sltwx: `. Any document-file message above can follow it, w
   [The usage, starting `usage: sltwx pack`], [The words after `sltwx` aren't one of its forms: a missing or extra path, or a misspelled `pack` or `unpack`. Exit status 2 (@sec-ref-sltwx).],
 )
 
+// Keeps the heading with its table.
+#pagebreak(weak: true)
 === From STL files
 
 `swx_io::stl` messages have no prefix (@sec-ref-stl).
@@ -306,7 +327,7 @@ Every message starts `sltwx: `. Any document-file message above can follow it, w
 
 *Is there a version with windows and buttons?* Not yet. The desktop app is a later milestone; see *Coming next*.
 
-*Can I open files from other CAD programs?* Yes, if you save them as STEP first. Saulitwerx doesn't read any program's own native file format, and won't.
+*Can I open files from other CAD programs?* Yes, if you save them as STEP first. A STEP file can also be brought into a part and kept inside it (@sec-files-import). Saulitwerx doesn't read any program's own native file format, and won't.
 
 *Can I 3D-print a part?* Yes. Save it as an STL file with `export_stl`, which every 3D-printing program reads (@sec-stl-export). For now that takes a short program; the desktop app will make it a menu choice.
 
@@ -334,7 +355,7 @@ Every message starts `sltwx: `. Any document-file message above can follow it, w
 - Extrudes, revolves, lofts, sweeps, fillets, chamfers, shells, holes, drafts and work features aren't recorded in a part's history, so they don't rebuild when a parameter changes.
 - `model.json` isn't yet filled from a part or read back into one, so work can't be saved with its history (@ch-files). A single file can't hold more than 4 GB (no ZIP64).
 - A solid can be saved as STL in one step (@sec-stl-export), but STL can't be read. GLB files are written only from a mesh your program gives (@sec-glb), and hold only the shape, with no colors or materials.
-- A document's model hash can be recorded and checked (@sec-files-hash), but documents hold no cache yet, and reading one doesn't check the hash.
+- A document can hold a cache (@sec-files-cache), but nothing builds the cache from a part or makes a thumbnail yet: your program fills it.
 - `swx-qa sketch` draws only its two built-in sketches. Your own sketches need a short program (@sec-picture-sketch). Sketch pictures show no dimension arrows and no marks for constraints such as horizontal.
 - A parameter's unit is free text. Only the seven units of @sec-ref-expr are understood by formulas; any other unit counts as none.
 - When a new value breaks a formula that depends on it, the formula keeps its old value without an error (@sec-param-formulas).
@@ -344,4 +365,4 @@ Every message starts `sltwx: `. Any document-file message above can follow it, w
 - There are no angle dimensions and no point-to-line distance yet.
 - Profiles don't split pieces where they cross; crossing pieces are an error.
 - Only built on and tested on Ubuntu Linux.
-- An imported STEP file becomes one shape, and can't be edited.
+- An imported STEP file becomes one shape, and one body however many solids it holds. Its sizes can't be edited, it can't be moved or turned as it comes in, and its faces and edges can't be picked. It can't be linked to the original file, or its file replaced (@sec-files-import).
