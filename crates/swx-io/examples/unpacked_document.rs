@@ -43,6 +43,7 @@ fn main() -> Res<()> {
         manifest,
         model: json!({ "parameters": [{ "name": "thickness", "expr": "10 mm" }] }),
         properties: Some(json!({ "part_number": "PL-001", "material": "aluminum" })),
+        attachments: BTreeMap::new(),
         cache: None,
     };
 

@@ -42,6 +42,7 @@ fn main() -> Res<()> {
             "parameters": [{ "name": "thickness", "expr": "10 mm" }]
         }),
         properties: None,
+        attachments: BTreeMap::new(),
         cache: None,
     };
 

@@ -14,12 +14,17 @@
 //! The [`stl`] module writes triangle meshes as binary or ASCII STL
 //! ([`write_stl_binary`], [`write_stl_ascii`]), and the [`glb`] module
 //! writes them as binary glTF 2.0 ([`write_glb`]).
+//!
+//! [`embed_step`] imports a STEP file into a part as an embedded dumb solid
+//! (`attachments/`, [`Document::attachments`]) and [`rebuild_imported`]
+//! gets its shape back (`docs/specs/M4-03.md`).
 
 mod cache;
 mod canonical;
 pub mod glb;
 mod hash;
 mod ids;
+mod import;
 mod manifest;
 mod packed;
 pub mod stl;
@@ -30,6 +35,7 @@ pub use cache::{Cache, CacheEntry};
 pub use canonical::to_canonical_json;
 pub use glb::{write_glb, GlbError};
 pub use hash::{model_hash, sha256};
+pub use import::{embed_step, rebuild_imported, ImportStepFeature, StepImportError, IMPORT_STEP};
 pub use manifest::{read_manifest, write_manifest, DocumentKind, Manifest, Units};
 pub use packed::{read_sltwx, write_sltwx};
 pub use stl::{export_stl, write_stl_ascii, write_stl_binary, StlError, StlFormat, StlOptions};
