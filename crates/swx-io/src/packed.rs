@@ -4,6 +4,7 @@
 use std::fs;
 use std::path::Path;
 
+use crate::cache::{check_cache, index_json, read_cache, INDEX};
 use crate::ids::{check_ids, model_for_write};
 use crate::unpacked::{check_extension, check_object, io_error, parse_object};
 use crate::zip;
@@ -20,8 +21,11 @@ const PROPERTIES: &str = "properties.json";
 /// APPNOTE 6.3.x, sections 4.3.7, 4.3.12 and 4.3.16).
 ///
 /// `manifest.json` and `model.json` are required; `properties.json` is
-/// optional. Other entries (`cache/…`, `thumbnail.png`, `attachments/…`)
-/// are ignored. Entries may be stored (method 0) or deflated (method 8);
+/// optional. `cache/index.json` and the entries it lists are read into
+/// [`Document::cache`] as [`read_unpacked`](crate::read_unpacked) does: a
+/// missing or unreadable index, or a listed entry that is missing, damaged
+/// or fails its SHA-256, is never an error. Other entries (unlisted
+/// `cache/…`, `attachments/…`) are ignored. Entries may be stored (method 0) or deflated (method 8);
 /// each entry read is checked against its CRC-32 and uncompressed size.
 ///
 /// # Errors
@@ -67,10 +71,16 @@ pub fn read_sltwx(path: &Path) -> Result<Document, FormatError> {
         Some(text) => Some(parse_object(PROPERTIES, &text)?),
         None => None,
     };
+    let raw = |name: &str| -> Option<Vec<u8>> {
+        let entry = entries.iter().find(|e| e.name() == name)?;
+        zip::extract(&bytes, entry).ok()
+    };
+    let cache = read_cache(raw(INDEX), raw);
     Ok(Document {
         manifest,
         model,
         properties,
+        cache,
     })
 }
 
@@ -78,7 +88,9 @@ pub fn read_sltwx(path: &Path) -> Result<Document, FormatError> {
 /// (`docs/specs/FILE_FORMAT.md`, "Container"), replacing any file there.
 ///
 /// The entries are `manifest.json`, `model.json`, then `properties.json`
-/// when `doc.properties` is `Some`, in that order, each deflated, with the
+/// when `doc.properties` is `Some`, then, when `doc.cache` is `Some`, its
+/// files in path order and `cache/index.json` last, in that order, each
+/// deflated, with the
 /// same canonical bytes [`write_unpacked`](crate::write_unpacked) writes,
 /// including a part's set arrays sorted by `id`.
 /// Entry timestamps are fixed (1980-01-01 00:00), so writing the same
@@ -90,7 +102,8 @@ pub fn read_sltwx(path: &Path) -> Result<Document, FormatError> {
 /// `kind` ([`FormatError::ExtensionMismatch`]) or `model` or `properties`
 /// is not a JSON object ([`FormatError::InvalidField`] naming the file), or
 /// a part's IDs are invalid ([`FormatError::InvalidId`],
-/// [`FormatError::DuplicateId`]).
+/// [`FormatError::DuplicateId`]), or a cache entry has a bad path or
+/// `model_hash` ([`FormatError::InvalidField`] naming `cache`).
 /// [`FormatError::MalformedArchive`] if an entry is too large for a non-ZIP64
 /// archive; [`FormatError::Io`] when the file can't be written.
 pub fn write_sltwx(path: &Path, doc: &Document) -> Result<(), FormatError> {
@@ -98,6 +111,9 @@ pub fn write_sltwx(path: &Path, doc: &Document) -> Result<(), FormatError> {
     check_object(MODEL, &doc.model)?;
     if let Some(p) = &doc.properties {
         check_object(PROPERTIES, p)?;
+    }
+    if let Some(c) = &doc.cache {
+        check_cache(c)?;
     }
     let model = model_for_write(doc.manifest.kind, &doc.model)?;
     let manifest = write_manifest(&doc.manifest);
@@ -107,6 +123,13 @@ pub fn write_sltwx(path: &Path, doc: &Document) -> Result<(), FormatError> {
         vec![(MANIFEST, manifest.as_bytes()), (MODEL, model.as_bytes())];
     if let Some(p) = &properties {
         entries.push((PROPERTIES, p.as_bytes()));
+    }
+    let index = doc.cache.as_ref().map(index_json);
+    if let (Some(c), Some(index)) = (&doc.cache, &index) {
+        for (path, entry) in &c.entries {
+            entries.push((path.as_str(), entry.bytes.as_slice()));
+        }
+        entries.push((INDEX, index.as_bytes()));
     }
     let bytes = zip::write_zip(&entries)?;
     fs::write(path, bytes).map_err(|e| io_error(path, &e))

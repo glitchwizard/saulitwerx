@@ -42,6 +42,7 @@ fn main() -> Res<()> {
             "parameters": [{ "name": "thickness", "expr": "10 mm" }]
         }),
         properties: None,
+        cache: None,
     };
 
     // Record the hash of the model.json the writers will write.

@@ -9,6 +9,9 @@ use std::path::Path;
 
 use serde_json::Value;
 
+use crate::cache::{
+    check_cache, index_json, is_entry_path, read_cache, Cache, CACHE_DIR, INDEX, THUMBNAIL,
+};
 use crate::ids::{check_ids, model_for_write};
 use crate::{
     model_hash, read_manifest, to_canonical_json, write_manifest, DocumentForm, DocumentKind,
@@ -19,7 +22,7 @@ const MANIFEST: &str = "manifest.json";
 const MODEL: &str = "model.json";
 const PROPERTIES: &str = "properties.json";
 
-/// A whole `.sltwx` document: its three JSON files.
+/// A whole `.sltwx` document: its three JSON files and its derived cache.
 ///
 /// `model.json` and `properties.json` are kept as JSON objects: their typed
 /// schemas come later. Unknown fields in them round-trip unchanged.
@@ -31,6 +34,10 @@ pub struct Document {
     pub model: Value,
     /// `properties.json`, if the document has one. Always a JSON object.
     pub properties: Option<Value>,
+    /// Derived files (`cache/…` and `thumbnail.png`, recorded in
+    /// `cache/index.json`; `docs/specs/M4-04.md` §2). `None`: the document
+    /// has no readable cache index.
+    pub cache: Option<Cache>,
 }
 
 impl Document {
@@ -50,6 +57,18 @@ impl Document {
         recorded == self.written_model_hash()
     }
 
+    /// The bytes of the cache file `path` (e.g. `"cache/display.glb"`) when
+    /// its entry is fresh, else `None` (`docs/specs/M4-04.md` §1 checks 1–4):
+    /// `cache` has an entry at a valid path, and its `model_hash` is the
+    /// hash of the model as the writers would write it now
+    /// ([`Document::cache_is_fresh`]). Checks 2–3 (the file exists and
+    /// matches its recorded SHA-256) were made when the cache was read.
+    pub fn fresh_cache_file(&self, path: &str) -> Option<&[u8]> {
+        let entry = self.cache.as_ref()?.entries.get(path)?;
+        (is_entry_path(path) && self.cache_is_fresh(&entry.model_hash))
+            .then_some(entry.bytes.as_slice())
+    }
+
     /// [`model_hash`] of the model as the writers write it. A model whose
     /// IDs fail the writers' check can't be written; it is hashed as given.
     fn written_model_hash(&self) -> String {
@@ -64,8 +83,11 @@ impl Document {
 /// (`docs/specs/FILE_FORMAT.md`, "Unpacked (git-friendly) form").
 ///
 /// `manifest.json` and `model.json` are required; `properties.json` is
-/// optional. Other entries (`cache/`, `thumbnail.png`, `attachments/`) are
-/// not read.
+/// optional. `cache/index.json` and the files it lists are read into
+/// [`Document::cache`]: a missing or unreadable index gives `None`, and an
+/// entry with a bad path or hash, or whose file is missing or doesn't match
+/// its SHA-256, is dropped, never an error (`docs/specs/M4-04.md` §4).
+/// Other entries (unlisted files in `cache/`, `attachments/`) are not read.
 ///
 /// # Errors
 ///
@@ -103,10 +125,14 @@ pub fn read_unpacked(dir: &Path) -> Result<Document, FormatError> {
         Some(text) => Some(parse_object(PROPERTIES, &text)?),
         None => None,
     };
+    let cache = read_cache(fs::read(dir.join(INDEX)).ok(), |path| {
+        fs::read(dir.join(path)).ok()
+    });
     Ok(Document {
         manifest,
         model,
         properties,
+        cache,
     })
 }
 
@@ -119,9 +145,14 @@ pub fn read_unpacked(dir: &Path) -> Result<Document, FormatError> {
 /// `model.json` (`sketches`, `bodies`, and each sketch's `entities` and
 /// `constraints`) are written sorted by `id` in byte order; `features` keep
 /// their order, and `doc` itself is not changed. `properties.json` is written
-/// when `doc.properties` is `Some` and removed when it is `None`. No other
-/// entry in `dir` is touched, so `cache/`, `thumbnail.png`, `attachments/`
-/// and unknown files stay as they were.
+/// when `doc.properties` is `Some` and removed when it is `None`.
+///
+/// With `doc.cache` `None`, `cache/` and `thumbnail.png` are left as they
+/// are. With `Some(c)`, each entry's bytes are written at its path and
+/// `cache/index.json` is written from `c`; the other files in `cache/` are
+/// removed, and `thumbnail.png` too when `c` has no entry for it, so the
+/// folder matches `c` (`docs/specs/M4-04.md` §2). No other entry in `dir` is
+/// touched, so `attachments/` and unknown files stay as they were.
 ///
 /// # Errors
 ///
@@ -130,7 +161,8 @@ pub fn read_unpacked(dir: &Path) -> Result<Document, FormatError> {
 /// not a JSON object ([`FormatError::InvalidField`] naming the file), or a
 /// part's IDs are invalid ([`FormatError::InvalidId`],
 /// [`FormatError::DuplicateId`]), since [`read_unpacked`] would reject the
-/// result. Otherwise
+/// result, or a cache entry has a bad path or `model_hash`
+/// ([`FormatError::InvalidField`] naming `cache`). Otherwise
 /// [`FormatError::Io`] when `dir` or a file can't be created, written or
 /// removed.
 pub fn write_unpacked(dir: &Path, doc: &Document) -> Result<(), FormatError> {
@@ -138,6 +170,9 @@ pub fn write_unpacked(dir: &Path, doc: &Document) -> Result<(), FormatError> {
     check_object(MODEL, &doc.model)?;
     if let Some(p) = &doc.properties {
         check_object(PROPERTIES, p)?;
+    }
+    if let Some(c) = &doc.cache {
+        check_cache(c)?;
     }
     let model = model_for_write(doc.manifest.kind, &doc.model)?;
     fs::create_dir_all(dir).map_err(|e| io_error(dir, &e))?;
@@ -151,6 +186,44 @@ pub fn write_unpacked(dir: &Path, doc: &Document) -> Result<(), FormatError> {
             Err(e) if e.kind() == io::ErrorKind::NotFound => {}
             Err(e) => return Err(io_error(&props, &e)),
         },
+    }
+    match &doc.cache {
+        Some(c) => write_cache(dir, c),
+        None => Ok(()),
+    }
+}
+
+/// Writes `cache` into `dir` so that `cache/` and `thumbnail.png` match it.
+fn write_cache(dir: &Path, cache: &Cache) -> Result<(), FormatError> {
+    let folder = dir.join(CACHE_DIR);
+    fs::create_dir_all(&folder).map_err(|e| io_error(&folder, &e))?;
+    for (path, entry) in &cache.entries {
+        let file = dir.join(path);
+        fs::write(&file, &entry.bytes).map_err(|e| io_error(&file, &e))?;
+    }
+    let index = dir.join(INDEX);
+    fs::write(&index, index_json(cache)).map_err(|e| io_error(&index, &e))?;
+    for entry in fs::read_dir(&folder).map_err(|e| io_error(&folder, &e))? {
+        let entry = entry.map_err(|e| io_error(&folder, &e))?;
+        let path = entry.path();
+        let is_file = entry
+            .file_type()
+            .map_err(|e| io_error(&path, &e))?
+            .is_file();
+        let listed = entry.file_name().to_str().is_some_and(|name| {
+            name == "index.json" || cache.entries.contains_key(&format!("{CACHE_DIR}/{name}"))
+        });
+        if is_file && !listed {
+            fs::remove_file(&path).map_err(|e| io_error(&path, &e))?;
+        }
+    }
+    if !cache.entries.contains_key(THUMBNAIL) {
+        let thumb = dir.join(THUMBNAIL);
+        match fs::remove_file(&thumb) {
+            Ok(()) => {}
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+            Err(e) => return Err(io_error(&thumb, &e)),
+        }
     }
     Ok(())
 }
@@ -300,6 +373,248 @@ mod tests {
         let back = read_unpacked(&out).unwrap();
         assert_eq!(back.model["x_future"], serde_json::json!({"a": 1}));
         assert_eq!(back, doc);
+    }
+
+    /// The golden part with a fresh 3-entry cache (M4-04 spec §6 test 1).
+    fn cached_doc() -> Document {
+        use crate::{Cache, CacheEntry};
+        use std::collections::BTreeMap;
+        let mut doc = read_unpacked(&fixture()).unwrap();
+        doc.refresh_model_hash();
+        let hash = doc.manifest.model_hash.clone().unwrap();
+        let entry = |bytes: Vec<u8>| CacheEntry {
+            model_hash: hash.clone(),
+            bytes,
+        };
+        let glb: Vec<u8> = (0..1024u32).map(|i| (i * 7 % 251) as u8).collect();
+        doc.cache = Some(Cache {
+            entries: BTreeMap::from([
+                ("cache/body-b-1.brep".to_owned(), entry(vec![1, 2, 3])),
+                ("cache/display.glb".to_owned(), entry(glb)),
+                (
+                    "thumbnail.png".to_owned(),
+                    entry(b"\x89PNG\r\n\x1a\nthumb".to_vec()),
+                ),
+            ]),
+        });
+        doc
+    }
+
+    fn cache_paths(doc: &Document) -> Vec<&str> {
+        doc.cache
+            .as_ref()
+            .unwrap()
+            .entries
+            .keys()
+            .map(String::as_str)
+            .collect()
+    }
+
+    /// Writes `doc` unpacked to a fresh folder and returns it.
+    fn written(tmp: &TempDir, doc: &Document) -> PathBuf {
+        let dir = tmp.0.join("bracket.sltwx");
+        write_unpacked(&dir, doc).unwrap();
+        dir
+    }
+
+    #[test]
+    fn cache_round_trips_in_both_forms_and_index_is_canonical() {
+        let doc = cached_doc();
+        let tmp = TempDir::new("cache-rt");
+        let dir = written(&tmp, &doc);
+        let back = read_unpacked(&dir).unwrap();
+        assert_eq!(back, doc);
+        let index = fs::read_to_string(dir.join(INDEX)).unwrap();
+        let v: Value = serde_json::from_str(&index).unwrap();
+        assert_eq!(v["cache_format"], 1);
+        let entries = v["entries"].as_array().unwrap();
+        let paths: Vec<&str> = entries
+            .iter()
+            .map(|e| e["path"].as_str().unwrap())
+            .collect();
+        assert_eq!(
+            paths,
+            ["cache/body-b-1.brep", "cache/display.glb", "thumbnail.png"]
+        );
+        for e in entries {
+            let entry = &doc.cache.as_ref().unwrap().entries[e["path"].as_str().unwrap()];
+            assert_eq!(e["model_hash"], json_str(&entry.model_hash));
+            assert_eq!(e["sha256"], json_str(&crate::cache::hash_of(&entry.bytes)));
+        }
+        assert_eq!(index, to_canonical_json(&v));
+        assert_eq!(
+            fs::read(dir.join("thumbnail.png")).unwrap(),
+            b"\x89PNG\r\n\x1a\nthumb"
+        );
+        // The JSON files are as without a cache.
+        for name in [MANIFEST, MODEL, PROPERTIES] {
+            let mut plain = doc.clone();
+            plain.cache = None;
+            let other = TempDir::new("cache-plain");
+            let p = written(&other, &plain);
+            assert_eq!(
+                fs::read(dir.join(name)).unwrap(),
+                fs::read(p.join(name)).unwrap()
+            );
+        }
+        // Writing twice is byte-identical.
+        write_unpacked(&dir, &back).unwrap();
+        assert_eq!(fs::read_to_string(dir.join(INDEX)).unwrap(), index);
+
+        let zip = tmp.0.join("packed.sltwx");
+        crate::write_sltwx(&zip, &doc).unwrap();
+        let first = fs::read(&zip).unwrap();
+        assert_eq!(crate::read_sltwx(&zip).unwrap(), doc);
+        crate::write_sltwx(&zip, &doc).unwrap();
+        assert_eq!(fs::read(&zip).unwrap(), first);
+    }
+
+    fn json_str(s: &str) -> Value {
+        Value::String(s.to_owned())
+    }
+
+    #[test]
+    fn model_edit_makes_the_cache_stale() {
+        let mut doc = cached_doc();
+        let paths: Vec<String> = cache_paths(&doc).iter().map(|p| p.to_string()).collect();
+        for p in &paths {
+            let want = &doc.cache.as_ref().unwrap().entries[p].bytes;
+            assert_eq!(doc.fresh_cache_file(p), Some(want.as_slice()), "{p}");
+        }
+        assert_eq!(doc.fresh_cache_file("cache/missing.bin"), None);
+        doc.model["parameters"][0]["expr"] = json_str("41 mm");
+        for p in &paths {
+            assert_eq!(doc.fresh_cache_file(p), None, "{p}");
+        }
+        assert_eq!(doc.cache.as_ref().unwrap().entries.len(), 3);
+    }
+
+    #[test]
+    fn damaged_cache_file_drops_only_that_entry() {
+        let tmp = TempDir::new("cache-damaged");
+        let dir = written(&tmp, &cached_doc());
+        let glb = dir.join("cache/display.glb");
+        let mut bytes = fs::read(&glb).unwrap();
+        bytes[100] ^= 1;
+        fs::write(&glb, bytes).unwrap();
+        let back = read_unpacked(&dir).unwrap();
+        assert_eq!(cache_paths(&back), ["cache/body-b-1.brep", "thumbnail.png"]);
+    }
+
+    #[test]
+    fn unreadable_index_reads_as_no_cache() {
+        let tmp = TempDir::new("cache-index");
+        let dir = written(&tmp, &cached_doc());
+        for text in ["{", "[]", r#"{"cache_format": 2, "entries": []}"#] {
+            fs::write(dir.join(INDEX), text).unwrap();
+            assert_eq!(read_unpacked(&dir).unwrap().cache, None, "{text}");
+        }
+    }
+
+    #[test]
+    fn bad_index_entries_drop_only_themselves() {
+        let tmp = TempDir::new("cache-entries");
+        let doc = cached_doc();
+        let dir = written(&tmp, &doc);
+        let good: Value = serde_json::from_slice(&fs::read(dir.join(INDEX)).unwrap()).unwrap();
+        let hash = doc.manifest.model_hash.clone().unwrap();
+        let some = &good["entries"][0];
+        let mut bad = vec![];
+        for path in ["../x", "cache/index.json", "cache/a/b"] {
+            let mut e = some.clone();
+            e["path"] = json_str(path);
+            bad.push(e);
+        }
+        let mut no_prefix = good["entries"][2].clone();
+        let sha = no_prefix["sha256"].as_str().unwrap()["sha256:".len()..].to_owned();
+        no_prefix["sha256"] = json_str(&sha);
+        // Files exist for every bad path that stays inside the folder.
+        fs::create_dir_all(dir.join("cache/a")).unwrap();
+        fs::write(dir.join("cache/a/b"), [1, 2, 3]).unwrap();
+        // `../x` resolves to a real file with the same bytes as the body, so
+        // only the path check can drop it.
+        fs::write(tmp.0.join("x"), [1, 2, 3]).unwrap();
+        for e in bad.into_iter().chain([no_prefix]) {
+            let mut v = good.clone();
+            let entries = v["entries"].as_array_mut().unwrap();
+            // A bad entry replaces the thumbnail's when it names it.
+            if e["path"] == json_str("thumbnail.png") {
+                entries.remove(2);
+            }
+            entries.push(e.clone());
+            fs::write(dir.join(INDEX), to_canonical_json(&v)).unwrap();
+            let back = read_unpacked(&dir).unwrap();
+            let want: Vec<&str> = if e["path"] == json_str("thumbnail.png") {
+                vec!["cache/body-b-1.brep", "cache/display.glb"]
+            } else {
+                vec!["cache/body-b-1.brep", "cache/display.glb", "thumbnail.png"]
+            };
+            assert_eq!(cache_paths(&back), want, "{e}");
+            assert!(back
+                .cache
+                .unwrap()
+                .entries
+                .values()
+                .all(|c| c.model_hash == hash));
+        }
+    }
+
+    #[test]
+    fn unlisted_cache_file_is_not_read_and_writing_a_cache_removes_it() {
+        let tmp = TempDir::new("cache-extra");
+        let doc = cached_doc();
+        let dir = written(&tmp, &doc);
+        fs::write(dir.join("cache/extra.bin"), b"extra").unwrap();
+        let back = read_unpacked(&dir).unwrap();
+        assert_eq!(back, doc);
+        write_unpacked(&dir, &back).unwrap();
+        assert!(!dir.join("cache/extra.bin").exists());
+        // A cache without a thumbnail removes `thumbnail.png`.
+        let mut no_thumb = doc.clone();
+        no_thumb
+            .cache
+            .as_mut()
+            .unwrap()
+            .entries
+            .remove("thumbnail.png");
+        write_unpacked(&dir, &no_thumb).unwrap();
+        assert!(!dir.join("thumbnail.png").exists());
+        assert_eq!(read_unpacked(&dir).unwrap(), no_thumb);
+    }
+
+    #[test]
+    fn no_cache_leaves_an_existing_cache_folder_untouched() {
+        let tmp = TempDir::new("cache-none");
+        let dir = written(&tmp, &cached_doc());
+        fs::write(dir.join("cache/extra.bin"), b"extra").unwrap();
+        let before: Vec<(PathBuf, Vec<u8>)> = [
+            "cache/index.json",
+            "cache/display.glb",
+            "cache/extra.bin",
+            "thumbnail.png",
+        ]
+        .iter()
+        .map(|p| (dir.join(p), fs::read(dir.join(p)).unwrap()))
+        .collect();
+        let mut doc = read_unpacked(&dir).unwrap();
+        doc.cache = None;
+        write_unpacked(&dir, &doc).unwrap();
+        for (path, bytes) in before {
+            assert_eq!(fs::read(&path).unwrap(), bytes, "{}", path.display());
+        }
+    }
+
+    #[test]
+    fn writing_a_bad_cache_path_writes_nothing() {
+        let mut doc = cached_doc();
+        let entries = &mut doc.cache.as_mut().unwrap().entries;
+        let e = entries["thumbnail.png"].clone();
+        entries.insert("cache/index.json".into(), e);
+        let tmp = TempDir::new("cache-bad");
+        let dir = tmp.0.join("bracket.sltwx");
+        let err = write_unpacked(&dir, &doc).unwrap_err();
+        assert!(matches!(&err, FormatError::InvalidField { field, .. } if field == "cache"));
+        assert!(!dir.exists());
     }
 
     #[test]

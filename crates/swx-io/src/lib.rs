@@ -7,12 +7,15 @@
 //! folder form ([`Document`], [`read_unpacked`], [`write_unpacked`]) and as a
 //! single ZIP archive ([`read_sltwx`], [`write_sltwx`]). [`model_hash`]
 //! (SHA-256, [`sha256`]) tells whether a cache is stale
-//! ([`Document::cache_is_fresh`]).
+//! ([`Document::cache_is_fresh`]). A document's derived files and their
+//! index, `cache/index.json`, are held in [`Document::cache`] ([`Cache`]);
+//! [`Document::fresh_cache_file`] returns one only while it is fresh.
 //!
 //! The [`stl`] module writes triangle meshes as binary or ASCII STL
 //! ([`write_stl_binary`], [`write_stl_ascii`]), and the [`glb`] module
 //! writes them as binary glTF 2.0 ([`write_glb`]).
 
+mod cache;
 mod canonical;
 pub mod glb;
 mod hash;
@@ -23,6 +26,7 @@ pub mod stl;
 mod unpacked;
 mod zip;
 
+pub use cache::{Cache, CacheEntry};
 pub use canonical::to_canonical_json;
 pub use glb::{write_glb, GlbError};
 pub use hash::{model_hash, sha256};
