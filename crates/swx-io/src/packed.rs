@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
+use crate::cache::{check_cache, index_json, read_cache, INDEX};
 use crate::ids::{check_ids, model_for_write};
 use crate::unpacked::{
     check_attachment_names, check_extension, check_object, io_error, is_plain_name, parse_object,
@@ -25,8 +26,12 @@ const PROPERTIES: &str = "properties.json";
 ///
 /// `manifest.json` and `model.json` are required; `properties.json` is
 /// optional. Entries `attachments/<name>` with a plain file name are read
-/// into [`Document::attachments`]. Other entries (`cache/…`,
-/// `thumbnail.png`, deeper paths under `attachments/`) are ignored. Entries may be stored (method 0) or deflated (method 8);
+/// into [`Document::attachments`]. `cache/index.json` and the entries it
+/// lists are read into [`Document::cache`] as
+/// [`read_unpacked`](crate::read_unpacked) does: a missing or unreadable
+/// index, or a listed entry that is missing, damaged or fails its SHA-256,
+/// is never an error. Other entries (unlisted `cache/…`, deeper paths under
+/// `attachments/`) are ignored. Entries may be stored (method 0) or deflated (method 8);
 /// each entry read is checked against its CRC-32 and uncompressed size.
 ///
 /// # Errors
@@ -82,11 +87,17 @@ pub fn read_sltwx(path: &Path) -> Result<Document, FormatError> {
             attachments.insert(name.to_owned(), zip::extract(&bytes, entry)?);
         }
     }
+    let raw = |name: &str| -> Option<Vec<u8>> {
+        let entry = entries.iter().find(|e| e.name() == name)?;
+        zip::extract(&bytes, entry).ok()
+    };
+    let cache = read_cache(raw(INDEX), raw);
     Ok(Document {
         manifest,
         model,
         properties,
         attachments,
+        cache,
     })
 }
 
@@ -95,7 +106,9 @@ pub fn read_sltwx(path: &Path) -> Result<Document, FormatError> {
 ///
 /// The entries are `manifest.json`, `model.json`, then `properties.json`
 /// when `doc.properties` is `Some`, then `attachments/<name>` for each of
-/// `doc.attachments` in name order, each deflated, with the
+/// `doc.attachments` in name order, then, when `doc.cache` is `Some`, its
+/// files in path order and `cache/index.json` last, in that order, each
+/// deflated, with the
 /// same canonical bytes [`write_unpacked`](crate::write_unpacked) writes,
 /// including a part's set arrays sorted by `id`.
 /// Entry timestamps are fixed (1980-01-01 00:00), so writing the same
@@ -107,8 +120,10 @@ pub fn read_sltwx(path: &Path) -> Result<Document, FormatError> {
 /// `kind` ([`FormatError::ExtensionMismatch`]) or `model` or `properties`
 /// is not a JSON object ([`FormatError::InvalidField`] naming the file), or
 /// a part's IDs are invalid ([`FormatError::InvalidId`],
-/// [`FormatError::DuplicateId`]), or an attachment name is not a plain file
-/// name ([`FormatError::InvalidField`] naming `attachments`).
+/// [`FormatError::DuplicateId`]), an attachment name is not a plain file
+/// name ([`FormatError::InvalidField`] naming `attachments`), or a cache
+/// entry has a bad path or `model_hash` ([`FormatError::InvalidField`]
+/// naming `cache`).
 /// [`FormatError::MalformedArchive`] if an entry is too large for a non-ZIP64
 /// archive; [`FormatError::Io`] when the file can't be written.
 pub fn write_sltwx(path: &Path, doc: &Document) -> Result<(), FormatError> {
@@ -118,6 +133,9 @@ pub fn write_sltwx(path: &Path, doc: &Document) -> Result<(), FormatError> {
         check_object(PROPERTIES, p)?;
     }
     check_attachment_names(&doc.attachments)?;
+    if let Some(c) = &doc.cache {
+        check_cache(c)?;
+    }
     let model = model_for_write(doc.manifest.kind, &doc.model)?;
     let manifest = write_manifest(&doc.manifest);
     let model = to_canonical_json(&model);
@@ -134,6 +152,13 @@ pub fn write_sltwx(path: &Path, doc: &Document) -> Result<(), FormatError> {
     }
     for (name, bytes) in names.iter().zip(doc.attachments.values()) {
         entries.push((name.as_str(), bytes.as_slice()));
+    }
+    let index = doc.cache.as_ref().map(index_json);
+    if let (Some(c), Some(index)) = (&doc.cache, &index) {
+        for (path, entry) in &c.entries {
+            entries.push((path.as_str(), entry.bytes.as_slice()));
+        }
+        entries.push((INDEX, index.as_bytes()));
     }
     let bytes = zip::write_zip(&entries)?;
     fs::write(path, bytes).map_err(|e| io_error(path, &e))

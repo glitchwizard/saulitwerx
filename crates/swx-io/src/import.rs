@@ -663,6 +663,7 @@ mod tests {
                 model: json!({}),
                 properties: None,
                 attachments: BTreeMap::new(),
+                cache: None,
             }
         }
 

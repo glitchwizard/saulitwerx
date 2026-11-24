@@ -43,6 +43,7 @@ fn main() -> Res<()> {
         }),
         properties: None,
         attachments: BTreeMap::new(),
+        cache: None,
     };
 
     // Record the hash of the model.json the writers will write.
