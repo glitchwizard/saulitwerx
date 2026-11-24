@@ -3,6 +3,7 @@
 //! (`docs/specs/FILE_FORMAT.md`, "Container" and "Unpacked (git-friendly)
 //! form").
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::io;
 use std::path::Path;
@@ -18,8 +19,11 @@ use crate::{
 const MANIFEST: &str = "manifest.json";
 const MODEL: &str = "model.json";
 const PROPERTIES: &str = "properties.json";
+/// The folder (and ZIP name prefix) of embedded files (FILE_FORMAT.md,
+/// "Container"; `docs/specs/M4-03.md` §1).
+pub(crate) const ATTACHMENTS: &str = "attachments";
 
-/// A whole `.sltwx` document: its three JSON files.
+/// A whole `.sltwx` document: its three JSON files and its embedded files.
 ///
 /// `model.json` and `properties.json` are kept as JSON objects: their typed
 /// schemas come later. Unknown fields in them round-trip unchanged.
@@ -31,6 +35,10 @@ pub struct Document {
     pub model: Value,
     /// `properties.json`, if the document has one. Always a JSON object.
     pub properties: Option<Value>,
+    /// The files under `attachments/`, by file name (e.g. `"ft-3b10.step"`
+    /// for `attachments/ft-3b10.step`), byte for byte. Names are plain file
+    /// names: non-empty, no `/` or `\`, not `.` or `..`.
+    pub attachments: BTreeMap<String, Vec<u8>>,
 }
 
 impl Document {
@@ -64,8 +72,9 @@ impl Document {
 /// (`docs/specs/FILE_FORMAT.md`, "Unpacked (git-friendly) form").
 ///
 /// `manifest.json` and `model.json` are required; `properties.json` is
-/// optional. Other entries (`cache/`, `thumbnail.png`, `attachments/`) are
-/// not read.
+/// optional. The files directly in `attachments/` are read into
+/// [`Document::attachments`]. Other entries (`cache/`, `thumbnail.png`,
+/// subfolders of `attachments/`) are not read.
 ///
 /// # Errors
 ///
@@ -103,10 +112,12 @@ pub fn read_unpacked(dir: &Path) -> Result<Document, FormatError> {
         Some(text) => Some(parse_object(PROPERTIES, &text)?),
         None => None,
     };
+    let attachments = read_attachments(dir)?;
     Ok(Document {
         manifest,
         model,
         properties,
+        attachments,
     })
 }
 
@@ -119,9 +130,11 @@ pub fn read_unpacked(dir: &Path) -> Result<Document, FormatError> {
 /// `model.json` (`sketches`, `bodies`, and each sketch's `entities` and
 /// `constraints`) are written sorted by `id` in byte order; `features` keep
 /// their order, and `doc` itself is not changed. `properties.json` is written
-/// when `doc.properties` is `Some` and removed when it is `None`. No other
-/// entry in `dir` is touched, so `cache/`, `thumbnail.png`, `attachments/`
-/// and unknown files stay as they were.
+/// when `doc.properties` is `Some` and removed when it is `None`. Each of
+/// `doc.attachments` is written to `attachments/<name>` in name order, and
+/// files directly in `attachments/` that are not in the map are removed
+/// (the folder too, when it ends up empty). No other entry in `dir` is
+/// touched, so `cache/`, `thumbnail.png` and unknown files stay as they were.
 ///
 /// # Errors
 ///
@@ -130,7 +143,8 @@ pub fn read_unpacked(dir: &Path) -> Result<Document, FormatError> {
 /// not a JSON object ([`FormatError::InvalidField`] naming the file), or a
 /// part's IDs are invalid ([`FormatError::InvalidId`],
 /// [`FormatError::DuplicateId`]), since [`read_unpacked`] would reject the
-/// result. Otherwise
+/// result, or an attachment name is not a plain file name
+/// ([`FormatError::InvalidField`] naming `attachments`). Otherwise
 /// [`FormatError::Io`] when `dir` or a file can't be created, written or
 /// removed.
 pub fn write_unpacked(dir: &Path, doc: &Document) -> Result<(), FormatError> {
@@ -139,6 +153,7 @@ pub fn write_unpacked(dir: &Path, doc: &Document) -> Result<(), FormatError> {
     if let Some(p) = &doc.properties {
         check_object(PROPERTIES, p)?;
     }
+    check_attachment_names(&doc.attachments)?;
     let model = model_for_write(doc.manifest.kind, &doc.model)?;
     fs::create_dir_all(dir).map_err(|e| io_error(dir, &e))?;
     write_file(dir, MANIFEST, &write_manifest(&doc.manifest))?;
@@ -151,6 +166,96 @@ pub fn write_unpacked(dir: &Path, doc: &Document) -> Result<(), FormatError> {
             Err(e) if e.kind() == io::ErrorKind::NotFound => {}
             Err(e) => return Err(io_error(&props, &e)),
         },
+    }
+    write_attachments(dir, &doc.attachments)
+}
+
+/// Checks that every attachment name is a plain file name, so it stays
+/// inside `attachments/` in both container forms.
+pub(crate) fn check_attachment_names(
+    attachments: &BTreeMap<String, Vec<u8>>,
+) -> Result<(), FormatError> {
+    for name in attachments.keys() {
+        if !is_plain_name(name) {
+            return Err(FormatError::InvalidField {
+                field: ATTACHMENTS.into(),
+                reason: format!("{name:?} is not a plain file name"),
+            });
+        }
+    }
+    Ok(())
+}
+
+/// Whether `name` is a non-empty file name with no path separator that is
+/// not `.` or `..`.
+pub(crate) fn is_plain_name(name: &str) -> bool {
+    !name.is_empty() && name != "." && name != ".." && !name.contains(['/', '\\'])
+}
+
+/// The regular files directly in `dir/attachments/`, by name. A missing
+/// folder gives an empty map.
+fn read_attachments(dir: &Path) -> Result<BTreeMap<String, Vec<u8>>, FormatError> {
+    let folder = dir.join(ATTACHMENTS);
+    let mut out = BTreeMap::new();
+    let entries = match fs::read_dir(&folder) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(out),
+        Err(e) => return Err(io_error(&folder, &e)),
+    };
+    for entry in entries {
+        let entry = entry.map_err(|e| io_error(&folder, &e))?;
+        let path = entry.path();
+        let is_file = entry
+            .file_type()
+            .map_err(|e| io_error(&path, &e))?
+            .is_file();
+        let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+            continue;
+        };
+        if is_file && is_plain_name(&name) {
+            let bytes = fs::read(&path).map_err(|e| io_error(&path, &e))?;
+            out.insert(name, bytes);
+        }
+    }
+    Ok(out)
+}
+
+/// Makes the files directly in `dir/attachments/` equal `attachments`.
+fn write_attachments(
+    dir: &Path,
+    attachments: &BTreeMap<String, Vec<u8>>,
+) -> Result<(), FormatError> {
+    let folder = dir.join(ATTACHMENTS);
+    if !attachments.is_empty() {
+        fs::create_dir_all(&folder).map_err(|e| io_error(&folder, &e))?;
+    }
+    for (name, bytes) in attachments {
+        let path = folder.join(name);
+        fs::write(&path, bytes).map_err(|e| io_error(&path, &e))?;
+    }
+    let entries = match fs::read_dir(&folder) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(e) => return Err(io_error(&folder, &e)),
+    };
+    for entry in entries {
+        let entry = entry.map_err(|e| io_error(&folder, &e))?;
+        let path = entry.path();
+        let is_file = entry
+            .file_type()
+            .map_err(|e| io_error(&path, &e))?
+            .is_file();
+        let stale = match entry.file_name().to_str() {
+            Some(name) => !attachments.contains_key(name),
+            None => false,
+        };
+        if is_file && stale {
+            fs::remove_file(&path).map_err(|e| io_error(&path, &e))?;
+        }
+    }
+    if attachments.is_empty() {
+        // Only succeeds when nothing else (a subfolder) is left in it.
+        let _ = fs::remove_dir(&folder);
     }
     Ok(())
 }
@@ -223,7 +328,7 @@ pub(crate) fn parse_object(file: &str, text: &str) -> Result<Value, FormatError>
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -280,6 +385,70 @@ mod tests {
         }
         assert_eq!(fs::read_dir(&out).unwrap().count(), 3);
         assert_eq!(read_unpacked(&out).unwrap(), doc);
+    }
+
+    /// A 3-byte and a 100 KB attachment (M4-03 spec §6, test 1).
+    pub(crate) fn two_attachments() -> BTreeMap<String, Vec<u8>> {
+        let big: Vec<u8> = (0..100 * 1024u32)
+            .map(|i| (i.wrapping_mul(2_654_435_761) >> 13) as u8)
+            .collect();
+        BTreeMap::from([
+            ("z-small.bin".to_owned(), vec![0, 255, 10]),
+            ("a-big.step".to_owned(), big),
+        ])
+    }
+
+    #[test]
+    fn attachments_round_trip_byte_for_byte_and_stale_files_go() {
+        let mut doc = read_unpacked(&fixture()).unwrap();
+        assert!(doc.attachments.is_empty());
+        doc.attachments = two_attachments();
+        let tmp = TempDir::new("attach");
+        let out = tmp.0.join("bracket.sltwx");
+        write_unpacked(&out, &doc).unwrap();
+        for (name, bytes) in &doc.attachments {
+            assert_eq!(&fs::read(out.join(ATTACHMENTS).join(name)).unwrap(), bytes);
+        }
+        let back = read_unpacked(&out).unwrap();
+        assert_eq!(back.attachments, doc.attachments);
+        assert_eq!(
+            back.attachments.keys().collect::<Vec<_>>(),
+            ["a-big.step", "z-small.bin"]
+        );
+        assert_eq!(back, doc);
+        // The other three files are unchanged by having attachments.
+        for name in [MANIFEST, MODEL, PROPERTIES] {
+            assert_eq!(
+                fs::read(out.join(name)).unwrap(),
+                fs::read(fixture().join(name)).unwrap(),
+                "{name}"
+            );
+        }
+
+        // Dropping one removes its file; dropping all removes the folder.
+        doc.attachments.remove("z-small.bin");
+        write_unpacked(&out, &doc).unwrap();
+        assert!(!out.join(ATTACHMENTS).join("z-small.bin").exists());
+        assert_eq!(read_unpacked(&out).unwrap(), doc);
+        doc.attachments.clear();
+        write_unpacked(&out, &doc).unwrap();
+        assert!(!out.join(ATTACHMENTS).exists());
+    }
+
+    #[test]
+    fn attachment_names_must_be_plain() {
+        let mut doc = read_unpacked(&fixture()).unwrap();
+        let tmp = TempDir::new("badname");
+        let out = tmp.0.join("bracket.sltwx");
+        for bad in ["", ".", "..", "x/y.step", "x\\y.step"] {
+            doc.attachments = BTreeMap::from([(bad.to_owned(), vec![1])]);
+            let err = write_unpacked(&out, &doc).unwrap_err();
+            assert!(
+                matches!(&err, FormatError::InvalidField { field, .. } if field == ATTACHMENTS),
+                "{bad:?}: {err}"
+            );
+        }
+        assert!(!out.exists());
     }
 
     #[test]

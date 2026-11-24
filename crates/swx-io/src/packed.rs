@@ -1,11 +1,15 @@
 //! The packed form of a `.sltwx` document: a single ZIP archive
 //! (`docs/specs/FILE_FORMAT.md`, "Container").
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
 use crate::ids::{check_ids, model_for_write};
-use crate::unpacked::{check_extension, check_object, io_error, parse_object};
+use crate::unpacked::{
+    check_attachment_names, check_extension, check_object, io_error, is_plain_name, parse_object,
+    ATTACHMENTS,
+};
 use crate::zip;
 use crate::{
     read_manifest, to_canonical_json, write_manifest, Document, DocumentForm, FormatError,
@@ -20,8 +24,9 @@ const PROPERTIES: &str = "properties.json";
 /// APPNOTE 6.3.x, sections 4.3.7, 4.3.12 and 4.3.16).
 ///
 /// `manifest.json` and `model.json` are required; `properties.json` is
-/// optional. Other entries (`cache/…`, `thumbnail.png`, `attachments/…`)
-/// are ignored. Entries may be stored (method 0) or deflated (method 8);
+/// optional. Entries `attachments/<name>` with a plain file name are read
+/// into [`Document::attachments`]. Other entries (`cache/…`,
+/// `thumbnail.png`, deeper paths under `attachments/`) are ignored. Entries may be stored (method 0) or deflated (method 8);
 /// each entry read is checked against its CRC-32 and uncompressed size.
 ///
 /// # Errors
@@ -67,10 +72,21 @@ pub fn read_sltwx(path: &Path) -> Result<Document, FormatError> {
         Some(text) => Some(parse_object(PROPERTIES, &text)?),
         None => None,
     };
+    let mut attachments = BTreeMap::new();
+    let prefix = format!("{ATTACHMENTS}/");
+    for entry in &entries {
+        let Some(name) = entry.name().strip_prefix(prefix.as_str()) else {
+            continue;
+        };
+        if is_plain_name(name) {
+            attachments.insert(name.to_owned(), zip::extract(&bytes, entry)?);
+        }
+    }
     Ok(Document {
         manifest,
         model,
         properties,
+        attachments,
     })
 }
 
@@ -78,7 +94,8 @@ pub fn read_sltwx(path: &Path) -> Result<Document, FormatError> {
 /// (`docs/specs/FILE_FORMAT.md`, "Container"), replacing any file there.
 ///
 /// The entries are `manifest.json`, `model.json`, then `properties.json`
-/// when `doc.properties` is `Some`, in that order, each deflated, with the
+/// when `doc.properties` is `Some`, then `attachments/<name>` for each of
+/// `doc.attachments` in name order, each deflated, with the
 /// same canonical bytes [`write_unpacked`](crate::write_unpacked) writes,
 /// including a part's set arrays sorted by `id`.
 /// Entry timestamps are fixed (1980-01-01 00:00), so writing the same
@@ -90,7 +107,8 @@ pub fn read_sltwx(path: &Path) -> Result<Document, FormatError> {
 /// `kind` ([`FormatError::ExtensionMismatch`]) or `model` or `properties`
 /// is not a JSON object ([`FormatError::InvalidField`] naming the file), or
 /// a part's IDs are invalid ([`FormatError::InvalidId`],
-/// [`FormatError::DuplicateId`]).
+/// [`FormatError::DuplicateId`]), or an attachment name is not a plain file
+/// name ([`FormatError::InvalidField`] naming `attachments`).
 /// [`FormatError::MalformedArchive`] if an entry is too large for a non-ZIP64
 /// archive; [`FormatError::Io`] when the file can't be written.
 pub fn write_sltwx(path: &Path, doc: &Document) -> Result<(), FormatError> {
@@ -99,14 +117,23 @@ pub fn write_sltwx(path: &Path, doc: &Document) -> Result<(), FormatError> {
     if let Some(p) = &doc.properties {
         check_object(PROPERTIES, p)?;
     }
+    check_attachment_names(&doc.attachments)?;
     let model = model_for_write(doc.manifest.kind, &doc.model)?;
     let manifest = write_manifest(&doc.manifest);
     let model = to_canonical_json(&model);
     let properties = doc.properties.as_ref().map(to_canonical_json);
+    let names: Vec<String> = doc
+        .attachments
+        .keys()
+        .map(|n| format!("{ATTACHMENTS}/{n}"))
+        .collect();
     let mut entries: Vec<(&str, &[u8])> =
         vec![(MANIFEST, manifest.as_bytes()), (MODEL, model.as_bytes())];
     if let Some(p) = &properties {
         entries.push((PROPERTIES, p.as_bytes()));
+    }
+    for (name, bytes) in names.iter().zip(doc.attachments.values()) {
+        entries.push((name.as_str(), bytes.as_slice()));
     }
     let bytes = zip::write_zip(&entries)?;
     fs::write(path, bytes).map_err(|e| io_error(path, &e))
@@ -252,6 +279,36 @@ mod tests {
         let f = TempFile::new("bracket.sltwx");
         write_sltwx(&f.0, &doc).unwrap();
         assert_eq!(read_sltwx(&f.0).unwrap(), doc);
+    }
+
+    #[test]
+    fn attachments_round_trip_through_zip_in_name_order() {
+        let mut doc = golden_doc();
+        doc.attachments = crate::unpacked::tests::two_attachments();
+        let f = TempFile::new("bracket.sltwx");
+        write_sltwx(&f.0, &doc).unwrap();
+        let bytes = fs::read(&f.0).unwrap();
+        let names: Vec<String> = zip::list(&bytes)
+            .unwrap()
+            .iter()
+            .map(|e| e.name().to_owned())
+            .collect();
+        assert_eq!(
+            names,
+            [
+                "manifest.json",
+                "model.json",
+                "properties.json",
+                "attachments/a-big.step",
+                "attachments/z-small.bin"
+            ]
+        );
+        let back = read_sltwx(&f.0).unwrap();
+        assert_eq!(back.attachments, doc.attachments);
+        assert_eq!(back, doc);
+        // Writing again is byte-identical.
+        write_sltwx(&f.0, &back).unwrap();
+        assert_eq!(fs::read(&f.0).unwrap(), bytes);
     }
 
     #[test]
