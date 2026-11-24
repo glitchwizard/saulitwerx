@@ -544,6 +544,17 @@ pub trait Kernel {
     /// Reads every shape in the STEP file at `path` as one shape.
     ///
     /// A missing, unreadable or malformed file is an error.
+    ///
+    /// **Units.** A STEP file declares its length unit in its global unit
+    /// context, as an `SI_UNIT` (e.g. `SI_UNIT(.MILLI.,.METRE.)`) or a
+    /// `CONVERSION_BASED_UNIT` (e.g. `'INCH'` = 25.4 mm), per ISO 10303-41
+    /// (*Fundamentals of product description and support*, units of
+    /// measure). The returned shape is always in millimetres, the kernel's
+    /// internal unit: the OCCT STEP reader converts every length to its
+    /// session unit, set by `xstep.cascade.unit` and left at its default of
+    /// millimetres (OCCT *STEP Translator* user guide, "Reading STEP"). So a
+    /// 1 in cube imports as a 25.4 mm cube. A file with a missing or
+    /// unreadable unit context is read as millimetres.
     fn import_step(&self, path: &Path) -> Result<Self::Shape, KernelError>;
 
     /// `s` as OCCT BRep text, the format of `cache/body-<id>.brep`

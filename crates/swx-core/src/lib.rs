@@ -29,13 +29,19 @@ pub enum FeatureKind {
         profile: FeatureId,
         angle_deg: String,
     },
+    /// A solid imported from an embedded STEP file, with no parametric
+    /// history (`docs/specs/M4-03.md`). `attachment` is the container path of
+    /// the embedded bytes (`attachments/<feature-id>.step`) and `sha256` their
+    /// hash in `sha256:<hex>` form. It has no inputs and reads no parameters,
+    /// so edits elsewhere never mark it dirty.
+    ImportedSolid { attachment: String, sha256: String },
 }
 
 impl FeatureKind {
     /// Features this one consumes as inputs.
     pub fn inputs(&self) -> Vec<FeatureId> {
         match self {
-            FeatureKind::Sketch => vec![],
+            FeatureKind::Sketch | FeatureKind::ImportedSolid { .. } => vec![],
             FeatureKind::Extrude { profile, .. } | FeatureKind::Revolve { profile, .. } => {
                 vec![*profile]
             }
@@ -45,7 +51,7 @@ impl FeatureKind {
     /// Parameter names this feature reads.
     pub fn params(&self) -> Vec<&str> {
         match self {
-            FeatureKind::Sketch => vec![],
+            FeatureKind::Sketch | FeatureKind::ImportedSolid { .. } => vec![],
             FeatureKind::Extrude { depth, .. } => vec![depth.as_str()],
             FeatureKind::Revolve { angle_deg, .. } => vec![angle_deg.as_str()],
         }
@@ -306,7 +312,7 @@ impl Document {
         }
         for f in &mut self.history {
             match &mut f.kind {
-                FeatureKind::Sketch => {}
+                FeatureKind::Sketch | FeatureKind::ImportedSolid { .. } => {}
                 FeatureKind::Extrude { depth: r, .. }
                 | FeatureKind::Revolve { angle_deg: r, .. } => {
                     if r == old {
@@ -669,6 +675,23 @@ mod tests {
         assert_eq!(d.dirty_after_param_change("thickness"), vec![e1]);
         assert_eq!(d.dirty_after_param_change("sweep"), vec![r1]);
         assert!(d.dirty_after_param_change("nope").is_empty());
+    }
+
+    #[test]
+    fn imported_solid_has_no_inputs_or_params_and_is_never_dirtied_by_params() {
+        let (mut d, _s1, e1, _s2, r1) = block_and_shaft();
+        let kind = FeatureKind::ImportedSolid {
+            attachment: "attachments/ft-3b10.step".into(),
+            sha256: format!("sha256:{}", "0".repeat(64)),
+        };
+        assert!(kind.inputs().is_empty());
+        assert!(kind.params().is_empty());
+        let imp = d.add_feature("Imported1", kind).unwrap();
+        assert_eq!(d.dirty_after_param_change("thickness"), vec![e1]);
+        assert_eq!(d.dirty_after_param_change("sweep"), vec![r1]);
+        d.rename_param("thickness", "plate").unwrap();
+        assert!(!d.dirty_after_param_change("plate").contains(&imp));
+        assert_eq!(d.dirty_after_feature_edit(imp).unwrap(), vec![imp]);
     }
 
     #[test]
