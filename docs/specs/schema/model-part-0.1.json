@@ -1,0 +1,101 @@
+{
+  "$id": "https://github.com/glitchwizard/saulitwerx/blob/main/docs/specs/schema/model-part-0.1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "The parametric model of a part (`model.json` inside a `.sltwx`; docs/specs/FILE_FORMAT.md). Readers keep unknown fields, so no object is closed. The reference reader is `read_unpacked` in crates/swx-io.",
+  "properties": {
+    "bodies": {
+      "description": "The solid bodies the features create. Each element is an object with a non-empty string `id`. IDs are unique within this array and Written sorted by `id`. A schema cannot express uniqueness or order; `swx-io` enforces both when reading and writing.",
+      "items": {
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "end_of_part": {
+      "description": "The `id` of the last feature that is rebuilt (the rollback position).",
+      "type": "string"
+    },
+    "features": {
+      "description": "The feature history, in rebuild order. Each element is an object with a non-empty string `id`. IDs are unique within this array and Written in history order, not sorted. A schema cannot express uniqueness or order; `swx-io` enforces both when reading and writing.",
+      "items": {
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "origin": {
+      "description": "The origin point, axes and planes of the part.",
+      "type": "object"
+    },
+    "parameters": {
+      "description": "The parameter table: named expressions that drive dimensions and features.",
+      "type": "array"
+    },
+    "sketches": {
+      "description": "The sketches of the part. Each element is an object with a non-empty string `id`. IDs are unique within this array and Written sorted by `id`. A schema cannot express uniqueness or order; `swx-io` enforces both when reading and writing.",
+      "items": {
+        "properties": {
+          "constraints": {
+            "description": "The sketch's constraints and dimensions. Each element is an object with a non-empty string `id`. IDs are unique within this array and Written sorted by `id`. A schema cannot express uniqueness or order; `swx-io` enforces both when reading and writing.",
+            "items": {
+              "properties": {
+                "id": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "entities": {
+            "description": "The sketch's geometry (points, lines, arcs, circles). Each element is an object with a non-empty string `id`. IDs are unique within this array and Written sorted by `id`. A schema cannot express uniqueness or order; `swx-io` enforces both when reading and writing.",
+            "items": {
+              "properties": {
+                "id": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "title": "Saulitwerx part model.json, format 0.1",
+  "type": "object"
+}
