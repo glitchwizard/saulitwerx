@@ -1,0 +1,111 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(kernel): mirror and rectangular / circular patterns",
+      "ref": "7719385",
+      "task_id": "m6-01a-gates",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt --all --check",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-01a-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy --workspace --all-targets -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-01a-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test --workspace",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-01a-gates",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-kernel --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-01a-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-kernel --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-01a-gates",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-qa --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-01a-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-qa --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-01a-gates",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`fn mirror(&self, s: &Self::Shape, plane: &Workplane) -> Result<Self::Shape, KernelError>`: the reflection of `s` across the plane through `plane.origin` with normal `plane.normal`, documented. `s` is unchanged. A zero or non-finite normal or a non-finite origin is `InvalidInput`, checked before the backend.",
+      "`fn pattern_rectangular(&self, s: &Self::Shape, dir1: [f64; 3], count1: usize, spacing1: f64, dir2: Option<([f64; 3], usize, f64)>) -> Result<Vec<Self::Shape>, KernelError>`: `count1 × count2` copies (count2 = 1 without `dir2`), copy (i, j) translated by `i·spacing1·d̂1 + j·spacing2·d̂2`, in row-major order (i outer), the first being `s` unmoved. A count of 0, a non-finite spacing, or a zero or non-finite direction is `InvalidInput`. Documented.",
+      "`fn pattern_circular(&self, s: &Self::Shape, axis: Axis, count: usize, total_angle: f64) -> Result<Vec<Self::Shape>, KernelError>`: `count` copies, copy k rotated about `axis` by `k·total_angle/count` radians when `total_angle` is a full turn (2π within 1e-12), otherwise by `k·total_angle/(count − 1)` (so the last copy lands on `total_angle`; count 1 gives `s` alone). Count 0, a `total_angle` that is not finite, ≤ 0 or above 2π, or a bad axis (as in `revolve`) is `InvalidInput`. Documented.",
+      "The input checks above are plain functions in `swx-kernel` (like the existing size and point checks in `lib.rs`), called by `OcctKernel` before the backend, and unit-tested without OCCT for each invalid case.",
+      "With `--features occt`, tolerance 1e-9 relative on volumes and 1e-6 on coordinates:\n  1. Box 10 × 5 × 2 at the origin mirrored across the plane x = 20 (normal +X): same volume, bounding box x = 30..40, y = 0..5, z = 0..2.\n  2. Same box, `pattern_rectangular` with dir1 = +X, count1 = 3, spacing1 = 15 and dir2 = (+Y, 2, 8): 6 copies, each of volume 100; copy (2, 1) has its bounding-box minimum at (30, 8, 0). `combine` (union) of the copies has volume 600 and 6 bodies (`body_count`).\n  3. Cylinder of radius 2, height 5 at (20, 0, 0), `pattern_circular` about the Z axis with count 6 and total angle 2π: 6 copies, copy 1's base center at (20·cos 60°, 20·sin 60°, 0) (from its bounding-box center). With count 3 and total angle π/2: copy 2 is at (0, 20, 0).\n  4. An invalid count, spacing, direction and angle each return `InvalidInput` through `OcctKernel`.",
+      "Every `unsafe` block added in `swx-kernel::ffi` is documented; shim functions are `noexcept` and catch all C++ exceptions (ADR 2026-10-13).",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and CI's `swx-kernel (occt)` job passes.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-25T10:32:00.794558412+00:00",
+    "constraints": [],
+    "created_at": "2026-11-25T10:31:42.172410793+00:00",
+    "description": "M6-01a: swx-kernel: mirror and rectangular / circular patterns of bodies",
+    "project_id": "saulitwerx",
+    "scope": "",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 7,
+      "estimate": "small",
+      "id": "m6-01a-gates",
+      "status": "completed",
+      "title": "Verify gates for PR #272 (body mirror and patterns)",
+      "type": "test"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
