@@ -30,3 +30,7 @@ required-features = ["occt"]
 [[example]]
 name = "import_step_part"
 required-features = ["occt"]
+
+[[example]]
+name = "part_cache"
+required-features = ["occt"]
