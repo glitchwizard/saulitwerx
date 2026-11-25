@@ -1,0 +1,112 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(qa): swx-qa thumbnail",
+      "ref": "8b2f0a9",
+      "task_id": "m4-04f-gates",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt --all --check",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-04f-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy --workspace --all-targets -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-04f-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test --workspace",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-04f-gates",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-kernel --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-04f-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-kernel --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-04f-gates",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-qa --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-04f-gates",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-qa --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-04f-gates",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`swx-qa thumbnail <document>` (with `--features occt`) reads an unpacked folder or a `.sltwx` part. It loads every body that has a fresh `cache/body-<id>.brep` through `load_body`, renders them with the same fixed isometric view and shading as `swx-qa render` at 256 × 256 px, and stores the PNG as the `thumbnail.png` cache entry with the document's current `model_hash`. Then it writes the document back in the form it was read from.",
+      "Test: a 40 × 25 × 10 mm box as body `b-1`, cached with `build_part_cache`. After `swx-qa thumbnail`, reading the document back gives a fresh `thumbnail.png` (`fresh_cache_file(\"thumbnail.png\")` is `Some`), and it decodes as a 256 × 256 PNG with at least 10 % of its pixels differing from the background colour. Checked for both the unpacked and the `.sltwx` form.",
+      "Test: running the command twice on the same document gives byte-identical `thumbnail.png` bytes and byte-identical container output.",
+      "Test: a document with no fresh body BRep (no cache, or the cache made stale by changing one parameter expression in `model`) makes the command exit with status 1. Its stderr says the cache must be built first, and the document's files are unchanged byte for byte.",
+      "Without `--features occt`, `swx-qa thumbnail` exits with status 1 and a message that it needs the `occt` feature (same pattern as `render --step`).",
+      "One appended ADR line in `docs/ARCHITECTURE.md` records the `swx-qa → swx-io` path dependency and the `occt` forwarding. No new third-party dependency.",
+      "All existing tests pass unchanged; no test is weakened or removed.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and `cargo clippy -p swx-qa --features occt --all-targets -- -D warnings && cargo test -p swx-qa --features occt` pass.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-25T10:24:47.396252713+00:00",
+    "constraints": [],
+    "created_at": "2026-11-25T10:24:26.460671026+00:00",
+    "description": "M4-04f: swx-qa thumbnail: render a part's thumbnail.png from its cached body BReps",
+    "project_id": "saulitwerx",
+    "scope": "",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 7,
+      "estimate": "small",
+      "id": "m4-04f-gates",
+      "status": "completed",
+      "title": "Verify gates for PR #271 (swx-qa thumbnail)",
+      "type": "test"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
