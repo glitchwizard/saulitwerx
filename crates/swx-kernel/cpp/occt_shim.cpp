@@ -19,6 +19,7 @@
 #include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepBuilderAPI_MakeVertex.hxx>
 #include <BRepBuilderAPI_MakeWire.hxx>
+#include <BRepBuilderAPI_Transform.hxx>
 #include <BRepCheck_Analyzer.hxx>
 #include <BRepFilletAPI_MakeChamfer.hxx>
 #include <BRepFilletAPI_MakeFillet.hxx>
@@ -591,6 +592,44 @@ int swx_occt_revolve(const SwxShape* s, double ox, double oy, double oz, double 
             return -1;
         }
         return emit(revol.Shape(), out);
+    } catch (...) {
+        return -1;
+    }
+}
+
+// A transformed copy of `s` (BRepBuilderAPI_Transform with copy = true, so
+// `s` is unchanged). `kind` 0: mirror across the plane through p[0..3] with
+// normal p[3..6] (gp_Trsf::SetMirror(gp_Ax2)). 1: translate by p[0..3]
+// (SetTranslation). 2: rotate by p[6] radians about the axis through
+// p[0..3] along p[3..6] (SetRotation). Rust validates the inputs first
+// (pattern.rs); a zero direction still fails safely here (gp_Dir throws).
+int swx_occt_transform(const SwxShape* s, int kind, const double* p, SwxShape** out) noexcept {
+    if (s == nullptr || p == nullptr || out == nullptr) {
+        return -1;
+    }
+    try {
+        if (s->shape.IsNull()) {
+            return -1;
+        }
+        gp_Trsf trsf;
+        switch (kind) {
+        case 0:
+            trsf.SetMirror(gp_Ax2(gp_Pnt(p[0], p[1], p[2]), gp_Dir(p[3], p[4], p[5])));
+            break;
+        case 1:
+            trsf.SetTranslation(gp_Vec(p[0], p[1], p[2]));
+            break;
+        case 2:
+            trsf.SetRotation(gp_Ax1(gp_Pnt(p[0], p[1], p[2]), gp_Dir(p[3], p[4], p[5])), p[6]);
+            break;
+        default:
+            return -1;
+        }
+        BRepBuilderAPI_Transform maker(s->shape, trsf, Standard_True);
+        if (!maker.IsDone()) {
+            return -1;
+        }
+        return emit(maker.Shape(), out);
     } catch (...) {
         return -1;
     }

@@ -56,6 +56,12 @@ extern "C" {
         b: *const RawShape,
         out: *mut *mut RawShape,
     ) -> c_int;
+    fn swx_occt_transform(
+        s: *const RawShape,
+        kind: c_int,
+        params: *const c_double,
+        out: *mut *mut RawShape,
+    ) -> c_int;
     fn swx_occt_solid_count(s: *const RawShape, out: *mut usize) -> c_int;
     fn swx_occt_solid(s: *const RawShape, index: usize, out: *mut *mut RawShape) -> c_int;
     #[allow(clippy::too_many_arguments)]
@@ -501,6 +507,46 @@ pub(crate) fn revolve(
             &mut raw,
         )
     };
+    take(status, raw)
+}
+
+/// A rigid transform understood by `swx_occt_transform`. Inputs are
+/// validated by the caller (`pattern.rs`): finite, directions normalized.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum Transform {
+    /// Reflection across the plane through `origin` with unit `normal`.
+    Mirror { origin: [f64; 3], normal: [f64; 3] },
+    /// Translation by `offset`.
+    Translate { offset: [f64; 3] },
+    /// Rotation by `angle` radians about the axis through `origin` along
+    /// the unit `dir` (right-hand rule).
+    Rotate {
+        origin: [f64; 3],
+        dir: [f64; 3],
+        angle: f64,
+    },
+}
+
+/// A transformed copy of `s`; `s` is unchanged.
+pub(crate) fn transform(s: &ShapeHandle, t: Transform) -> Option<ShapeHandle> {
+    let (kind, p): (c_int, [f64; 7]) = match t {
+        Transform::Mirror {
+            origin: o,
+            normal: n,
+        } => (0, [o[0], o[1], o[2], n[0], n[1], n[2], 0.0]),
+        Transform::Translate { offset: v } => (1, [v[0], v[1], v[2], 0.0, 0.0, 0.0, 0.0]),
+        Transform::Rotate {
+            origin: o,
+            dir: d,
+            angle,
+        } => (2, [o[0], o[1], o[2], d[0], d[1], d[2], angle]),
+    };
+    let mut raw = ptr::null_mut();
+    // SAFETY: `s` is a live handle read-only for the call and not retained;
+    // `p` is a 7-element array on our stack, and the shim reads at most 7
+    // doubles from it (indices 0..=6) during the call only; `raw` is a valid
+    // out-pointer that receives a new, independently owned handle on success.
+    let status = unsafe { swx_occt_transform(s.0.as_ptr(), kind, p.as_ptr(), &mut raw) };
     take(status, raw)
 }
 

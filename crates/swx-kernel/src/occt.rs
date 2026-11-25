@@ -4,10 +4,13 @@ use std::f64::consts::FRAC_PI_2;
 use std::path::Path;
 
 use crate::datum::{axis_nearest_origin, plane_nearest_origin, plane_tangent_to_cylinder};
-use crate::ffi::{self, ChamferMode, EdgeOp, FaceCylinder, FacePlane, ShapeHandle, SubShapeAxis};
+use crate::ffi::{
+    self, ChamferMode, EdgeOp, FaceCylinder, FacePlane, ShapeHandle, SubShapeAxis, Transform,
+};
 use crate::helix::{check_helix_profile, cross, prepare_helix};
 use crate::hole::{perpendicular, prepare_hole, HoleCylinder};
 use crate::loft::check_section_count;
+use crate::pattern::{circular_angles, prepare_mirror, rectangular_offsets};
 use crate::profile::{
     check_revolve_profile, check_sweep_bends, prepare_face, prepare_path, prepare_revolve,
     profile_reach,
@@ -731,6 +734,49 @@ impl Kernel for OcctKernel {
         }
         let result = acc.ok_or_else(|| backend("combine_tracked"))?;
         Ok((result, history))
+    }
+
+    fn mirror(&self, s: &OcctShape, plane: &Workplane) -> Result<OcctShape, KernelError> {
+        let (origin, normal) = prepare_mirror(plane)?;
+        ffi::transform(&s.0, Transform::Mirror { origin, normal })
+            .map(OcctShape)
+            .ok_or_else(|| backend("mirror"))
+    }
+
+    fn pattern_rectangular(
+        &self,
+        s: &OcctShape,
+        dir1: [f64; 3],
+        count1: usize,
+        spacing1: f64,
+        dir2: Option<([f64; 3], usize, f64)>,
+    ) -> Result<Vec<OcctShape>, KernelError> {
+        rectangular_offsets(dir1, count1, spacing1, dir2)?
+            .into_iter()
+            .map(|offset| {
+                ffi::transform(&s.0, Transform::Translate { offset })
+                    .map(OcctShape)
+                    .ok_or_else(|| backend("pattern_rectangular"))
+            })
+            .collect()
+    }
+
+    fn pattern_circular(
+        &self,
+        s: &OcctShape,
+        axis: Axis,
+        count: usize,
+        total_angle: f64,
+    ) -> Result<Vec<OcctShape>, KernelError> {
+        let (origin, dir, angles) = circular_angles(axis, count, total_angle)?;
+        angles
+            .into_iter()
+            .map(|angle| {
+                ffi::transform(&s.0, Transform::Rotate { origin, dir, angle })
+                    .map(OcctShape)
+                    .ok_or_else(|| backend("pattern_circular"))
+            })
+            .collect()
     }
 
     fn volume(&self, s: &OcctShape) -> Result<f64, KernelError> {
@@ -3885,5 +3931,127 @@ mod tests {
             let cut = &text[..text.len() * eighth / 8];
             assert!(K.read_brep(cut).is_err(), "cut at {eighth}/8");
         }
+    }
+
+    /// Relative tolerance 1e-9 on a volume (M6-01a).
+    fn assert_volume(actual: f64, expected: f64) {
+        assert!(
+            (actual - expected).abs() <= 1e-9 * expected.abs(),
+            "volume: expected {expected}, got {actual}"
+        );
+    }
+
+    /// Absolute tolerance 1e-6 on each coordinate (M6-01a).
+    fn assert_point(actual: Point3, expected: Point3) {
+        for k in 0..3 {
+            assert!(
+                (actual[k] - expected[k]).abs() <= 1e-6,
+                "expected {expected:?}, got {actual:?}"
+            );
+        }
+    }
+
+    fn box_10x5x2() -> OcctShape {
+        K.make_box([0.0; 3], [10.0, 5.0, 2.0]).unwrap()
+    }
+
+    #[test]
+    fn mirror_box_across_x_20() {
+        let b = box_10x5x2();
+        let plane = Workplane {
+            origin: [20.0, 0.0, 0.0],
+            x_dir: [0.0, 1.0, 0.0],
+            normal: [1.0, 0.0, 0.0],
+        };
+        let m = K.mirror(&b, &plane).unwrap();
+        assert_volume(K.volume(&m).unwrap(), 100.0);
+        let bb = K.bounding_box(&m).unwrap();
+        assert_point(bb.min, [30.0, 0.0, 0.0]);
+        assert_point(bb.max, [40.0, 5.0, 2.0]);
+        // The input is unchanged.
+        assert_point(K.bounding_box(&b).unwrap().min, [0.0; 3]);
+    }
+
+    #[test]
+    fn rectangular_pattern_3_by_2() {
+        let b = box_10x5x2();
+        let copies = K
+            .pattern_rectangular(
+                &b,
+                [1.0, 0.0, 0.0],
+                3,
+                15.0,
+                Some(([0.0, 1.0, 0.0], 2, 8.0)),
+            )
+            .unwrap();
+        assert_eq!(copies.len(), 6);
+        for c in &copies {
+            assert_volume(K.volume(c).unwrap(), 100.0);
+        }
+        // Row-major: copy (i, j) is at index i * 2 + j.
+        assert_point(K.bounding_box(&copies[0]).unwrap().min, [0.0; 3]);
+        assert_point(
+            K.bounding_box(&copies[2 * 2 + 1]).unwrap().min,
+            [30.0, 8.0, 0.0],
+        );
+        let joined = K
+            .combine(BooleanOp::Union, &copies[0], &copies[1..])
+            .unwrap();
+        assert_volume(K.volume(&joined).unwrap(), 600.0);
+        assert_eq!(K.body_count(&joined).unwrap(), 6);
+    }
+
+    #[test]
+    fn circular_pattern_about_z() {
+        let cyl = K.make_cylinder([20.0, 0.0, 0.0], 2.0, 5.0).unwrap();
+        let z = Axis {
+            origin: [0.0; 3],
+            dir: [0.0, 0.0, 1.0],
+        };
+        let base_center = |s: &OcctShape| {
+            let bb = K.bounding_box(s).unwrap();
+            [
+                (bb.min[0] + bb.max[0]) / 2.0,
+                (bb.min[1] + bb.max[1]) / 2.0,
+                bb.min[2],
+            ]
+        };
+        let six = K.pattern_circular(&cyl, z, 6, 2.0 * PI).unwrap();
+        assert_eq!(six.len(), 6);
+        for c in &six {
+            assert_volume(K.volume(c).unwrap(), 20.0 * PI);
+        }
+        let a = PI / 3.0;
+        assert_point(base_center(&six[0]), [20.0, 0.0, 0.0]);
+        assert_point(base_center(&six[1]), [20.0 * a.cos(), 20.0 * a.sin(), 0.0]);
+        let three = K.pattern_circular(&cyl, z, 3, PI / 2.0).unwrap();
+        assert_eq!(three.len(), 3);
+        assert_point(base_center(&three[2]), [0.0, 20.0, 0.0]);
+    }
+
+    #[test]
+    fn patterns_and_mirror_reject_bad_inputs() {
+        let b = box_10x5x2();
+        let x = [1.0, 0.0, 0.0];
+        let z = Axis {
+            origin: [0.0; 3],
+            dir: [0.0, 0.0, 1.0],
+        };
+        let invalid =
+            |r: Result<Vec<OcctShape>, KernelError>| matches!(r, Err(KernelError::InvalidInput(_)));
+        assert!(invalid(K.pattern_rectangular(&b, x, 0, 1.0, None)));
+        assert!(invalid(K.pattern_rectangular(&b, x, 2, f64::NAN, None)));
+        assert!(invalid(K.pattern_rectangular(&b, [0.0; 3], 2, 1.0, None)));
+        assert!(invalid(K.pattern_circular(&b, z, 0, PI)));
+        assert!(invalid(K.pattern_circular(&b, z, 3, 7.0)));
+        let plane = Workplane {
+            origin: [0.0; 3],
+            x_dir: [0.0, 1.0, 0.0],
+            normal: [0.0; 3],
+        };
+        assert!(matches!(
+            K.mirror(&b, &plane),
+            Err(KernelError::InvalidInput(_))
+        ));
     }
 }
