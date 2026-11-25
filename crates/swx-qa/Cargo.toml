@@ -10,11 +10,13 @@ publish = false
 
 [features]
 default = []
-# Enables `swx-qa render --step`, which imports and tessellates through OCCT.
-occt = ["swx-kernel/occt"]
+# Enables `swx-qa render --step` and `swx-qa thumbnail`, which import,
+# read and tessellate shapes through OCCT.
+occt = ["swx-kernel/occt", "swx-io/occt"]
 
 [dependencies]
 png = "0.17"
+swx-io = { path = "../swx-io" }
 swx-kernel = { path = "../swx-kernel" }
 swx-sketch = { path = "../swx-sketch" }
 

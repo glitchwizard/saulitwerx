@@ -7,10 +7,14 @@
 //! `swx-qa sketch` plots a solved [`Sketch`](swx_sketch::Sketch) to a PNG
 //! with its dimension values; Builders can also call [`sketch::plot`]
 //! directly.
+//!
+//! `swx-qa thumbnail` renders a part's `thumbnail.png` cache entry from its
+//! cached body BReps ([`thumbnail::thumbnail`]).
 
 pub mod fixtures;
 pub mod render;
 pub mod sketch;
+pub mod thumbnail;
 
 use std::path::{Path, PathBuf};
 
@@ -22,6 +26,7 @@ pub fn usage() -> String {
         "\
 Usage: swx-qa render (--fixture <name> | --step <file.step>) -o <out.png> [options]
        swx-qa sketch --fixture <name> -o <out.png> [--size <W>x<H>]
+       swx-qa thumbnail <document>
 
 render: draws a mesh as an isometric, flat-shaded PNG with feature edges.
 
@@ -41,7 +46,14 @@ with its geometry, point dots and dimension values.
 
   --fixture <name>     built-in sketch (required): {}
   -o, --output <file>  PNG to write (required)
-  --size <W>x<H>       image size in pixels (default 800x600)",
+  --size <W>x<H>       image size in pixels (default 800x600)
+
+thumbnail: renders a part's fresh cached body BReps (cache/body-<id>.brep)
+like `render`, at 256x256, stores the PNG as the document's thumbnail.png
+cache entry, and writes the document back in the same form.
+
+  <document>           unpacked part folder or .sltwx file
+                       (needs a build with `--features occt`)",
         fixtures::FIXTURE_NAMES.join(", "),
         sketch::FIXTURE_NAMES.join(", ")
     )
@@ -58,6 +70,7 @@ pub fn run(args: &[String]) -> Result<String, String> {
         "-h" | "--help" | "help" => Ok(usage()),
         "render" => render_cmd(rest),
         "sketch" => sketch_cmd(rest),
+        "thumbnail" => thumbnail_cmd(rest),
         other => Err(format!("unknown command `{other}`\n\n{}", usage())),
     }
 }
@@ -158,6 +171,17 @@ fn sketch_cmd(args: &[String]) -> Result<String, String> {
     ))
 }
 
+fn thumbnail_cmd(args: &[String]) -> Result<String, String> {
+    match args {
+        [a] if a == "-h" || a == "--help" => Ok(usage()),
+        [doc] if !doc.starts_with('-') => thumbnail::thumbnail(Path::new(doc)),
+        _ => Err(format!(
+            "thumbnail takes exactly one document path\n\n{}",
+            usage()
+        )),
+    }
+}
+
 /// Parses `<W>x<H>` with both sides positive integers.
 pub fn parse_size(s: &str) -> Result<(u32, u32), String> {
     let err = || format!("invalid --size `{s}`: expected <W>x<H>, e.g. 800x600");
@@ -180,13 +204,23 @@ pub fn step_mesh(path: &Path) -> Result<swx_kernel::Mesh, String> {
     let shape = k
         .import_step(path)
         .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
-    let bb = k.bounding_box(&shape).map_err(|e| e.to_string())?;
+    fit_mesh(&k, &shape)
+}
+
+/// Tessellates `shape` at 0.1 % of its bounding-box diagonal.
+#[cfg(feature = "occt")]
+pub fn fit_mesh(
+    k: &swx_kernel::OcctKernel,
+    shape: &<swx_kernel::OcctKernel as swx_kernel::Kernel>::Shape,
+) -> Result<swx_kernel::Mesh, String> {
+    use swx_kernel::Kernel;
+    let bb = k.bounding_box(shape).map_err(|e| e.to_string())?;
     let d = (0..3)
         .map(|i| (bb.max[i] - bb.min[i]).powi(2))
         .sum::<f64>()
         .sqrt();
     let deflection = if d > 0.0 { d * 1e-3 } else { 1e-3 };
-    k.tessellate(&shape, deflection).map_err(|e| e.to_string())
+    k.tessellate(shape, deflection).map_err(|e| e.to_string())
 }
 
 /// Without the `occt` feature, STEP input is unavailable.

@@ -210,6 +210,7 @@ name = "swx-qa"
 version = "0.0.1"
 dependencies = [
  "png",
+ "swx-io",
  "swx-kernel",
  "swx-sketch",
 ]
