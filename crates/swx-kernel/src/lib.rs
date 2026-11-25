@@ -19,6 +19,7 @@ mod helix;
 mod hole;
 mod loft;
 mod mesh;
+mod pattern;
 mod profile;
 mod thread;
 mod topo;
@@ -438,6 +439,51 @@ pub trait Kernel {
         target: &Self::Shape,
         tools: &[Self::Shape],
     ) -> Result<(Self::Shape, CombineHistory), KernelError>;
+
+    /// The mirror image of `s`: its reflection across the plane through
+    /// `plane.origin` with normal `plane.normal` (`plane.x_dir` is not used).
+    /// The result is a new shape; `s` is unchanged.
+    ///
+    /// A non-finite origin, or a zero or non-finite normal, is
+    /// [`KernelError::InvalidInput`], checked before the backend.
+    fn mirror(&self, s: &Self::Shape, plane: &Workplane) -> Result<Self::Shape, KernelError>;
+
+    /// `count1 × count2` copies of `s` on a grid (`count2 = 1` without
+    /// `dir2`, given as `(direction, count, spacing)`). Copy (i, j) is `s`
+    /// translated by `i·spacing1·d̂1 + j·spacing2·d̂2`, with `d̂` the
+    /// normalized directions. The copies are in row-major order (i outer,
+    /// j inner), so the first is `s` unmoved. `s` is unchanged; callers join
+    /// the copies with [`Kernel::combine`] if they want one shape.
+    ///
+    /// A count of 0, a non-finite spacing, or a zero or non-finite direction
+    /// is [`KernelError::InvalidInput`], checked before the backend.
+    fn pattern_rectangular(
+        &self,
+        s: &Self::Shape,
+        dir1: [f64; 3],
+        count1: usize,
+        spacing1: f64,
+        dir2: Option<([f64; 3], usize, f64)>,
+    ) -> Result<Vec<Self::Shape>, KernelError>;
+
+    /// `count` copies of `s` turned about `axis` (right-hand rule). When
+    /// `total_angle` is a full turn (2π within 1e-12), copy k turns by
+    /// `k·total_angle/count`, spacing the copies evenly around the circle.
+    /// Otherwise copy k turns by `k·total_angle/(count − 1)`, so the last
+    /// copy lands on `total_angle`; a count of 1 gives `s` alone. Copy 0 is
+    /// `s` unmoved. `s` is unchanged.
+    ///
+    /// A count of 0, a `total_angle` that is not finite, ≤ 0 or above 2π, a
+    /// non-finite axis origin, or a zero or non-finite axis direction (as in
+    /// [`Kernel::revolve`]) is [`KernelError::InvalidInput`], checked before
+    /// the backend.
+    fn pattern_circular(
+        &self,
+        s: &Self::Shape,
+        axis: Axis,
+        count: usize,
+        total_angle: f64,
+    ) -> Result<Vec<Self::Shape>, KernelError>;
 
     /// Enclosed volume.
     fn volume(&self, s: &Self::Shape) -> Result<f64, KernelError>;
