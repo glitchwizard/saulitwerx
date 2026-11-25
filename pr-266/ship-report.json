@@ -1,0 +1,102 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(io): build and load body BReps and the display mesh",
+      "ref": "99c6d34",
+      "task_id": "m4-04e",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt --all --check",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-04e",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy --workspace --all-targets -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-04e",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test --workspace",
+      "passed": false,
+      "required": true,
+      "task_id": "m4-04e",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo test --workspace",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-04e",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-io --features occt --all-targets -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-04e",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-io --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m4-04e",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`pub const DISPLAY_DEFLECTION_MM: f64 = 0.05`, `pub fn build_part_cache<K: Kernel>(kernel: &K, doc: &mut Document, bodies: &[(String, &K::Shape)], deflection_mm: f64) -> Result<(), …>` and `pub fn load_body<K: Kernel>(kernel: &K, doc: &Document, body_id: &str) -> Option<K::Shape>`, documented, as in spec §3. Every entry built gets the document's current `model_hash`.",
+      "With `--features occt`: a 40 × 25 × 10 mm box as body `b-1` gives `cache/body-b-1.brep` and `cache/display.glb`. Written and read back through both the unpacked and the `.sltwx` form, `load_body` returns a shape whose volume is 10 000 mm³ within 1e-9 relative, and the GLB's position accessor min/max equal the box corners within 1e-4 mm.",
+      "With `--features occt`: a `.brep` entry whose bytes are replaced by `garbage` (with its `sha256` updated to match) makes `load_body` return `None`, with no panic.",
+      "With `--features occt`: stale after edit (spec §6): build the cache, change one parameter expression in `model`, and `load_body` returns `None`.",
+      "An invalid `deflection_mm` (not finite, or ≤ 0) returns an error before any tessellation and leaves `doc.cache` unchanged.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and `cargo clippy -p swx-io --features occt --all-targets -- -D warnings && cargo test -p swx-io --features occt` pass (CI does not run the `swx-io` occt tests; report the local run).",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-25T08:29:22.362100659+00:00",
+    "constraints": [],
+    "created_at": "2026-11-25T08:29:00.736032724+00:00",
+    "description": "M4-04e: swx-io: build and load body BReps and the display mesh",
+    "project_id": "saulitwerx",
+    "scope": "crates/swx-io only",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 6,
+      "estimate": "medium",
+      "id": "m4-04e",
+      "status": "completed",
+      "title": "build_part_cache + load_body (#254, PR #266)",
+      "type": "implement"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
