@@ -80,7 +80,7 @@ impl Document {
 
     /// [`model_hash`] of the model as the writers write it. A model whose
     /// IDs fail the writers' check can't be written; it is hashed as given.
-    fn written_model_hash(&self) -> String {
+    pub(crate) fn written_model_hash(&self) -> String {
         match model_for_write(self.manifest.kind, &self.model) {
             Ok(model) => model_hash(&model),
             Err(_) => model_hash(&self.model),

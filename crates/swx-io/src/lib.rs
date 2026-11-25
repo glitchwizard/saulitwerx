@@ -10,6 +10,8 @@
 //! ([`Document::cache_is_fresh`]). A document's derived files and their
 //! index, `cache/index.json`, are held in [`Document::cache`] ([`Cache`]);
 //! [`Document::fresh_cache_file`] returns one only while it is fresh.
+//! [`build_part_cache`] fills it with a part's body BReps and display mesh,
+//! and [`load_body`] reads a body back while its BRep is fresh.
 //!
 //! The [`stl`] module writes triangle meshes as binary or ASCII STL
 //! ([`write_stl_binary`], [`write_stl_ascii`]), and the [`glb`] module
@@ -27,6 +29,7 @@ mod ids;
 mod import;
 mod manifest;
 mod packed;
+mod part_cache;
 pub mod stl;
 mod unpacked;
 mod zip;
@@ -38,6 +41,7 @@ pub use hash::{model_hash, sha256};
 pub use import::{embed_step, rebuild_imported, ImportStepFeature, StepImportError, IMPORT_STEP};
 pub use manifest::{read_manifest, write_manifest, DocumentKind, Manifest, Units};
 pub use packed::{read_sltwx, write_sltwx};
+pub use part_cache::{build_part_cache, load_body, PartCacheError, DISPLAY_DEFLECTION_MM};
 pub use stl::{export_stl, write_stl_ascii, write_stl_binary, StlError, StlFormat, StlOptions};
 pub use unpacked::{read_unpacked, write_unpacked, Document};
 
