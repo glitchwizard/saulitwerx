@@ -1,0 +1,21 @@
+[package]
+name = "swx-model"
+version = "0.0.1"
+description = "Saulitwerx feature evaluation: joins sketches to the geometry kernel."
+edition.workspace = true
+license = "MIT OR Apache-2.0"
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+[features]
+default = []
+# Forwards to `swx-kernel/occt`, for tests and callers that build real faces.
+occt = ["swx-kernel/occt"]
+
+[dependencies]
+swx-sketch = { path = "../swx-sketch" }
+swx-kernel = { path = "../swx-kernel" }
+
+[lints]
+workspace = true
