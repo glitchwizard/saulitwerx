@@ -126,6 +126,12 @@
     ("Solver", [The calculation that moves sketch geometry until every constraint holds.]),
     ("Sub-shape", [One face, edge or vertex of a solid.]),
     ("Symmetric", [A constraint that makes two points mirror images across a line.]),
+    ("Mirror", [The reflection of a body across a flat plane, as in a looking-glass; or the operation that makes it.]),
+    ("Mirror plane", [The flat plane a mirror reflects a body across. Points on it stay where they are.]),
+    ("Pattern", [Evenly spaced copies of a body, made in one step.]),
+    ("Rectangular pattern", [A pattern in a row, or in rows and columns, each copy a set spacing from the last.]),
+    ("Circular pattern", [A pattern turned about an axis, spread over a full turn or a set angle.]),
+    ("Thumbnail", [The small preview picture of a part kept in its document, `thumbnail.png`.]),
     ("STEP", [An international standard file format (ISO 10303) for exchanging 3D parts.]),
     ("Surface area", [The total area of a solid's faces.]),
     ("Tangent", [Touching without cutting in: a line and a circle, or two circles, that meet at one point.]),
@@ -154,6 +160,13 @@
 }
 
 = What's new
+
+== 2026-11-25: mirrors and patterns, and a part's cache from its bodies
+
+- *New for developers:* mirror a body across a plane, and copy it in rows and columns or round an axis. A new chapter shows a bracket made from half its shape, a grid of holes and a bolt circle, each from one pin (@ch-pattern).
+- *New for developers:* build a part's cache in one call: each body's exact shape and one display mesh for them all, and load a body back while it is still up to date (@sec-files-part-cache).
+- *New:* `swx-qa thumbnail` gives a part its preview picture, in a folder or in one file (@sec-files-thumbnail).
+- Reference: `swx-qa thumbnail` (@sec-ref-qa-thumbnail), `mirror`, `pattern_rectangular`, `pattern_circular`, `build_part_cache`, `load_body`, `DISPLAY_DEFLECTION_MM`, `PartCacheError`, and two new samples. Help: the pattern, part-cache and thumbnail messages, and the known limitations updated. Glossary: mirror, mirror plane, pattern, rectangular pattern, circular pattern and thumbnail.
 
 == 2026-11-24: STEP files inside a part, and a document's cache
 
@@ -361,7 +374,8 @@ These are the next items on the public roadmap. None of them works yet. When one
   [More part features], [Shells with walls of different thicknesses; fillets, chamfers, shells, holes, drafts, lofts, sweeps and work features kept in a part's history.],
   [Threads], [Model real screw threads, outside on a shaft or inside a hole, built on the helical sweep.],
   [Lasting references], [A feature built on a face or an edge keeps finding it when earlier features change.],
-  [Part files], [Save a part with its full history in a document file and open it again; its cache of solids, display mesh and preview built from the part, and rebuilt when it is stale.],
+  [More patterns], [Copies along a path, patterns and mirrors of features as well as bodies, and splitting a body in two along a plane.],
+  [Part files], [Save a part with its full history in a document file and open it again, with its cache rebuilt from the history when it is stale.],
   [Desktop app], [A window with a 3D view, a model browser, sketch mode and property panels.],
 )
 
@@ -383,7 +397,7 @@ Later milestones add assemblies, 2D drawings and exploded views. The full plan i
       #text(font: sans, weight: "bold", fill: accent, "DRAW A SKETCH")
       #term-block("swx-qa sketch --fixture rectangle -o r.png\n  (or triangle-345)")
       #text(font: sans, weight: "bold", fill: accent, "DOCUMENT FILES")
-      #term-block("sltwx pack <folder> <file>\nsltwx unpack <file> <folder>")
+      #term-block("sltwx pack <folder> <file>\nsltwx unpack <file> <folder>\nswx-qa thumbnail <part>")
       #text(font: sans, weight: "bold", fill: accent, "SAMPLES")
       #term-block("cargo run -p swx-sketch \\\n  --example plate_sketch\ncargo run -p swx-sketch \\\n  --example centered_plate -- 60 25\ncargo run -p swx-kernel --features occt \\\n  --example plate_with_hole -- plate.step\ncargo run -p swx-kernel --features occt \\\n  --example extrude_plate\ncargo run -p swx-core \\\n  --example feature_history\ncargo run -p swx-sketch \\\n  --example inferred_sketch")
       #v(-4pt) Every sample, with what it does: @sec-ref-build.
@@ -416,11 +430,11 @@ Later milestones add assemblies, 2D drawings and exploded views. The full plan i
       )
       #text(font: sans, weight: "bold", fill: accent, "SOLIDS")
       #ref-table(columns: (auto, 1fr), header: ("Call", "Gives"),
-        [`make_box`], [box from corner + sizes],
+        [`make_box`], [box: corner + sizes],
         [`make_cylinder`], [cylinder on +Z],
         [`make_sphere`], [sphere],
         [`union` · `cut` · `intersect`], [Boolean result],
-        [`make_face` · `extrude`], [outline → face → solid],
+        [`make_face` · `extrude`], [outline to solid],
         [`extrude_feature`], [extrude and combine],
         [`revolve_feature`], [revolve and combine],
         [`fillet` · `chamfer`], [round / bevel edges],
@@ -429,12 +443,13 @@ Later milestones add assemblies, 2D drawings and exploded views. The full plan i
         [`fillet_variable`], [round, 2 radii],
         [`hole`], [drill any kind of hole],
         [`metric_coarse`], [thread size by name],
+        [`mirror` · `pattern_…`], [copies of a body],
         [`draft`], [tilt faces for a mold],
         [`loft` · `sweep`], [blend / follow a path],
         [`helical_sweep`], [spring, coil],
         [`offset` · `midplane`], [work planes],
         [`work_plane_on_face`], [plane on a flat face],
-        [`work_axis_on`], [axis on edge or round face],
+        [`work_axis_on`], [axis on edge, cylinder],
         [`boolean_tracked`], [Boolean + face history],
         [`export_step` · `import_step`], [STEP file out / in],
         [`export_stl`], [STL file for printing],

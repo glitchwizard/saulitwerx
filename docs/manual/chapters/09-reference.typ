@@ -65,6 +65,22 @@ Success and errors work as for `render`. `--step` and `--crease` belong to `rend
   [Values], [Up to 3 decimals, with trailing zeros dropped: `40`, `12.5`, `R2.125`.],
 )
 
+== `swx-qa thumbnail` <sec-ref-qa-thumbnail>
+
+#idx("swx-qa thumbnail")
+Draws a part's fresh cached bodies as its 256 × 256 pixel `thumbnail.png`, stores the picture in the document's cache, and saves the document in the form it was read in (@sec-files-thumbnail). Needs a build with OpenCascade.
+
+#term-block(label: "Form", "swx-qa thumbnail <document>")
+
+#ref-table(
+  columns: (auto, 1fr),
+  header: ("Argument", "What it does"),
+  [`<document>`], [A part as a folder or as one `.sltwx` file. Required; exactly one, and not starting with `-`.],
+  [`-h`, `--help`], [Prints the help text and does nothing else.],
+)
+
+It loads every body whose `cache/body-<id>.brep` is fresh, draws them together as `render` draws a part (same view, colors and edges; each body broken into triangles at 0.1 % of its own size), and stores the PNG as the cache entry `thumbnail.png` with the document's current model hash, replacing any thumbnail there. Bodies whose files are stale are left out. On success it prints `wrote thumbnail.png into <document> (256x256, <bytes> bytes, <n> bodies)` and exits with status 0. On an error it prints `swx-qa: ` and the message (@sec-errors), exits with status 1, and leaves the document as it was.
+
 == `sltwx` <sec-ref-sltwx>
 
 #idx("sltwx command")
@@ -96,7 +112,7 @@ The output path must not exist, as a file, a folder or a link: `sltwx` never ove
   columns: (auto, 1fr),
   header: ("Command", "What it builds"),
   [`cargo test --workspace`], [Everything without OpenCascade, and runs every test.],
-  [`cargo build --release -p swx-qa --features occt`], [The `swx-qa` tool with STEP input, at `target/release/swx-qa`.],
+  [`cargo build --release -p swx-qa --features occt`], [The `swx-qa` tool with STEP input and the `thumbnail` command, at `target/release/swx-qa`.],
   [`cargo run -p swx-sketch --example plate_sketch`], [Runs the sample sketch (@ch-sketching).],
   [`cargo run -p swx-sketch --example sketch_dof`], [Runs the degree-of-freedom sample (@sec-check-dof).],
   [`cargo run -p swx-sketch --example centered_plate -- [<width> <height>]`], [Runs the centered-hole sample (@sec-centered). Defaults: 40 and 25.],
@@ -134,6 +150,7 @@ The output path must not exist, as a file, a folder or a link: `sltwx` never ove
   [`cargo run -p swx-io --example model_hash -- <dir>`], [Records a part's model hash, writes `<dir>/hashed.sltwx`, and checks the hash before and after an edit (@sec-files-hash). Needs no OpenCascade.],
   [`cargo run -p swx-io --example document_cache -- <dir>`], [Writes `<dir>/cached.sltwx` with a mesh in its cache, reads it back after an edit, a damaged file and a broken index, and shows the cache-path error (@sec-files-cache). Needs no OpenCascade.],
   [`cargo run -p swx-io --features occt --example import_step_part -- <dir>`], [Saves a block as `<dir>/block.step`, brings it into the part `<dir>/bracket.sltwx`, rebuilds it (`<dir>/rebuilt.step`), and shows the import and rebuild errors (@sec-files-import).],
+  [`cargo run -p swx-io --features occt --example part_cache -- <dir>`], [Builds the cache of a part with two bodies, saves it as `<dir>/pinned-plate.sltwx`, loads each body back, and shows the errors (@sec-files-part-cache).],
   [`cargo run -p swx-kernel --features occt --example brep_text -- <file>`], [Writes the plate with a hole as BRep text in `<file>`, reads it back, and shows the errors (@sec-files-brep).],
   [`cargo build --release -p swx-io`], [Builds the `sltwx` command, at `target/release/sltwx` (@sec-ref-sltwx).],
   [`cargo run -p swx-kernel --example work_features`], [Builds work planes, axes and a point, and prints them (@sec-work). Needs no OpenCascade.],
@@ -141,6 +158,7 @@ The output path must not exist, as a file, a folder or a link: `sltwx` never ove
   [`cargo run -p swx-kernel --features occt --example work_on_part -- <dir>`], [Takes work features from a block's faces, edges and a corner, then uses two of them (@sec-work-part). A STEP file in `<dir>`.],
   [`cargo run -p swx-kernel --features occt --example work_midplane -- <dir>`], [Takes a midplane, a tangent plane and an edge midpoint from a shaft, and drills and cuts on them (@sec-work-between). A STEP file in `<dir>`.],
   [`cargo run -p swx-kernel --features occt --example multi_body -- <dir>`], [Drills two holes in one combine call with history, then splits the plate into two bodies (@sec-bodies). A STEP file in `<dir>`.],
+  [`cargo run -p swx-kernel --features occt --example mirror_pattern -- <dir>`], [Mirrors half a bracket, patterns holes in a grid and round a flange, and shows the errors (@ch-pattern). STEP files in `<dir>`.],
   [`cargo run -p swx-core --example feature_history`], [Runs the history sample (@ch-history).],
   [`cargo run -p swx-core --example roll_back`], [Runs the roll-back sample (@sec-roll-back).],
   [`cargo run -p swx-core --example parameter_table`], [Runs the parameter-table sample (@sec-param-table).],
@@ -168,6 +186,9 @@ The `occt` feature switches on OpenCascade. It is off by default, so a plain bui
   [`combine_tracked(op, target, tools)`], [The same solid as `combine`, with a `CombineHistory`. Same errors.],
   [`body_count(s)`], [The number of separate solid bodies in `s`. 0 for a lone face.],
   [`bodies(s)`], [Each solid body of `s` as its own shape, ordered by the lowest corner of its bounding box (x, then y, then z). Empty for a lone face. `s` unchanged.],
+  [`mirror(s, plane)`], [The reflection of `s` across the plane through `plane.origin` with normal `plane.normal` (a `Workplane`; its `x_dir` isn't used) (@sec-mirror). A new shape; `s` unchanged. The origin finite; the normal finite and non-zero.],
+  [`pattern_rectangular(s, dir1, count1, spacing1, dir2)`], [`count1` × `count2` copies of `s`, as a list (@sec-pattern-rect). Copy (i, j) is moved by i × `spacing1` along `dir1` and j × `spacing2` along `dir2`, the directions normalized; `dir2` is optional, given as `(direction, count2, spacing2)`. In rows: i outer, j inner; copy 0 is `s` unmoved. Counts ≥ 1; spacings finite (negative copies the other way); directions finite and non-zero. `s` unchanged.],
+  [`pattern_circular(s, axis, count, total_angle)`], [`count` copies of `s` turned about `axis` by the right-hand rule, as a list (@sec-pattern-circ). A full turn (2π, within 10#super[−12]) spaces them by `total_angle` ÷ `count`; a smaller angle by `total_angle` ÷ (`count` − 1), so the last lands on it. Copy 0 is `s` unmoved. Count ≥ 1; `total_angle` in radians, in (0, 2π\]; the axis origin finite, its direction finite and non-zero. `s` unchanged.],
   [`volume(s)`, `surface_area(s)`], [In mm³ and mm².],
   [`bounding_box(s)`], [The smallest box, aligned with the axes, that holds the solid: its `min` and `max` corners.],
   [`face_count(s)`], [The number of faces.],
@@ -625,9 +646,9 @@ A unit that is not one of the seven in @sec-ref-expr, including an empty one, co
   header: ("Format", "Read / write", "Notes"),
   [STEP (`.step`, `.stp`), ISO 10303-21], [Both], [Solids only. Written in millimeters; read in the file's own length unit and converted to millimeters (millimeters when it names none). Can be kept inside a part (@sec-files-import).],
   [STL (`.stl`), ASCII and binary], [Write], [A solid at a chosen deflection (@sec-stl-export), or your program's own mesh (@sec-stl); in millimeters (@sec-ref-stl).],
-  [glTF 2.0 binary (`.glb`)], [Write], [Triangle meshes from your program's own mesh, in millimeters scaled to glTF's meters (@sec-glb, @sec-ref-glb). Not yet straight from a part.],
+  [glTF 2.0 binary (`.glb`)], [Write], [Triangle meshes from your program's own mesh, in millimeters scaled to glTF's meters (@sec-glb, @sec-ref-glb), and a part's display mesh in its cache (@sec-files-part-cache).],
   [BRep text (`.brep`)], [Both], [One solid's exact shape, in millimeters, through the geometry engine (@sec-files-brep). For a document's cache (@sec-files-cache).],
-  [PNG (`.png`)], [Write], [Pictures from `swx-qa render` and `swx-qa sketch`.],
+  [PNG (`.png`)], [Write], [Pictures from `swx-qa render` and `swx-qa sketch`, and a part's `thumbnail.png` from `swx-qa thumbnail`.],
   [Saulitwerx document, unpacked form (a `.sltwx`, `.sltwxa` or `.sltwxd` folder)], [Both], [The manifest is checked in full; the model and properties are kept as JSON objects, not yet tied to a part; embedded files and the cache are kept byte for byte (@ch-files, @sec-ref-files).],
   [Saulitwerx document, packed form (one `.sltwx`, `.sltwxa` or `.sltwxd` file, a ZIP)], [Both], [The same files as the unpacked form, deflate-compressed; checked as for a folder, plus each entry's CRC-32 and size (@sec-files-packed, @sec-ref-files).],
 )
@@ -659,6 +680,10 @@ A unit that is not one of the seven in @sec-ref-expr, including an empty one, co
   [`Document::cache_is_fresh(recorded)`], [`true` only when `recorded` equals the hash `refresh_model_hash` would record; a cache stamped with it still matches the model. Any other text, malformed or not, gives `false`.],
   [`to_canonical_json(v)`], [Any JSON-representable value as canonical JSON: names in byte order at every level, 2-space indent, one member or element per line, `": "` after each name, `{}` and `[]` for empty ones, other characters kept as UTF-8, one newline at the end. The same value always gives the same text.],
   [`Document::fresh_cache_file(path)`], [The bytes of the cache file `path`, such as `"cache/display.glb"`, when the document's cache holds it and its `model_hash` passes `cache_is_fresh`; otherwise `None` (@sec-files-cache).],
+  [`build_part_cache(kernel, doc, bodies, deflection_mm)`], [Needs the `occt` feature. Fills `doc.cache` from a part's `bodies`, a list of `(body ID, shape)`: `cache/body-<id>.brep` for each (from `write_brep`), and `cache/display.glb`, every body tessellated at `deflection_mm` and merged into one mesh (from `write_glb`) (@sec-files-part-cache). Each entry gets the hash `refresh_model_hash` records. Entries at those paths are replaced; others are kept. The deflection must be finite and > 0, and every ID make a valid cache path (not empty, no `/` or `\`); both are checked before the kernel is called. On any error `doc` is unchanged.],
+  [`load_body(kernel, doc, body_id)`], [Needs the `occt` feature. The shape in `cache/body-<body_id>.brep` while it is fresh and reads back as BRep; `None` when it is missing, stale or unreadable, never an error.],
+  [`DISPLAY_DEFLECTION_MM`], [0.05: the deflection, in mm, to pass to `build_part_cache` for a mesh that looks smooth on screen.],
+  [`PartCacheError`], [`InvalidDeflection(value)`, `InvalidBodyId(id)`, `Kernel(KernelError)`, `Mesh(GlbError)` (@sec-errors).],
   [`embed_step(kernel, doc, path)`], [Brings the STEP file `path` into the part `doc` and returns its `ImportStepFeature` (@sec-files-import). The file must start `ISO-10303-21;` and the geometry engine must read it as a shape with volume. Its bytes go into `attachments` as `<id>.step`; `model.json` gets an `import_step` feature named `Imported<N>` (the lowest `N` not taken) after `end_of_part` (which moves to it) or at the end, and a body named after the file without its extension. On any error `doc` is unchanged. Returns a `StepImportError`.],
   [`rebuild_imported(kernel, doc, id)`], [The shape of the `import_step` feature `id`, read from its embedded copy after checking the copy's SHA-256. Returns a `StepImportError`.],
   [`Document`], [`manifest` (a `Manifest`), `model` (a JSON object), `properties` (`Option`, a JSON object), `attachments` (file name → bytes, for `attachments/<name>`), `cache` (`Option<Cache>`).],

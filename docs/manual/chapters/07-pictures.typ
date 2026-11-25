@@ -2,7 +2,7 @@
 
 = Pictures of parts and sketches <ch-pictures>
 
-`swx-qa render` draws a part to a PNG picture file, and `swx-qa sketch` draws a sketch. They need no graphics card and no window, and the same input always gives the same picture, byte for byte. The project uses them to show its work in reviews; this manual's pictures come from them too.
+`swx-qa render` draws a part to a PNG picture file, and `swx-qa sketch` draws a sketch. They need no graphics card and no window, and the same input always gives the same picture, byte for byte. The project uses them to show its work in reviews; this manual's pictures come from them too. A third command, `swx-qa thumbnail`, gives a part document its small preview picture (@sec-files-thumbnail).
 
 == Draw a STEP file
 

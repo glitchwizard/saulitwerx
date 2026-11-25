@@ -52,6 +52,7 @@
 #include "chapters/06f-draft.typ"
 #include "chapters/06h-loft.typ"
 #include "chapters/06i-sweep.typ"
+#include "chapters/06j-pattern.typ"
 #include "chapters/06g-work.typ"
 #include "chapters/07-pictures.typ"
 #include "chapters/08-history.typ"

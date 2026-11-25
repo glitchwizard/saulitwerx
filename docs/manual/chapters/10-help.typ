@@ -36,8 +36,8 @@ Every message starts with `swx-qa: `. No picture is written when there is an err
 #ref-table(
   columns: (1fr, 1fr),
   header: ("Message", "Meaning and fix"),
-  [`missing command`], [Nothing after `swx-qa`. Add `render`, `sketch`, or `--help`.],
-  [#raw("unknown command `x`")], [Only `render`, `sketch` and `help` exist.],
+  [`missing command`], [Nothing after `swx-qa`. Add `render`, `sketch`, `thumbnail`, or `--help`.],
+  [#raw("unknown command `x`")], [Only `render`, `sketch`, `thumbnail` and `help` exist.],
   [#raw("unknown option `x`")], [A misspelled option, or one that belongs to the other command (`--crease` and `--step` are for `render` only). The help text follows the message.],
   [#raw("`--size` needs a value")], [An option was last on the line without its value. The same goes for the other options.],
   [`missing input: give --fixture <name> or --step <file.step>`], [Say what to draw.],
@@ -55,6 +55,10 @@ Every message starts with `swx-qa: `. No picture is written when there is an err
   [`cannot read f: kernel failure: import_step from f failed`], [The file isn't valid STEP. The geometry engine prints the reason just above.],
   [`cannot write f: …`], [The picture can't be saved there, for example because the folder doesn't exist.],
   [`mesh is empty`, `mesh has no visible extent`], [The STEP file holds nothing that can be drawn.],
+  [`thumbnail takes exactly one document path`], [`thumbnail` was given no document, two, or an option. Give one folder or `.sltwx` file. The help text follows the message.],
+  [`f has no fresh body BRep (cache/body-<id>.brep): the cache must be built first`], [The part has no body files in its cache, or they are out of date. Build the cache (@sec-files-part-cache), then try again. Nothing is written.],
+  [`cannot read f: …`, `cannot write f: …` (thumbnail)], [The document can't be read or saved; the reason is a document-file message (@sec-errors) or the system's.],
+  [#raw("cannot make a thumbnail of f: reading body BReps needs OCCT; rebuild with `cargo build -p swx-qa --features occt`")], [`swx-qa` was built without OpenCascade. Rebuild it with `--features occt`.],
 )
 
 === From the geometry kernel
@@ -113,6 +117,11 @@ Every message starts with `swx-qa: `. No picture is written when there is an err
   [`invalid input: toward is parallel to the cylinder axis: it picks no side`], [The direction given for a tangent plane runs along the cylinder, so it doesn't say which side to touch. Point it out sideways from the axis.],
   [`invalid input: work_plane_tangent needs a face, got a Edge sub-shape` (or `Vertex`), `edge_midpoint needs an edge, got a Face sub-shape` (or `Vertex`)], [A tangent plane needs a face, and a midpoint an edge.],
   [`invalid input: combine needs at least one tool body`], [A combine was given an empty list of tools (@sec-bodies).],
+  [`invalid input: pattern count 1 must be at least 1` (or `pattern count 2`, `pattern count`)], [A pattern was asked for no copies. The count includes the original, so the least is 1 (@sec-pattern-mistakes).],
+  [`invalid input: mirror plane normal must be non-zero`, `pattern direction 1 must be non-zero` (or `2`), `pattern axis direction must be non-zero`], [A mirror plane, pattern direction or pattern axis of length zero. Give a direction that points somewhere.],
+  [`invalid input: pattern spacing 1 must be finite, got [NaN]`, `mirror plane origin must be finite, got …`, `pattern axis origin must be finite, got …`], [A mirror or a pattern was given an infinite value or NaN.],
+  [`invalid input: pattern total angle must be in (0, 2π] radians, got <v>`], [A circular pattern's total angle is 0 or less, more than a full turn, not a number, or given in degrees. Give radians: 2π for a full turn (@sec-pattern-circ).],
+  [`kernel failure: mirror failed`, `pattern_rectangular failed`, `pattern_circular failed`], [The geometry engine couldn't move a copy. The original is unchanged.],
   [`invalid input: the combine target has no solid body`, `combine tool 0 has no solid body`], [The target, or a tool (counted from 0), is a flat face, not a solid. Extrude it first.],
   [`empty result: the combined result encloses no volume`], [A cut removed everything, or an intersect found no common volume.],
   [`invalid input: the planes are parallel: they have no line in common`], [Two parallel planes have no line where they meet (@sec-work-mistakes).],
@@ -257,6 +266,9 @@ For an unknown entity, `infer` and `add_inferred` give the sketch messages above
   [#raw("`bodies[1]` needs a non-empty string `id`")], [That item of a part's ID array has no `id`, an empty one, or one that isn't text. The array is named by its path, such as #raw("sketches[0].constraints") (@sec-files-ids).],
   [#raw("invalid field `bodies`: must be an array")], [One of a part's ID arrays isn't a list. Write it in square brackets.],
   [#raw("invalid field `cache`: \"cache/meshes/display.glb\" is not `thumbnail.png` or `cache/<name>`")], [A cache file's path has a folder in it, or isn't in `cache/`. Nothing is written. Keep cache files directly in `cache/` (@sec-files-cache). A malformed `model_hash` in a cache entry is refused the same way.],
+  [`deflection 0 mm is invalid: it must be finite and greater than 0` (from `build_part_cache`)], [The display mesh's deflection is 0, less than 0, or not a number. Pass `DISPLAY_DEFLECTION_MM` (@sec-files-part-cache). The cache is unchanged.],
+  [`body ID "a/b" can't name a cache file`], [A body's ID is empty, or holds `/` or `\`, so it can't name its BRep file. The cache is unchanged.],
+  [`could not build the body cache: …`, `could not write the display mesh: …`], [The geometry engine couldn't write a body or break it into triangles, or the merged mesh couldn't be written; the reason follows. The cache is unchanged.],
   [#raw("invalid field `attachments`: …")], [An embedded file's name isn't a plain file name: it is empty, holds a `/` or `\`, or is `.` or `..`. Nothing is written.],
 )
 ]
@@ -348,14 +360,15 @@ Every message starts `sltwx: `. Any document-file message above can follow it, w
 - An extrude's or a revolve's target is a solid you hold in your program. Faces and edges can be counted and numbered (@sec-topology), a plain extrude says which face each piece of the outline became (@sec-extrude-history), and a Boolean what became of each face (@sec-boolean-history), but they can't be picked, and their numbers don't last through a change; so the outline's workplane is given by its numbers (@sec-extrude-modes).
 - Holes have flat bottoms, with no drill points. A tapped hole is drilled at its tap-drill size, but its thread isn't modeled, and only metric coarse sizes from M2 to M24 are built in (@sec-hole-tapped).
 - A draft tilts flat faces by one angle about one neutral plane; it can't split a face or step its neutral line (@ch-draft).
+- Mirrors and patterns copy whole bodies, not features; the copies are separate shapes that your program joins or cuts with `combine`. A pattern can't skip copies, follow a curve, or change from copy to copy (@ch-pattern).
 - A part with several bodies (@sec-bodies) is one shape: its bodies can be counted and taken apart, but not named, moved or kept apart in a part's history.
 - Work planes, axes and points can be taken from a part's faces, edges and corners only by their numbers, not picked; an axis taken from the part may point either way (@sec-work-part).
 - A loft goes through flat sections without holes, in the order given, with no guide curves and no control over how the sections line up (@ch-loft).
 - A sweep moves one flat profile without holes along an open path of lines and arcs in one plane, or around a helix of one radius and one pitch: no closed, spline or other 3D paths, no twist or change of size. A bend must be wider than the profile: the check uses the profile's farthest point from the path's start, so it can refuse a bend that would just fit on the profile's narrow side (@ch-sweep).
-- Extrudes, revolves, lofts, sweeps, fillets, chamfers, shells, holes, drafts and work features aren't recorded in a part's history, so they don't rebuild when a parameter changes.
+- Extrudes, revolves, lofts, sweeps, fillets, chamfers, shells, holes, drafts, mirrors, patterns and work features aren't recorded in a part's history, so they don't rebuild when a parameter changes.
 - `model.json` isn't yet filled from a part or read back into one, so work can't be saved with its history (@ch-files). A single file can't hold more than 4 GB (no ZIP64).
 - A solid can be saved as STL in one step (@sec-stl-export), but STL can't be read. GLB files are written only from a mesh your program gives (@sec-glb), and hold only the shape, with no colors or materials.
-- A document can hold a cache (@sec-files-cache), but nothing builds the cache from a part or makes a thumbnail yet: your program fills it.
+- A document can hold a cache (@sec-files-cache), built from bodies your program hands over (@sec-files-part-cache), with a thumbnail from `swx-qa thumbnail` (@sec-files-thumbnail). Nothing builds a part's bodies from `model.json` yet, so the cache can't be filled from a saved part alone.
 - `swx-qa sketch` draws only its two built-in sketches. Your own sketches need a short program (@sec-picture-sketch). Sketch pictures show no dimension arrows and no marks for constraints such as horizontal.
 - A parameter's unit is free text. Only the seven units of @sec-ref-expr are understood by formulas; any other unit counts as none.
 - When a new value breaks a formula that depends on it, the formula keeps its old value without an error (@sec-param-formulas).

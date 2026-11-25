@@ -36,7 +36,7 @@ The same files can be kept in two ways, and both carry the same name:
 
 Each file is written the same way every time, with its names in alphabetical order and one value per line, in either form. So the same document always gives the same bytes, and when you keep a design under version control a change shows up as a change to just the lines it touched.
 
-*In Saulitwerx today:* `swx-io` reads and writes both forms and checks the manifest, and the `sltwx` command turns a folder into a file and back (@sec-files-sltwx). In a part's `model.json`, every sketch, feature and body, and every piece and rule of a sketch, must carry its own ID, and the file is written in a fixed order (@sec-files-ids). A STEP file can be brought into a part and kept inside it (@sec-files-import), and a document can carry a cache that knows when it is out of date (@sec-files-cache). Beyond that, `model.json` and `properties.json` are read and written as plain JSON objects: Saulitwerx can't yet fill `model.json` from a part's history or build a part from it, so a part can't be saved and opened again yet.
+*In Saulitwerx today:* `swx-io` reads and writes both forms and checks the manifest, and the `sltwx` command turns a folder into a file and back (@sec-files-sltwx). In a part's `model.json`, every sketch, feature and body, and every piece and rule of a sketch, must carry its own ID, and the file is written in a fixed order (@sec-files-ids). A STEP file can be brought into a part and kept inside it (@sec-files-import), and a document can carry a cache that knows when it is out of date (@sec-files-cache), built from a part's bodies (@sec-files-part-cache), with a preview picture (@sec-files-thumbnail). Beyond that, `model.json` and `properties.json` are read and written as plain JSON objects: Saulitwerx can't yet fill `model.json` from a part's history or build a part from it, so a part can't be saved and opened again yet.
 
 // Keeps the task's heading and intro with its first step.
 #pagebreak(weak: true)
@@ -372,7 +372,7 @@ A document's cache is a set of files kept beside the model: in `cache/`, plus a 
 
 The cache is never needed. Saulitwerx can always work everything out again from `model.json`, so a cache that is missing, damaged or out of date is quietly set aside, never reported as an error. Opening a document never fails because of its cache.
 
-*In Saulitwerx today:* `swx-io` reads and writes a document's cache and its index, in both forms, and hands out a cache file only while it is fresh. Your program fills the cache: nothing builds the files from a part yet, and nothing makes a thumbnail.
+*In Saulitwerx today:* `swx-io` reads and writes a document's cache and its index, in both forms, and hands out a cache file only while it is fresh. `swx-io` can build the bodies' BRep files and the display mesh from bodies your program hands it (@sec-files-part-cache), and `swx-qa thumbnail` adds the preview picture (@sec-files-thumbnail). Nothing builds the bodies from `model.json` yet, so your program still makes them.
 
 #task-intro(
   goal: [Keep a mesh in a part's cache, read it back, and see an edit, damage and a broken index set it aside.],
@@ -438,7 +438,7 @@ The program is `crates/swx-io/examples/document_cache.rs`. It builds a `Document
 A cache keeps the finished solid of each body as a #term[BRep] text file (`cache/body-<id>.brep`). BRep, short for _boundary representation_, describes a solid by its faces, edges and corners and the exact surfaces and curves they lie on: the same exact shape a STEP file holds, not a mesh. The format is OpenCascade's own published text format, so reading it back gives the geometry engine the very same solid, with nothing to work out again.
 ]
 
-*In Saulitwerx today:* the geometry engine writes any solid as BRep text and reads it back, and a document's cache can hold the text (@sec-files-cache). Nothing builds it from a part's bodies yet: your program writes each body's text and puts it in the cache itself.
+*In Saulitwerx today:* the geometry engine writes any solid as BRep text and reads it back, and a document's cache can hold the text (@sec-files-cache). `build_part_cache` writes it for every body of a part, and `load_body` reads a body back (@sec-files-part-cache).
 
 #task-intro(
   goal: [Write a plate with a hole as BRep text, read it back, and compare.],
@@ -459,6 +459,100 @@ A cache keeps the finished solid of each body as a #term[BRep] text file (`cache
 #result[A solid kept as text and brought back exactly, the way a cache will keep each body.]
 
 The program is `crates/swx-kernel/examples/brep_text.rs`. It calls `write_brep(s)`, which returns the text, and `read_brep(text)`, which returns the solid.
+
+== Build a part's cache from its bodies <sec-files-part-cache>
+
+#for-developers[This section calls the geometry engine, so it needs OpenCascade and the `occt` build feature of `swx-io`.]
+
+The last two sections showed the cache and a body's BRep text one piece at a time. One call puts them together. Given a part's finished bodies, each with its ID, `build_part_cache` writes every body as `cache/body-<id>.brep` and all of them together as one display mesh, `cache/display.glb`, each stamped with the part's model hash. Another call, `load_body`, hands a body back from its BRep file, but only while that file is fresh. A missing, out-of-date or damaged file gives nothing back, which tells your program to build the body again.
+
+The display mesh is made fine enough to look smooth on screen: no point of the mesh is more than 0.05 mm from the true surface (`DISPLAY_DEFLECTION_MM`). Every body goes into the one mesh, so a part with two bodies shows both.
+
+*In Saulitwerx today:* your program makes the bodies and hands them over; Saulitwerx doesn't yet rebuild a part's bodies from `model.json` (@ch-history), so it can't fill the cache of a part on its own.
+
+#task-intro(
+  goal: [Build the cache of a part with two bodies, save it, load each body back, and see an edit set the cache aside.],
+  needs: [Saulitwerx built from source with OpenCascade (@ch-install).],
+  time: [5 minutes.],
+)
+
+#steps(
+  [#block(breakable: false)[Run the sample program, and tell it to write into the folder `files`:
+  #term-block("cargo run -p swx-io --features occt --example part_cache -- files")
+  It makes a plate with a hole and a pin beside it, builds the cache, lists it, saves the part, loads it back, then tries two mistakes on purpose:
+  #term-block(label: "Output", "cache/body-pin.brep        1068 bytes\ncache/body-plate.brep      3353 bytes\ncache/display.glb          7036 bytes\nwrote files/pinned-plate.sltwx\nloaded plate   9214.60 mm³, 7 faces\nloaded pin     1272.35 mm³, 3 faces\nloaded bolt: false\nafter an edit: plate stale, display mesh fresh false\ndeflection 0 -> error: deflection 0 mm is invalid: it must be finite and\n    greater than 0\nbody a/b -> error: body ID \"a/b\" can't name a cache file\ncache unchanged: true")
+  One long line is wrapped here to fit the page.]],
+  [Read the first three lines. One BRep file for each body, named after its ID, and one mesh for both.],
+  [Read the `loaded` lines. Both bodies come back whole from their files: the 40 × 25 × 10 mm plate less its hole 10 mm across, and the pin 9 mm across and 20 mm tall. There is no body called `bolt`, so nothing comes back for it, and no error either.],
+  [Read the `after an edit` line. After a parameter changes, every file is out of date: `load_body` gives nothing, and the mesh isn't handed out. A program would build the bodies again.],
+  [Read the errors. The mesh's fineness must be more than 0; a body ID with `/` or `\` in it can't be a file name. Either way the call stops before it starts, and the cache is left as it was.],
+  [#block(breakable: false)[Look in the part's folder:
+  #term-block("ls files/pinned-plate.sltwx files/pinned-plate.sltwx/cache")
+  #term-block(label: "Output", "files/pinned-plate.sltwx:\ncache\nmanifest.json\nmodel.json\n\nfiles/pinned-plate.sltwx/cache:\nbody-pin.brep\nbody-plate.brep\ndisplay.glb\nindex.json")]],
+)
+
+#result[A saved part that carries its finished bodies and a mesh to show them, ready to use until the model changes.]
+
+#block(breakable: false)[
+=== How the sample is built
+
+The program is `crates/swx-io/examples/part_cache.rs`. It builds a `Document` as in @sec-files, with a `bodies` list holding the IDs `plate` and `pin`, then:
+
+#steps(
+  [*Build the cache.* Each body goes in with its ID. Stamp the model hash first, so the manifest records the same hash as the files:
+  ```rust
+  doc.refresh_model_hash();
+  let bodies = [("plate".to_owned(), &plate), ("pin".to_owned(), &pin)];
+  build_part_cache(&k, &mut doc, &bodies, DISPLAY_DEFLECTION_MM)?;
+  ```],
+  [*Load a body.* `load_body` gives `Some(shape)` while the file is fresh, and `None` otherwise:
+  ```rust
+  if let Some(plate) = load_body(&k, &doc, "plate") { /* use it */ }
+  ```],
+)
+]
+
+#note(title: [Building again])[`build_part_cache` replaces the files of the bodies you give it and the display mesh, and keeps every other file in the cache. When a body is deleted from a part, its old BRep file stays until you remove it from `doc.cache` yourself; it goes out of date with the first edit, so it is never loaded by mistake.]
+
+== Make a part's thumbnail <sec-files-thumbnail>
+
+#idx("thumbnail")
+A #term[thumbnail] is the small preview picture of a part kept in its document, `thumbnail.png`: what a file browser or an _Open_ window can show without opening the part. The `swx-qa thumbnail` command makes it. It loads every body whose BRep file in the cache is fresh, draws them together the way `swx-qa render` draws a part (@ch-pictures), 256 × 256 pixels, and stores the picture in the document's cache with the same model hash. Then it saves the document in the form it was in, a folder or one file.
+
+*In Saulitwerx today:* the thumbnail is made from a cache built as in @sec-files-part-cache; a document without one can't get a thumbnail yet. The command needs a build with OpenCascade.
+
+#task-intro(
+  goal: [Give the part from @sec-files-part-cache a thumbnail, as a folder and as one file.],
+  needs: [The folder `files/pinned-plate.sltwx` from @sec-files-part-cache, and `swx-qa` built with OpenCascade (@ch-install).],
+  time: [2 minutes.],
+)
+
+#steps(
+  [#block(breakable: false)[Make the thumbnail:
+  #term-block("target/release/swx-qa thumbnail files/pinned-plate.sltwx")
+  It says what it wrote and how many bodies it drew:
+  #term-block(label: "Output", "wrote thumbnail.png into files/pinned-plate.sltwx (256x256, 13894 bytes,\n    2 bodies)")
+  The line is wrapped here to fit the page.]],
+  [Open `files/pinned-plate.sltwx/thumbnail.png`. You should see the plate and the pin of @fig-thumbnail.],
+  [#block(breakable: false)[Pack the part into one file, and make its thumbnail again there:
+  #term-block("target/release/sltwx pack files/pinned-plate.sltwx pinned-plate.sltwx\ntarget/release/swx-qa thumbnail pinned-plate.sltwx\nunzip -l pinned-plate.sltwx")
+  The file holds the thumbnail with the rest of the cache:
+  #term-block(label: "Output", "wrote thumbnail.png into pinned-plate.sltwx (256x256, 13894 bytes, 2 bodies)\nArchive:  pinned-plate.sltwx\n  Length      Date    Time    Name\n---------  ---------- -----   ----\n      364  1980-01-01 00:00   manifest.json\n      169  1980-01-01 00:00   model.json\n     1068  1980-01-01 00:00   cache/body-pin.brep\n     3353  1980-01-01 00:00   cache/body-plate.brep\n     7036  1980-01-01 00:00   cache/display.glb\n    13894  1980-01-01 00:00   thumbnail.png\n      977  1980-01-01 00:00   cache/index.json\n---------                     -------\n    26861                     7 files")]],
+)
+
+#result[A part that shows what it is before you open it.]
+
+// cargo run -p swx-io --features occt --example part_cache -- files
+// swx-qa thumbnail files/pinned-plate.sltwx
+// cp files/pinned-plate.sltwx/thumbnail.png docs/manual/img/thumbnail-pinned-plate.png
+#shot(
+  "img/thumbnail-pinned-plate.png",
+  width: 1.28in,
+  alt: "A small picture of a rectangular plate with a round hole in its top, and a round pin standing beside it",
+  caption: [The thumbnail of the part from @sec-files-part-cache, at its real size of 256 × 256 pixels printed at 200 dpi.],
+) <fig-thumbnail>
+
+#caution(title: [Make it after the cache, every time])[The command draws only bodies whose files are fresh. After an edit, build the cache again first; otherwise it stops with #raw("has no fresh body BRep (cache/body-<id>.brep): the cache must be built first") and writes nothing. A thumbnail goes out of date with the model, like every other cache file.]
 
 == What is read and written <sec-files-rules>
 
@@ -501,4 +595,6 @@ Like Saulitwerx, both let a file carry fields they don't know. Saulitwerx's own 
 - *A STEP file the geometry engine can't read.* #raw("STEP import of `part.step` failed: …"). The file is damaged or cut short. The geometry engine prints its reason above the message.
 - *A damaged or missing copy of an imported file.* #raw("Imported1: embedded STEP file `attachments/ft-ec796e41.step` is damaged (sha256 does not match)"), or #raw("… is missing"). Something changed or deleted the copy inside the document. The part still opens; use an earlier copy of the document, or import the STEP file again.
 - *A cache file outside `cache/`.* #raw("invalid field `cache`: \"cache/meshes/display.glb\" is not `thumbnail.png` or `cache/<name>`"). Keep cache files directly in `cache/`, with no folders inside it.
+- *A thumbnail before the cache.* #raw("plate.sltwx has no fresh body BRep (cache/body-<id>.brep): the cache must be built first"). The part has no body files, or they are out of date. Build the cache (@sec-files-part-cache), then run `swx-qa thumbnail` again.
+- *A body ID that can't be a file name.* #raw("body ID \"a/b\" can't name a cache file"). A body's ID becomes part of a file name, so it can't be empty or hold `/` or `\`.
 - *A file from a future version.* `unsupported format_version "1.0.0": only major version 0 is supported`. This Saulitwerx can't read it; use a newer one.

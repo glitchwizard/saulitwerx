@@ -130,3 +130,7 @@ required-features = ["occt"]
 [[example]]
 name = "brep_text"
 required-features = ["occt"]
+
+[[example]]
+name = "mirror_pattern"
+required-features = ["occt"]
