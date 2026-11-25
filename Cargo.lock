@@ -206,6 +206,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "swx-model"
+version = "0.0.1"
+dependencies = [
+ "swx-kernel",
+ "swx-sketch",
+]
+
+[[package]]
 name = "swx-qa"
 version = "0.0.1"
 dependencies = [
