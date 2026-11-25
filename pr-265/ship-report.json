@@ -1,0 +1,95 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(model): new crate swx-model",
+      "ref": "1950b36",
+      "task_id": "m3-01c",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt --all --check",
+      "passed": true,
+      "required": true,
+      "task_id": "m3-01c",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy --workspace --all-targets -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "m3-01c",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test --workspace",
+      "passed": true,
+      "required": true,
+      "task_id": "m3-01c",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-model --features occt --all-targets -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "m3-01c",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-model --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m3-01c",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "New crate `crates/swx-model` (`publish = false`, `license = \"MIT OR Apache-2.0\"`), a workspace member, with path dependencies on `swx-sketch` and `swx-kernel` (default features, no OCCT) only, and no third-party dependencies. Feature `occt` forwards to `swx-kernel/occt`. `swx-core`, `swx-sketch` and `swx-kernel` gain no dependency on it.",
+      "One ADR line appended to the ADR log in `docs/ARCHITECTURE.md`: date, `M3-01c`, the new crate, its dependencies (`model → kernel, sketch → core`), that it owns feature evaluation (region → profile loops now; the naming table and resolver from M3-04f), and links to #106 and `docs/specs/M3-04.md`. No other change to `ARCHITECTURE.md`.",
+      "`pub fn region_to_profile(sketch: &Sketch, region: &Region) -> Result<RegionProfile, ModelError>`, documented, where `RegionProfile` holds `outer: ProfileLoop`, `holes: Vec<ProfileLoop>` (same order as `region.holes`) and `sources: Vec<Vec<GeomId>>`: `sources[i][j]` is the sketch entity of segment `j` of loop `i` (loop 0 is the outer loop, then the holes), the same nesting `make_face_tracked` returns. Segment `j` of a loop is edge `j` of the region's loop, in order.",
+      "Mapping: a line becomes `Segment2::Line` with `start`/`end` swapped when its `OrientedEdge` is reversed; an arc becomes `Segment2::Arc` with the same center, radius and angles; a circle becomes `Segment2::Circle`. Coordinates are taken from the solved sketch (`Sketch::get`). An edge whose entity is missing or is a point returns a `ModelError` (implements `std::error::Error`), never a panic.",
+      "Tests without OCCT, tolerance 1e-9: 1. Rectangle 40 × 25 (lines e1–e4, e1 from (0, 0) to (40, 0)) with a hole circle e5 of radius 5 at (20, 12.5): one region; the outer loop has 4 `Line` segments whose ends chain within `LOOP_GAP_TOLERANCE` (either segment may run backwards); the hole is one `Circle` of radius 5 at (20, 12.5); `sources` is `[[e1..e4 in loop order], [e5]]`; the area computed from the converted segments is 1000 − 25π. 2. A slot: two lines plus two semicircular arcs, one of them traversed reversed in the region: the converted loop chains, and its area equals `region.area()`. 3. Problem case 2 of the M3-04 spec: cutting a corner of test 1 with a new line e6 (so the outline has 5 sides) gives an outer loop of 5 segments whose `sources` include e6, and the hole still maps to e5. 4. A region that names a point entity, or a `GeomId` not in the sketch, returns `ModelError`.",
+      "With `--features occt`: one test makes a face from test 1's profile with `make_face_tracked` and checks its area is 1000 − 25π within 1e-6, and that the returned per-segment edges have the same shape as `sources`.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, plus `cargo clippy -p swx-model --features occt --all-targets -- -D warnings` and `cargo test -p swx-model --features occt` (CI's occt job may not run them; list them in the gates, FACTORY §6c).",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-25T08:23:29.354547721+00:00",
+    "constraints": [],
+    "created_at": "2026-11-25T08:23:13.603296542+00:00",
+    "description": "M3-01c: new crate swx-model (ADR) and sketch regions → kernel profile loops",
+    "project_id": "saulitwerx",
+    "scope": "crates/swx-model, Cargo.lock, one ADR line in docs/ARCHITECTURE.md",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 5,
+      "estimate": "medium",
+      "id": "m3-01c",
+      "status": "completed",
+      "title": "swx-model crate + region_to_profile (#106, PR #265)",
+      "type": "implement"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
