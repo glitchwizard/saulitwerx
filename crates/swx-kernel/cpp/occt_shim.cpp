@@ -13,10 +13,12 @@
 #include <BRepAlgoAPI_Common.hxx>
 #include <BRepAlgoAPI_Cut.hxx>
 #include <BRepAlgoAPI_Fuse.hxx>
+#include <BRepAlgoAPI_Splitter.hxx>
 #include <BRepBndLib.hxx>
 #include <BRepBuilderAPI_Copy.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
+#include <BRepBuilderAPI_MakeSolid.hxx>
 #include <BRepBuilderAPI_MakeVertex.hxx>
 #include <BRepBuilderAPI_MakeWire.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
@@ -42,6 +44,7 @@
 #include <BRep_Builder.hxx>
 #include <BRep_Tool.hxx>
 #include <Bnd_Box.hxx>
+#include <ElSLib.hxx>
 #include <GCPnts_AbscissaPoint.hxx>
 #include <GProp_GProps.hxx>
 #include <Geom2d_Line.hxx>
@@ -667,6 +670,97 @@ int swx_occt_split_half(const SwxShape* s, double ox, double oy, double oz, doub
             return -1;
         }
         return emit(common.Shape(), out);
+    } catch (...) {
+        return -1;
+    }
+}
+
+// The solids of `s` with every face that the infinite plane through
+// (ox, oy, oz) with normal (nx, ny, nz) crosses divided along the
+// intersection; the geometry is unchanged. Each shell of each solid is split
+// on its own by the General Fuse splitter (BRepAlgoAPI_Splitter; OCCT
+// "Boolean Operations" user guide, Splitter algorithm), with the shell as the
+// argument and a planar face larger than `s`'s bounding box as the tool, so
+// only the shell's pieces are kept. A shell bounds no volume, so its faces
+// are divided without separating the solid. The split shells are made into
+// a solid again (BRepBuilderAPI_MakeSolid, then BRepLib::OrientClosedSolid).
+// One solid in gives one solid out; several give a compound. Returns -1 when
+// `s` has no solid. `s` is unchanged. Rust validates the plane first
+// (split.rs); a zero normal still fails safely here (gp_Dir throws).
+int swx_occt_split_faces(const SwxShape* s, double ox, double oy, double oz, double nx,
+                         double ny, double nz, SwxShape** out) noexcept {
+    if (s == nullptr || out == nullptr) {
+        return -1;
+    }
+    try {
+        if (s->shape.IsNull()) {
+            return -1;
+        }
+        gp_Pln plane(gp_Pnt(ox, oy, oz), gp_Dir(nx, ny, nz));
+        Bnd_Box box;
+        BRepBndLib::Add(s->shape, box);
+        if (box.IsVoid()) {
+            return -1;
+        }
+        double x0, y0, z0, x1, y1, z1;
+        box.Get(x0, y0, z0, x1, y1, z1);
+        gp_Pnt center((x0 + x1) / 2.0, (y0 + y1) / 2.0, (z0 + z1) / 2.0);
+        // A square on the plane, centered on the box center's projection,
+        // whose half side exceeds the box diagonal: it crosses all of `s`.
+        double half = std::sqrt(box.SquareExtent()) + 1.0;
+        double u = 0.0, v = 0.0;
+        ElSLib::Parameters(plane, center, u, v);
+        BRepBuilderAPI_MakeFace tool(plane, u - half, u + half, v - half, v + half);
+        if (!tool.IsDone()) {
+            return -1;
+        }
+        TopTools_ListOfShape tools;
+        tools.Append(tool.Face());
+
+        std::vector<TopoDS_Shape> solids;
+        for (TopExp_Explorer sx(s->shape, TopAbs_SOLID); sx.More(); sx.Next()) {
+            BRepBuilderAPI_MakeSolid make;
+            for (TopExp_Explorer hx(sx.Current(), TopAbs_SHELL); hx.More(); hx.Next()) {
+                TopTools_ListOfShape args;
+                args.Append(hx.Current());
+                BRepAlgoAPI_Splitter splitter;
+                splitter.SetArguments(args);
+                splitter.SetTools(tools);
+                splitter.Build();
+                if (!splitter.IsDone() || splitter.HasErrors()) {
+                    return -1;
+                }
+                int shells = 0;
+                for (TopExp_Explorer rx(splitter.Shape(), TopAbs_SHELL); rx.More(); rx.Next()) {
+                    make.Add(TopoDS::Shell(rx.Current()));
+                    ++shells;
+                }
+                if (shells != 1) {
+                    return -1;
+                }
+            }
+            if (!make.IsDone()) {
+                return -1;
+            }
+            TopoDS_Solid solid = make.Solid();
+            if (!BRepLib::OrientClosedSolid(solid)) {
+                return -1;
+            }
+            solids.push_back(solid);
+        }
+        if (solids.empty()) {
+            return -1;
+        }
+        if (solids.size() == 1) {
+            return emit(solids[0], out);
+        }
+        BRep_Builder builder;
+        TopoDS_Compound compound;
+        builder.MakeCompound(compound);
+        for (const TopoDS_Shape& solid : solids) {
+            builder.Add(compound, solid);
+        }
+        return emit(compound, out);
     } catch (...) {
         return -1;
     }

@@ -74,6 +74,17 @@ extern "C" {
         side: c_int,
         out: *mut *mut RawShape,
     ) -> c_int;
+    #[allow(clippy::too_many_arguments)]
+    fn swx_occt_split_faces(
+        s: *const RawShape,
+        ox: c_double,
+        oy: c_double,
+        oz: c_double,
+        nx: c_double,
+        ny: c_double,
+        nz: c_double,
+        out: *mut *mut RawShape,
+    ) -> c_int;
     fn swx_occt_solid_count(s: *const RawShape, out: *mut usize) -> c_int;
     fn swx_occt_solid(s: *const RawShape, index: usize, out: *mut *mut RawShape) -> c_int;
     #[allow(clippy::too_many_arguments)]
@@ -586,6 +597,33 @@ pub(crate) fn split_half(
             normal[1],
             normal[2],
             if positive { 1 } else { -1 },
+            &mut raw,
+        )
+    };
+    take(status, raw)
+}
+
+/// The solids of `s` with every face that the infinite plane through
+/// `origin` with unit `normal` (validated by the caller, `split.rs`) crosses
+/// divided along the intersection. `s` is unchanged.
+pub(crate) fn split_faces(
+    s: &ShapeHandle,
+    origin: [f64; 3],
+    normal: [f64; 3],
+) -> Option<ShapeHandle> {
+    let mut raw = ptr::null_mut();
+    // SAFETY: `s` is a live handle read-only for the call and not retained;
+    // every other input is passed by value; `raw` is a valid out-pointer that
+    // receives a new, independently owned handle on success.
+    let status = unsafe {
+        swx_occt_split_faces(
+            s.0.as_ptr(),
+            origin[0],
+            origin[1],
+            origin[2],
+            normal[0],
+            normal[1],
+            normal[2],
             &mut raw,
         )
     };

@@ -428,6 +428,19 @@ pub trait Kernel {
         plane: &Workplane,
     ) -> Result<(Vec<Self::Shape>, Vec<Self::Shape>), KernelError>;
 
+    /// `s` with every face that the infinite plane through `plane.origin`
+    /// with normal `plane.normal` crosses divided along the intersection
+    /// (`plane.x_dir` is not used). The body stays whole: the result has the
+    /// same solids, volume and surface area, only more faces, edges and
+    /// vertices. A plane that crosses no face, or only touches the shape
+    /// along an existing face or edge, gives the same face count. Only the
+    /// solids of `s` are kept; a shape with no solid is a
+    /// [`KernelError::Backend`] error. `s` is unchanged.
+    ///
+    /// A non-finite origin, or a zero or non-finite normal, is
+    /// [`KernelError::InvalidInput`], checked before the backend.
+    fn split_faces(&self, s: &Self::Shape, plane: &Workplane) -> Result<Self::Shape, KernelError>;
+
     /// Combines `target` with each of `tools` in turn by `op`: the same
     /// result as `op(op(target, tools[0]), tools[1])…`, in order. The inputs
     /// are unchanged.
