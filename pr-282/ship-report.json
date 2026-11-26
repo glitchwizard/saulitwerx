@@ -1,0 +1,115 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(kernel): path pattern with copies aligned to the path (M6-01c)",
+      "ref": "dee58bb",
+      "task_id": "m6-01c",
+      "type": "commit"
+    },
+    {
+      "description": "PR #282",
+      "ref": "https://github.com/glitchwizard/saulitwerx/pull/282",
+      "task_id": "m6-01c",
+      "type": "pr"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt --all --check",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-01c",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy --workspace --all-targets -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-01c",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test --workspace",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-01c",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-kernel --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-01c",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-kernel --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-01c",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-qa --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-01c",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-qa --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-01c",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`fn pattern_path_aligned(&self, s: &Self::Shape, plane: &Workplane, path: &[Segment2], count: usize) -> Result<Vec<Self::Shape>, KernelError>`, documented: as `pattern_path` (same `sₖ = k·L/(count − 1)`, copy 0 is `s`, `count = 1` gives `s` alone), and copy k is also rotated about the plane normal through `P(0)` by `θ(sₖ) − θ(0)` before the translation. `s` is unchanged.",
+      "Placements (angle and offset per copy) come from a plain function in `pattern.rs`, called by `OcctKernel` before the backend, with the same `InvalidInput` cases as `pattern_path` (count 0, empty path, a `Circle`, segments that don't meet, non-finite numbers, radius ≤ 0, invalid plane). Unit-tested without OCCT.",
+      "Unit tests without OCCT (1e-9 absolute), on the XY workplane: 1. Path `Line (0,0)→(30,0)` then `Arc` center (30,10), radius 10, from −π/2 to 0; `L = 30 + 5π`. Count 3: angles 0, 0, π/2 and offsets (0,0,0), (L/2,0,0), (40,10,0). Count 5: copy 3 has angle φ = (3L/4 − 30)/10. 2. Path `Line (0,0)→(30,0)` then `Line (30,20)→(30,0)` (given end-first, so it runs up +Y), count 3: angles 0, 0, π/2. 3. Path `Line (10,0)→(0,0)` (runs along −X), count 2: angles 0, 0 (a straight path never turns the copies).",
+      "With `--features occt` (1e-9 relative on volumes, 1e-6 on coordinates), a 2 × 2 × 2 box at the origin: 1. On the line-plus-arc path, count 3: 3 copies of volume 8 each; bounding-box minimums (0,0,0), (L/2,0,0) and (38,10,0) (the last copy turned 90° about +Z through the origin, then moved to (40,10)). 2. Same box and path on a workplane with origin (1, 2, 3), x_dir +Y, normal +Z, count 2: copy 1's bounding-box minimum is (−9, 41, 0) and maximum (−7, 43, 2). 3. Count 0 and a path containing a `Circle` each return `InvalidInput` through `OcctKernel`.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and CI's `swx-kernel (occt)` job passes.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-26T10:34:04.255902119+00:00",
+    "constraints": [],
+    "created_at": "2026-11-26T10:33:33.303096066+00:00",
+    "description": "M6-01c: swx-kernel: path pattern of bodies with copies aligned to the path",
+    "project_id": "saulitwerx",
+    "scope": "",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 2,
+      "checks_count": 7,
+      "estimate": "small",
+      "id": "m6-01c",
+      "status": "completed",
+      "title": "Implement and verify pattern_path_aligned (#279, PR #282)",
+      "type": "implement"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
