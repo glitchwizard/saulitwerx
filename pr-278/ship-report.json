@@ -1,0 +1,109 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(kernel): split a body by a plane, keeping both sides (M6-02a)",
+      "ref": "419db7a",
+      "task_id": "gates-274",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt --all --check",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-274",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy --workspace --all-targets -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-274",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test --workspace",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-274",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-kernel --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-274",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-kernel --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-274",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-qa --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-274",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-qa --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-274",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`fn split(&self, s: &Self::Shape, plane: &Workplane) -> Result<(Vec<Self::Shape>, Vec<Self::Shape>), KernelError>`, documented: the solids of `s` cut by the infinite plane through `plane.origin` with normal `plane.normal` (`x_dir` unused). The first list holds the solids on the normal's side, the second those on the other side, each in a deterministic order (documented). A side with nothing on it is an empty list. `s` is unchanged.",
+      "A non-finite origin, or a zero or non-finite normal, is `InvalidInput`, checked by a plain function before the backend and unit-tested without OCCT.",
+      "With `--features occt` (1e-9 relative on volumes, 1e-6 on coordinates): 1. Box 10 × 5 × 2 at the origin, plane x = 4 with normal +X: the first list is 1 solid of volume 60 with bounding box x = 4..10; the second is 1 solid of volume 40 with x = 0..4. With normal −X the lists swap. 2. The same box and the plane x = 20 (normal +X): first list empty, second 1 solid of volume 100. Plane x = −5: all in the first list. 3. A U-shape: box 30 × 10 × 10 at the origin, cut by the box from (10, 0, 5) of size 10 × 10 × 5. Split by z = 7 (normal +Z): the first list has 2 solids of volume 300 each; the second has 1 solid of volume 1900. The total volume equals the U-shape's (2500). 4. The box from case 1 split by its own bottom face's plane z = 0 (normal +Z): the first list is 1 solid of volume 100, the second empty. 5. A zero normal returns `InvalidInput` through `OcctKernel`, and the input's volume and bounding box are unchanged after a successful split.",
+      "Every `unsafe` block added in `swx-kernel::ffi` is documented; the shim function is `noexcept` and catches all C++ exceptions (ADR 2026-10-13).",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and CI's `swx-kernel (occt)` job passes.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-26T08:32:29.853289130+00:00",
+    "constraints": [],
+    "created_at": "2026-11-26T08:32:03.159542240+00:00",
+    "description": "M6-02a: swx-kernel: split a body by a plane, keeping both sides",
+    "project_id": "saulitwerx",
+    "scope": "crates/swx-kernel",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 7,
+      "estimate": "small",
+      "id": "gates-274",
+      "status": "completed",
+      "title": "Gates for PR #278 (M6-02a split by plane)",
+      "type": "test"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
