@@ -36,7 +36,7 @@ Saulitwerx is built in small, tested steps, in the order of a public plan (the _
   [Holes], [Drill simple, counterbored, countersunk and tapped holes, blind or through all, in any direction.], [#now],
   [Draft], [Tilt the sides of a part so it comes out of a mold.], [#now],
   [Loft, sweep], [Blend a solid through several outlines, such as a square into a circle; move an outline along a bent path, such as a rod with an elbow, or around a helix, such as a coil spring.], [#now],
-  [Mirror, pattern], [Mirror a body across a plane; copy it in rows and columns or round an axis, such as a bolt circle.], [#now],
+  [Mirror, pattern, split], [Mirror a body across a plane; copy it in rows and columns, round an axis, such as a bolt circle, or along a path; split it in two with a plane.], [#now],
   [Work features], [Build work planes, axes and points to place features on, from numbers, halfway between two planes, or from a part's faces, edges and corners.], [#now],
   [Document files], [Write and read Saulitwerx document folders and check their manifest; keep a part's bodies, display mesh and preview in its cache. The design itself can't be stored in them yet.], [#now],
   [Desktop app], [Windows, menus, a 3D view and mouse control.], [#later],
