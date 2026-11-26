@@ -1,0 +1,115 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(kernel): split the faces of a body by a plane (M6-02b)",
+      "ref": "6a59a10",
+      "task_id": "m6-02b",
+      "type": "commit"
+    },
+    {
+      "description": "PR #283",
+      "ref": "https://github.com/glitchwizard/saulitwerx/pull/283",
+      "task_id": "m6-02b",
+      "type": "pr"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt --all --check",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-02b",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy --workspace --all-targets -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-02b",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test --workspace",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-02b",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-kernel --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-02b",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-kernel --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-02b",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-qa --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-02b",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-qa --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-02b",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`fn split_faces(&self, s: &Self::Shape, plane: &Workplane) -> Result<Self::Shape, KernelError>`, documented: `s` with every face that the infinite plane through `plane.origin` with normal `plane.normal` crosses divided along the intersection (`x_dir` unused). The geometry is unchanged: same solids, volume and surface area. A plane that crosses no face, or only touches the shape along an existing face or edge, returns a shape with the same face count. `s` is unchanged.",
+      "A non-finite origin, or a zero or non-finite normal, is `InvalidInput`, checked by the plain function `prepare_split` before the backend (already unit-tested; add no duplicate).",
+      "With `--features occt` (1e-9 relative on volumes and areas, exact on counts): 1. Box 10 × 5 × 2 at the origin, plane x = 4 (normal +X): 1 body, volume 100, surface area 160, 10 faces, 20 edges, 12 vertices (`sub_shape_count`). 2. The same box and the plane x = 20: 6 faces, 12 edges, 8 vertices, volume 100. 3. The same box and the plane z = 0 (its bottom face): 6 faces, volume 100. 4. Cylinder of radius 5 and height 10, base centered at the origin, axis +Z, split by the plane y = 0 (normal +Y): 1 body, volume 250π, surface area 150π, more faces than the unsplit cylinder (state both counts in the test), and every face's bounding box (`sub_shape_bounding_box`) lies within y ≤ 1e-6 or y ≥ −1e-6 (no face crosses the plane). 5. A zero normal returns `InvalidInput` through `OcctKernel`, and the input's face count is unchanged after a successful split.",
+      "Every `unsafe` block added in `swx-kernel::ffi` is documented; the shim function is `noexcept` and catches all C++ exceptions (ADR 2026-10-13).",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and CI's `swx-kernel (occt)` job passes.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-26T10:46:22.999064911+00:00",
+    "constraints": [],
+    "created_at": "2026-11-26T10:45:53.811550701+00:00",
+    "description": "M6-02b: swx-kernel: split the faces of a body by a plane",
+    "project_id": "saulitwerx",
+    "scope": "",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 2,
+      "checks_count": 7,
+      "estimate": "small",
+      "id": "m6-02b",
+      "status": "completed",
+      "title": "Implement and verify split_faces (#280, PR #283)",
+      "type": "implement"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
