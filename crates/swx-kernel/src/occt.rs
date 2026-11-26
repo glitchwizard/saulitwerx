@@ -696,6 +696,13 @@ impl Kernel for OcctKernel {
         Ok((side(true)?, side(false)?))
     }
 
+    fn split_faces(&self, s: &OcctShape, plane: &Workplane) -> Result<OcctShape, KernelError> {
+        let (origin, normal) = prepare_split(plane)?;
+        ffi::split_faces(&s.0, origin, normal)
+            .map(OcctShape)
+            .ok_or_else(|| backend("split_faces"))
+    }
+
     fn combine(
         &self,
         op: BooleanOp,
@@ -1220,6 +1227,89 @@ mod tests {
         let bb = K.bounding_box(&b).unwrap();
         assert_point(bb.min, [0.0; 3]);
         assert_point(bb.max, [10.0, 5.0, 2.0]);
+    }
+
+    /// Face, edge and vertex counts of `s` (M6-02b).
+    fn topo_counts(s: &OcctShape) -> (usize, usize, usize) {
+        let n = |kind| K.sub_shape_count(s, kind).unwrap();
+        (n(TopoKind::Face), n(TopoKind::Edge), n(TopoKind::Vertex))
+    }
+
+    #[test]
+    fn split_faces_of_a_box_at_x_4() {
+        let b = split_box();
+        let r = K
+            .split_faces(&b, &split_plane([4.0, 0.0, 0.0], [1.0, 0.0, 0.0]))
+            .unwrap();
+        assert_eq!(K.body_count(&r).unwrap(), 1);
+        assert_volume(K.volume(&r).unwrap(), 100.0);
+        assert_volume(K.surface_area(&r).unwrap(), 160.0);
+        // The four side faces the plane crosses each become two; the four
+        // edges along X each become two, plus four new edges at x = 4.
+        assert_eq!(topo_counts(&r), (10, 20, 12));
+    }
+
+    #[test]
+    fn split_faces_by_a_plane_missing_the_box() {
+        let b = split_box();
+        let r = K
+            .split_faces(&b, &split_plane([20.0, 0.0, 0.0], [1.0, 0.0, 0.0]))
+            .unwrap();
+        assert_eq!(topo_counts(&r), (6, 12, 8));
+        assert_volume(K.volume(&r).unwrap(), 100.0);
+    }
+
+    #[test]
+    fn split_faces_at_the_bottom_face_keeps_six_faces() {
+        let b = split_box();
+        let r = K
+            .split_faces(&b, &split_plane([0.0; 3], [0.0, 0.0, 1.0]))
+            .unwrap();
+        assert_eq!(K.sub_shape_count(&r, TopoKind::Face).unwrap(), 6);
+        assert_volume(K.volume(&r).unwrap(), 100.0);
+    }
+
+    #[test]
+    fn split_faces_of_a_cylinder_through_its_axis() {
+        let c = K.make_cylinder([0.0; 3], 5.0, 10.0).unwrap();
+        // Unsplit: the side, the top and the bottom.
+        assert_eq!(K.sub_shape_count(&c, TopoKind::Face).unwrap(), 3);
+        let r = K
+            .split_faces(&c, &split_plane([0.0; 3], [0.0, 1.0, 0.0]))
+            .unwrap();
+        assert_eq!(K.body_count(&r).unwrap(), 1);
+        assert_volume(K.volume(&r).unwrap(), 250.0 * PI);
+        assert_volume(K.surface_area(&r).unwrap(), 150.0 * PI);
+        // Each of the three faces is halved.
+        let faces = K.sub_shape_count(&r, TopoKind::Face).unwrap();
+        assert_eq!(faces, 6);
+        for index in 0..faces {
+            let bb = K
+                .sub_shape_bounding_box(
+                    &r,
+                    SubShape {
+                        kind: TopoKind::Face,
+                        index,
+                    },
+                )
+                .unwrap();
+            assert!(
+                bb.max[1] <= 1e-6 || bb.min[1] >= -1e-6,
+                "face {index} crosses y = 0: {bb:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn split_faces_rejects_a_zero_normal_and_leaves_the_input_unchanged() {
+        let b = split_box();
+        assert!(matches!(
+            K.split_faces(&b, &split_plane([4.0, 0.0, 0.0], [0.0; 3])),
+            Err(KernelError::InvalidInput(_))
+        ));
+        K.split_faces(&b, &split_plane([4.0, 0.0, 0.0], [1.0, 0.0, 0.0]))
+            .unwrap();
+        assert_eq!(K.sub_shape_count(&b, TopoKind::Face).unwrap(), 6);
     }
 
     #[test]
