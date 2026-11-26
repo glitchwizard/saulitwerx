@@ -300,7 +300,7 @@ pub(crate) struct Edge2 {
 
 impl Edge2 {
     /// Signed sweep in radians: positive counterclockwise.
-    fn sweep(&self) -> f64 {
+    pub(crate) fn sweep(&self) -> f64 {
         let angle = |p: [f64; 2]| (p[1] - self.center[1]).atan2(p[0] - self.center[0]);
         let ccw = (angle(self.to) - angle(self.from)).rem_euclid(TAU);
         match self.kind {

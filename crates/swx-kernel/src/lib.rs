@@ -485,6 +485,27 @@ pub trait Kernel {
         total_angle: f64,
     ) -> Result<Vec<Self::Shape>, KernelError>;
 
+    /// `count` copies of `s` spaced equally along a planar path, each keeping
+    /// `s`'s orientation (translation only). The path is a chain of
+    /// [`Segment2`] on `plane`, as [`Kernel::sweep`] takes it: from the
+    /// first segment's start, later segments may run either way. Copy k is
+    /// `s` translated by `P(sₖ) − P(0)`, where `P(t)` is the 3D point at arc
+    /// length `t` along the path and `sₖ = k·L/(count − 1)`, `L` being the
+    /// path's total length. So copy 0 is `s` unmoved, the last copy sits at
+    /// the path's end, and a count of 1 gives `s` alone. `s` is unchanged.
+    ///
+    /// A count of 0, and every path or plane that [`Kernel::sweep`]'s path
+    /// checks reject (empty, containing a `Circle`, segments that don't meet,
+    /// non-finite numbers, a radius ≤ 0, an invalid plane), is
+    /// [`KernelError::InvalidInput`], checked before the backend.
+    fn pattern_path(
+        &self,
+        s: &Self::Shape,
+        plane: &Workplane,
+        path: &[Segment2],
+        count: usize,
+    ) -> Result<Vec<Self::Shape>, KernelError>;
+
     /// Enclosed volume.
     fn volume(&self, s: &Self::Shape) -> Result<f64, KernelError>;
     /// Total area of all faces.

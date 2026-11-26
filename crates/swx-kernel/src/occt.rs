@@ -10,7 +10,7 @@ use crate::ffi::{
 use crate::helix::{check_helix_profile, cross, prepare_helix};
 use crate::hole::{perpendicular, prepare_hole, HoleCylinder};
 use crate::loft::check_section_count;
-use crate::pattern::{circular_angles, prepare_mirror, rectangular_offsets};
+use crate::pattern::{circular_angles, path_offsets, prepare_mirror, rectangular_offsets};
 use crate::profile::{
     check_revolve_profile, check_sweep_bends, prepare_face, prepare_path, prepare_revolve,
     profile_reach,
@@ -775,6 +775,23 @@ impl Kernel for OcctKernel {
                 ffi::transform(&s.0, Transform::Rotate { origin, dir, angle })
                     .map(OcctShape)
                     .ok_or_else(|| backend("pattern_circular"))
+            })
+            .collect()
+    }
+
+    fn pattern_path(
+        &self,
+        s: &OcctShape,
+        plane: &Workplane,
+        path: &[Segment2],
+        count: usize,
+    ) -> Result<Vec<OcctShape>, KernelError> {
+        path_offsets(plane, path, count)?
+            .into_iter()
+            .map(|offset| {
+                ffi::transform(&s.0, Transform::Translate { offset })
+                    .map(OcctShape)
+                    .ok_or_else(|| backend("pattern_path"))
             })
             .collect()
     }
@@ -4053,5 +4070,82 @@ mod tests {
             K.mirror(&b, &plane),
             Err(KernelError::InvalidInput(_))
         ));
+    }
+
+    /// `Line (0,0)→(30,0)` then a quarter arc centered (30,10), radius 10,
+    /// from −π/2 to 0, ending at (40,10) (M6-01b).
+    fn line_then_arc_path() -> Vec<Segment2> {
+        vec![
+            Segment2::Line {
+                start: [0.0, 0.0],
+                end: [30.0, 0.0],
+            },
+            Segment2::Arc {
+                center: [30.0, 10.0],
+                radius: 10.0,
+                start_angle: -FRAC_PI_2,
+                end_angle: 0.0,
+            },
+        ]
+    }
+
+    #[test]
+    fn path_pattern_along_a_line_then_an_arc() {
+        let b = K.make_box([0.0; 3], [2.0, 2.0, 2.0]).unwrap();
+        let copies = K
+            .pattern_path(&b, &Workplane::XY, &line_then_arc_path(), 3)
+            .unwrap();
+        assert_eq!(copies.len(), 3);
+        for c in &copies {
+            assert_volume(K.volume(c).unwrap(), 8.0);
+        }
+        let l = 30.0 + 5.0 * PI;
+        assert_point(K.bounding_box(&copies[0]).unwrap().min, [0.0; 3]);
+        assert_point(K.bounding_box(&copies[1]).unwrap().min, [l / 2.0, 0.0, 0.0]);
+        assert_point(K.bounding_box(&copies[2]).unwrap().min, [40.0, 10.0, 0.0]);
+        let joined = K
+            .combine(BooleanOp::Union, &copies[0], &copies[1..])
+            .unwrap();
+        assert_volume(K.volume(&joined).unwrap(), 24.0);
+        assert_eq!(K.body_count(&joined).unwrap(), 3);
+        // The input is unchanged.
+        assert_point(K.bounding_box(&b).unwrap().min, [0.0; 3]);
+    }
+
+    #[test]
+    fn path_pattern_on_a_moved_workplane() {
+        let b = K.make_box([0.0; 3], [2.0, 2.0, 2.0]).unwrap();
+        // x_dir +Y and normal +Z: the second in-plane axis is normal × x_dir
+        // = −X, so the 2D vector (40, 10) maps to (−10, 40, 0).
+        let plane = Workplane {
+            origin: [1.0, 2.0, 3.0],
+            x_dir: [0.0, 1.0, 0.0],
+            normal: [0.0, 0.0, 1.0],
+        };
+        let copies = K
+            .pattern_path(&b, &plane, &line_then_arc_path(), 2)
+            .unwrap();
+        assert_eq!(copies.len(), 2);
+        let m0 = K.bounding_box(&copies[0]).unwrap().min;
+        let m1 = K.bounding_box(&copies[1]).unwrap().min;
+        assert_point([0, 1, 2].map(|k| m1[k] - m0[k]), [-10.0, 40.0, 0.0]);
+    }
+
+    #[test]
+    fn path_pattern_rejects_bad_inputs() {
+        let b = box_10x5x2();
+        let invalid =
+            |r: Result<Vec<OcctShape>, KernelError>| matches!(r, Err(KernelError::InvalidInput(_)));
+        assert!(invalid(K.pattern_path(
+            &b,
+            &Workplane::XY,
+            &line_then_arc_path(),
+            0
+        )));
+        let circle = [Segment2::Circle {
+            center: [0.0, 0.0],
+            radius: 5.0,
+        }];
+        assert!(invalid(K.pattern_path(&b, &Workplane::XY, &circle, 3)));
     }
 }
