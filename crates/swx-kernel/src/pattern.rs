@@ -1,16 +1,18 @@
 //! Input checks and copy placements for [`Kernel::mirror`],
-//! [`Kernel::pattern_rectangular`] and [`Kernel::pattern_circular`]
-//! (M6-01a). Plain functions, so they are tested without OCCT; the backend
-//! only applies the resulting rigid transforms.
+//! [`Kernel::pattern_rectangular`], [`Kernel::pattern_circular`] (M6-01a)
+//! and [`Kernel::pattern_path`] (M6-01b). Plain functions, so they are
+//! tested without OCCT; the backend only applies the resulting rigid
+//! transforms.
 //!
 //! [`Kernel::mirror`]: crate::Kernel::mirror
 //! [`Kernel::pattern_rectangular`]: crate::Kernel::pattern_rectangular
 //! [`Kernel::pattern_circular`]: crate::Kernel::pattern_circular
+//! [`Kernel::pattern_path`]: crate::Kernel::pattern_path
 
 use std::f64::consts::TAU;
 
-use crate::profile::{finite, normalized};
-use crate::{Axis, KernelError, Point3, Workplane};
+use crate::profile::{finite, normalized, prepare_path, Edge2, EdgeKind};
+use crate::{Axis, KernelError, Point3, Segment2, Workplane};
 
 /// Largest amount a circular pattern's total angle may differ from 2π and
 /// still count as a full turn.
@@ -111,6 +113,88 @@ pub(crate) fn circular_angles(
     };
     let angles = (0..count).map(|k| k as f64 * step).collect();
     Ok((axis.origin, dir, angles))
+}
+
+/// Arc length of one path edge: its length for a line, `radius · |sweep|`
+/// for an arc (the arc-length formula `s = rθ`; e.g. Stewart, *Calculus*,
+/// §10.2).
+fn edge_length(e: &Edge2) -> f64 {
+    match e.kind {
+        EdgeKind::Line => (e.to[0] - e.from[0]).hypot(e.to[1] - e.from[1]),
+        _ => e.radius * e.sweep().abs(),
+    }
+}
+
+/// The 2D point at arc length `t` (clamped to `0..=len`) along `e`, walked
+/// from `e.from` to `e.to`.
+fn point_on_edge(e: &Edge2, len: f64, t: f64) -> [f64; 2] {
+    let t = t.clamp(0.0, len);
+    match e.kind {
+        EdgeKind::Line if len > 0.0 => {
+            let f = t / len;
+            [0, 1].map(|k| e.from[k] + f * (e.to[k] - e.from[k]))
+        }
+        EdgeKind::Line => e.from,
+        _ => {
+            let [cx, cy] = e.center;
+            let a0 = (e.from[1] - cy).atan2(e.from[0] - cx);
+            let a = a0 + e.sweep().signum() * t / e.radius;
+            [cx + e.radius * a.cos(), cy + e.radius * a.sin()]
+        }
+    }
+}
+
+/// The translation of each copy of a path pattern: copy k moves by
+/// `P(sₖ) − P(0)`, where `P(t)` is the model-space point at arc length `t`
+/// along the path (mapped through `plane` as [`Kernel::sweep`] maps its
+/// path) and `sₖ = k·L/(count − 1)`, `L` being the path's total length. So
+/// the first offset is zero, the last copy sits at the path's end, and a
+/// count of 1 gives the single offset zero.
+///
+/// The path is checked and chained as [`Kernel::sweep`] checks its path
+/// (`prepare_path`): from the first segment's start, later segments may run
+/// either way. A count of 0, and every path or plane that check rejects
+/// (empty, a `Circle`, segments that don't meet, non-finite numbers, a
+/// radius ≤ 0, an invalid plane), is `InvalidInput`.
+///
+/// [`Kernel::sweep`]: crate::Kernel::sweep
+#[cfg_attr(not(feature = "occt"), allow(dead_code))]
+pub(crate) fn path_offsets(
+    plane: &Workplane,
+    path: &[Segment2],
+    count: usize,
+) -> Result<Vec<[f64; 3]>, KernelError> {
+    check_count("pattern count", count)?;
+    let prepared = prepare_path(plane, path)?;
+    let edges = &prepared.loops[0];
+    let lengths: Vec<f64> = edges.iter().map(edge_length).collect();
+    let total: f64 = lengths.iter().sum();
+    let at = |s: f64| -> [f64; 2] {
+        let mut rest = s;
+        for (i, (e, &len)) in edges.iter().zip(&lengths).enumerate() {
+            if rest <= len || i + 1 == edges.len() {
+                return point_on_edge(e, len, rest);
+            }
+            rest -= len;
+        }
+        edges[0].from
+    };
+    let start = prepared.point_3d(edges[0].from);
+    let end = edges[edges.len() - 1].to;
+    let offsets = (0..count)
+        .map(|k| {
+            let p = if k == 0 {
+                edges[0].from
+            } else if k + 1 == count {
+                end
+            } else {
+                at(k as f64 * total / (count - 1) as f64)
+            };
+            let q = prepared.point_3d(p);
+            [0, 1, 2].map(|i| q[i] - start[i])
+        })
+        .collect();
+    Ok(offsets)
 }
 
 #[cfg(test)]
@@ -236,6 +320,124 @@ mod tests {
                 },
                 3,
                 PI,
+            ),
+        ];
+        for (n, r) in bad.into_iter().enumerate() {
+            assert!(is_invalid(r), "case {n}");
+        }
+    }
+
+    fn line(start: [f64; 2], end: [f64; 2]) -> Segment2 {
+        Segment2::Line { start, end }
+    }
+
+    /// `Line (0,0)→(30,0)` then a quarter arc centered (30,10), radius 10,
+    /// from −π/2 to 0, ending at (40,10).
+    fn line_then_arc() -> Vec<Segment2> {
+        vec![
+            line([0.0, 0.0], [30.0, 0.0]),
+            Segment2::Arc {
+                center: [30.0, 10.0],
+                radius: 10.0,
+                start_angle: -FRAC_PI_2,
+                end_angle: 0.0,
+            },
+        ]
+    }
+
+    fn assert_offset(actual: [f64; 3], expected: [f64; 3]) {
+        for k in 0..3 {
+            assert!(
+                (actual[k] - expected[k]).abs() <= 1e-9,
+                "expected {expected:?}, got {actual:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn path_offsets_along_a_line_then_an_arc() {
+        let xy = Workplane::XY;
+        let l = 30.0 + 5.0 * PI;
+        let o = path_offsets(&xy, &line_then_arc(), 3).unwrap();
+        assert_eq!(o.len(), 3);
+        assert_offset(o[0], [0.0; 3]);
+        assert_offset(o[1], [l / 2.0, 0.0, 0.0]);
+        assert_offset(o[2], [40.0, 10.0, 0.0]);
+        let o = path_offsets(&xy, &line_then_arc(), 5).unwrap();
+        let phi = (3.0 * l / 4.0 - 30.0) / 10.0;
+        assert_offset(
+            o[3],
+            [30.0 + 10.0 * phi.sin(), 10.0 - 10.0 * phi.cos(), 0.0],
+        );
+        assert_eq!(
+            path_offsets(&xy, &line_then_arc(), 1).unwrap(),
+            vec![[0.0; 3]]
+        );
+    }
+
+    #[test]
+    fn path_offsets_follow_a_segment_given_end_first() {
+        let path = [
+            line([0.0, 0.0], [30.0, 0.0]),
+            line([30.0, 20.0], [30.0, 0.0]),
+        ];
+        let o = path_offsets(&Workplane::XY, &path, 3).unwrap();
+        assert_offset(o[0], [0.0; 3]);
+        assert_offset(o[1], [25.0, 0.0, 0.0]);
+        assert_offset(o[2], [30.0, 20.0, 0.0]);
+    }
+
+    #[test]
+    fn path_offsets_reject_bad_counts_paths_and_planes() {
+        let xy = Workplane::XY;
+        let ok = line_then_arc();
+        let arc = |radius: f64| Segment2::Arc {
+            center: [0.0, 0.0],
+            radius,
+            start_angle: 0.0,
+            end_angle: 1.0,
+        };
+        let circle = Segment2::Circle {
+            center: [0.0, 0.0],
+            radius: 5.0,
+        };
+        let bad = [
+            path_offsets(&xy, &ok, 0),
+            path_offsets(&xy, &[], 3),
+            path_offsets(&xy, &[circle], 3),
+            path_offsets(&xy, &[line([0.0, 0.0], [1.0, 0.0]), circle], 3),
+            path_offsets(
+                &xy,
+                &[line([0.0, 0.0], [1.0, 0.0]), line([5.0, 5.0], [6.0, 5.0])],
+                3,
+            ),
+            path_offsets(&xy, &[line([f64::NAN, 0.0], [1.0, 0.0])], 3),
+            path_offsets(&xy, &[line([0.0, 0.0], [f64::INFINITY, 0.0])], 3),
+            path_offsets(&xy, &[arc(0.0)], 3),
+            path_offsets(&xy, &[arc(-2.0)], 3),
+            path_offsets(
+                &Workplane {
+                    normal: [0.0; 3],
+                    ..xy
+                },
+                &ok,
+                3,
+            ),
+            path_offsets(
+                &Workplane {
+                    x_dir: [0.0, 0.0, 1.0],
+                    ..xy
+                },
+                &ok,
+                3,
+            ),
+            path_offsets(
+                &Workplane {
+                    origin: [f64::NAN, 0.0, 0.0],
+                    ..xy
+                },
+                &ok,
+                3,
             ),
         ];
         for (n, r) in bad.into_iter().enumerate() {
