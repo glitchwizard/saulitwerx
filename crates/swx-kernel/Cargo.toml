@@ -134,3 +134,11 @@ required-features = ["occt"]
 [[example]]
 name = "mirror_pattern"
 required-features = ["occt"]
+
+[[example]]
+name = "path_pattern"
+required-features = ["occt"]
+
+[[example]]
+name = "split_body"
+required-features = ["occt"]

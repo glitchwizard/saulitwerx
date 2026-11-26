@@ -1,17 +1,20 @@
 #import "../template.typ": *
 
-= Mirroring and patterning bodies <ch-pattern>
+= Mirroring, patterning and splitting bodies <ch-pattern>
 
 #for-developers[This chapter calls the geometry engine, `swx-kernel`, from Rust. It needs OpenCascade and the `occt` build feature (@ch-install).]
 
 #idx("mirror")
 #idx("pattern")
+#idx("split")
 Many parts repeat themselves. A bracket is often the same on the left as on the right. A cover plate has a row of screw holes, a grille has a grid of slots, a flange has bolt holes spaced evenly round a circle. You could model every copy by hand, measuring where each one goes, but one wrong number spoils the part, and changing the hole size means changing every copy.
 
-Two operations do the repeating for you:
+Two kinds of operation do the repeating for you:
 
 - A #term[mirror] makes the reflection of a body across a flat plane, the #term(key: "mirror plane")[mirror plane], as a looking-glass would. Model half of a symmetric part, mirror it, and join the two halves: the part is symmetric by construction.
-- A #term[pattern] makes evenly spaced copies of a body. A #term(key: "rectangular pattern")[rectangular pattern] places them in rows and columns. A #term(key: "circular pattern")[circular pattern] turns them round an axis, like the numbers on a clock face.
+- A #term[pattern] makes evenly spaced copies of a body. A #term(key: "rectangular pattern")[rectangular pattern] places them in rows and columns. A #term(key: "circular pattern")[circular pattern] turns them round an axis, like the numbers on a clock face. A #term(key: "path pattern")[path pattern] spreads them along a path of lines and arcs, such as a row of slots that follows a bend.
+
+A third operation goes the other way. A #term[split] cuts one body into pieces along a flat plane, so that parts which must match, such as the two jaws of a clamp, can be made as one and then divided.
 
 Both work on whole bodies (@sec-bodies). To pattern a hole, you pattern the solid that drills it, a pin, and cut all the copies from the part in one `combine` call. To pattern a boss, you pattern the boss and join the copies.
 
@@ -26,7 +29,7 @@ Both work on whole bodies (@sec-bodies). To pattern a hole, you pattern the soli
   caption: [What the three operations are for. The bracket is half a part and its mirror image, joined. The grid and the bolt circle are each one pin, patterned and cut from the part. Each picture is scaled to fill its frame.],
 ) <fig-patterns>
 
-*In Saulitwerx today:* the geometry engine can mirror a body across any plane, and copy it in a straight line, a grid, or round an axis. Each call gives back new shapes and leaves the original alone; you join or cut the copies yourself with `combine` (@sec-bodies). You can't pattern a feature, such as a hole with its settings, or skip some copies, or space them along a curve yet. Mirrors and patterns aren't recorded in a part's history.
+*In Saulitwerx today:* the geometry engine can mirror a body across any plane; copy it in a straight line, a grid, round an axis or along a flat path; and split it with a plane, or divide its faces along one. Each call gives back new shapes and leaves the original alone; you join or cut the copies yourself with `combine` (@sec-bodies). You can't pattern a feature, such as a hole with its settings, or skip some copies, or follow a path that leaves its plane yet. Mirrors, patterns and splits aren't recorded in a part's history.
 
 == Mirror a body <sec-mirror>
 
@@ -128,6 +131,140 @@ The program is `crates/swx-kernel/examples/mirror_pattern.rs`. It does three thi
 
 #caution(title: [Copies that overlap])[Nothing stops two copies from landing on top of each other, for example with a spacing smaller than the body. Cutting overlapping pins makes one bigger, odd-shaped hole. Check the spacing against the size of what you are copying.]
 
+== Pattern a body along a path <sec-pattern-path>
+
+A path pattern needs the body, a path, the workplane the path is drawn on, and a count. The path is the same kind a sweep follows (@sec-sweep): a chain of lines and arcs, end to end, on one workplane.
+
+The copies are spread at equal distances measured _along_ the path, round its bends, not in a straight line. The count includes the original: copy 0 is the body where it is, and the last copy sits at the path's end. Seven copies on a path 101.42 mm long are 101.42 ÷ 6 = 16.90 mm apart.
+
+Each copy is moved by the distance from the path's start to its place on the path. So put the body at the start of the path, and every copy lands on the path. A body 5 mm to one side of the start gives copies 5 mm to the same side of the path.
+
+There are two calls, and they differ in which way the copies face:
+
+- `pattern_path` only moves the copies. Every copy faces the same way as the original, however the path turns.
+- `pattern_path_aligned` also turns each copy as the path turns: by as much as the path has turned since its start, about the workplane's normal. A slot that lies along the path at its start lies along it at every copy.
+
+#image-row(
+  (
+    // cargo run -p swx-kernel --features occt --example path_pattern -- shapes
+    // swx-qa render --step shapes/<name>.step --size 900x700 -o docs/manual/img/<name>.png
+    ("img/path-pattern-straight.png", "pattern_path: same direction", "A square plate with seven small slots in an L-shaped row round one corner; every slot points the same way"),
+    ("img/path-pattern-aligned.png", "pattern_path_aligned: following the path", "The same plate and row of slots, but each slot lies along the row: the slots on the second leg are turned a quarter turn, and the one on the bend half that"),
+  ),
+  caption: [One slot, patterned seven times along a path with a bend, and cut from a plate. On the left the copies keep the slot's direction; on the right they turn with the path.],
+) <fig-path-pattern>
+
+#task-intro(
+  goal: [Pattern a slot along a path with a bend, once keeping its direction and once following the path, cut both from a plate, and see the errors.],
+  needs: [Saulitwerx built with OpenCascade, and `swx-qa` built with it too (@ch-install).],
+  time: [5 minutes.],
+)
+
+#steps(
+  [#block(breakable: false)[Run the sample program, and tell it to save its parts in a folder called `shapes`:
+  #term-block("cargo run -p swx-kernel --features occt --example path_pattern -- shapes")
+  It prints the path's length, where each copy landed and how much room it takes along X and Y, four errors on purpose, then the files it wrote:
+  #term-block(label: "Output", "path 101.42 mm long\nsame direction: 7 copies\n  (10.0,15.0) 8.0×3.0\n  (26.9,15.0) 8.0×3.0\n  (43.8,15.0) 8.0×3.0\n  (59.1,20.9) 8.0×3.0\n  (65.0,36.2) 8.0×3.0\n  (65.0,53.1) 8.0×3.0\n  (65.0,70.0) 8.0×3.0\nplate 31160.00 mm³\nfollowing the path: 7 copies\n  (10.0,15.0) 8.0×3.0\n  (26.9,15.0) 8.0×3.0\n  (43.8,15.0) 8.0×3.0\n  (59.1,20.9) 7.8×7.8\n  (65.0,36.2) 3.0×8.0\n  (65.0,53.1) 3.0×8.0\n  (65.0,70.0) 3.0×8.0\nplate 31160.00 mm³\ncount 0 -> error: invalid input: pattern count must be at least 1\nempty path -> error: invalid input: sweep path is empty\ngap -> error: invalid input: sweep path: segment 1 doesn't meet segment 0\n    within 0.0000001\ncircle path -> error: invalid input: sweep path: circles (closed paths)\n    are not supported\n…  (the geometry engine's file reports)\nwrote shapes/path-pattern-straight.step\nwrote shapes/path-pattern-aligned.step")
+  Two long lines are wrapped here to fit the page.]],
+  [Read the `path` line. The path runs 35 mm along X, a quarter circle of 20 mm radius (31.42 mm), then 35 mm along Y: 101.42 mm in all.],
+  [Read the `same direction` lines. The slot, 8 × 3 mm, sits at the path's start, (10, 15). Three copies fall on the first straight, one halfway round the bend at (59.1, 20.9), and three on the second straight, the last at the path's end, (65, 70). Every copy is still 8.0 mm along X and 3.0 mm along Y: none has turned.],
+  [Read the `following the path` lines. The copies sit in the same places, but the one on the bend is turned 45°, so the box round it is square (8 × cos 45° + 3 × sin 45° = 7.8 mm each way), and the last three are turned a quarter turn: 3.0 × 8.0 mm.],
+  [Read the two `plate` lines. Each slot cuts 8 × 3 × 5 = 120 mm³ from the 80 × 80 × 5 mm plate, turned or not: 32000 − 7 × 120 = 31160 mm³.],
+  [Read the errors. They are caught before the geometry engine is called, and nothing is made. The path messages say "sweep path", because a pattern's path is checked by the same rules as a sweep's (@sec-sweep-mistakes).],
+  [#block(breakable: false)[Draw the two plates:
+  #term-block("target/release/swx-qa render --step shapes/path-pattern-aligned.step -o aligned.png")
+  Open `aligned.png`. You should see the right-hand plate of @fig-path-pattern. Draw `path-pattern-straight.step` the same way.]],
+)
+
+#result[A row of slots round a bend, from one slot, in two styles.]
+
+#block(breakable: false)[
+=== How the sample is built
+
+The program is `crates/swx-kernel/examples/path_pattern.rs`. The path is a list of `Segment2` pieces on the XY plane, as for a sweep:
+
+```rust
+let path = [
+    Segment2::Line { start: [10.0, 15.0], end: [45.0, 15.0] },
+    Segment2::Arc { center: [45.0, 35.0], radius: 20.0,
+                    start_angle: -FRAC_PI_2, end_angle: 0.0 },
+    Segment2::Line { start: [65.0, 35.0], end: [65.0, 70.0] },
+];
+let straight = k.pattern_path(&slot, &Workplane::XY, &path, 7)?;
+let aligned = k.pattern_path_aligned(&slot, &Workplane::XY, &path, 7)?;
+let plate_aligned = k.combine(BooleanOp::Cut, &plate, &aligned)?;
+```
+]
+
+#tip(title: [Copies on a corner])[Where two pieces of the path meet at a sharp corner, a copy that lands exactly on the corner faces along the piece that ends there, not the one that starts there. A count of 2 puts the copies on the path's two ends only.]
+
+== Split a body with a plane <sec-split>
+
+A split needs the body and the #term(key: "split plane")[split plane], a `Workplane`. As for a mirror, Saulitwerx uses the plane's origin and its normal, and ignores its X direction. The plane has no edges: it reaches as far as the body does.
+
+`split` gives back two lists of bodies. The first holds the pieces on the side the normal points to, the second the pieces on the other side. Nothing is lost: the pieces' volumes add up to the whole.
+
+A side can hold more than one piece. Cut a U-shaped bracket across both uprights and the side above holds two pieces, the tops of the uprights, while the side below holds one, the base with the stubs. Within a list, the pieces come in the order `bodies` gives them (@sec-bodies). A plane that misses the body leaves one list empty.
+
+#image-equation(
+  (
+    // cargo run -p swx-kernel --features occt --example split_body -- shapes
+    // swx-qa render --step shapes/split-clamp.step --size 900x700 -o docs/manual/img/split-clamp.png
+    ("img/split-clamp.png", "A clamp block with a bore"),
+    // swx-qa render --step shapes/split-jaws.step --size 900x700 -o docs/manual/img/split-jaws.png
+    ("img/split-jaws.png", "Its two jaws, moved apart"),
+  ),
+  ("→",),
+  caption: [A clamp block, 60 × 30 × 20 mm with a bore 20 mm across, split by the plane through the bore's axis. The sample moves one jaw 10 mm away so you can see the cut; the split itself leaves both where they were.],
+) <fig-split>
+
+#task-intro(
+  goal: [Split a clamp block into two jaws, cut a bracket into three pieces, try a plane that misses, divide a block's faces without cutting it, and see the errors.],
+  needs: [Saulitwerx built with OpenCascade, and `swx-qa` built with it too (@ch-install).],
+  time: [5 minutes.],
+)
+
+#steps(
+  [#block(breakable: false)[Run the sample program, and tell it to save its parts in a folder called `shapes`:
+  #term-block("cargo run -p swx-kernel --features occt --example split_body -- shapes")
+  It prints what each split gave, two errors on purpose, then the files it wrote:
+  #term-block(label: "Output", "clamp 29716.81 mm³\nnormal side (back): 1 body, 14858.41 mm³\nother side (front): 1 body, 14858.41 mm³\nbracket at z = 10: 2 above, 1 below\nclamp at z = 50: 0 above, 1 below\nfaces 7 -> 12; bodies 1 -> 1\nvolume 29716.81 -> 29716.81 mm³; area 7828.32 -> 7828.32 mm²\nzero normal -> error: invalid input: split plane normal must be non-zero\norigin NaN -> error: invalid input: split plane origin must be finite,\n    got [NaN, 0.0, 0.0]\njaws apart: 2 bodies\n…  (the geometry engine's file reports)\nwrote shapes/split-clamp.step\nwrote shapes/split-jaws.step")
+  One long line is wrapped here to fit the page.]],
+  [Read the first three lines. The plane passes through the bore's axis at y = 15 with its normal along +Y, so the first list holds the back jaw and the second the front one. Each is exactly half the block.],
+  [Read the `bracket` line. The plane z = 10 cuts through both uprights of a U-shaped bracket: two pieces above it, one below.],
+  [Read the `clamp at z = 50` line. The clamp is only 20 mm tall, so the plane misses it: nothing above, the whole clamp below.],
+  [Read the `faces` and `volume` lines. They come from dividing the faces without cutting; see *Divide faces without cutting*, below.],
+  [Read the errors. Both are caught before the geometry engine is called, and nothing is made.],
+  [#block(breakable: false)[Draw the jaws:
+  #term-block("target/release/swx-qa render --step shapes/split-jaws.step -o jaws.png")
+  Open `jaws.png`. You should see the right-hand picture of @fig-split.]],
+)
+
+#result[Two matching jaws from one block, and the pieces of a bracket, each side in its own list.]
+
+#block(breakable: false)[
+=== How the sample is built
+
+The program is `crates/swx-kernel/examples/split_body.rs`. A split takes the body and the plane, and gives back the two lists:
+
+```rust
+let plane = Workplane { origin: [30.0, 15.0, 0.0],
+                        x_dir: [1.0, 0.0, 0.0],   // not used
+                        normal: [0.0, 1.0, 0.0] };
+let (back, front) = k.split(&clamp, &plane)?;
+```
+
+Saulitwerx has no command to move a body yet, so for the picture the sample moves the back jaw with a rectangular pattern of two, 10 mm apart, and keeps the second copy.
+]
+
+=== Divide faces without cutting
+
+Sometimes you want the line, not the cut. `split_faces` takes the same plane, and divides every face the plane crosses along the line where they meet. The body stays whole: one body, the same volume and the same area, only more faces. Each piece is a split face (@sec-boolean-history).
+
+In the sample, the plane z = 10 runs round the clamp at half its height. It crosses the four sides and the bore, so those five faces become ten, and the block's 7 faces become 12. A plane that crosses no face, or only touches the body along a face or an edge it already has, leaves the faces as they were.
+
+#tip(title: [What the line is for])[Divided faces can be given to a later step one side at a time. A draft, for example, takes a list of faces (@ch-draft): divide the sides at a mold's parting line first, and you can tilt only the faces below it. Find their numbers with the topology report (@sec-topology).]
+
 == Common mistakes <sec-pattern-mistakes>
 
 #set par(justify: false)
@@ -136,4 +273,8 @@ The program is `crates/swx-kernel/examples/mirror_pattern.rs`. It does three thi
 - *A direction, normal or axis of length zero.* #raw("invalid input: pattern direction 1 must be non-zero"), #raw("mirror plane normal must be non-zero"), or #raw("pattern axis direction must be non-zero"). Give a direction that points somewhere, such as `[1.0, 0.0, 0.0]`.
 - *A number that isn't a number.* #raw("invalid input: pattern spacing 1 must be finite, got [NaN]"). The same message names `mirror plane origin`, `pattern axis origin` or a direction when one of those holds an infinite value or NaN, usually the result of a division by zero earlier in your program.
 - *An angle in degrees.* #raw("invalid input: pattern total angle must be in (0, 2π] radians, got 6.981317007977318"). The total angle is in radians: 360° is 2π, about 6.283. Convert with `to_radians()`. An angle of 0 or less is refused too.
+- *A path with a gap, a circle, or nothing in it.* #raw("invalid input: sweep path: segment 1 doesn't meet segment 0 within 0.0000001"), #raw("sweep path: circles (closed paths) are not supported"), or #raw("sweep path is empty"). A path pattern checks its path as a sweep does, so the message says "sweep path" (@sec-sweep-mistakes). Join the pieces end to end, and use an arc instead of a whole circle.
+- *A body away from the path's start.* The copies keep the body's offset from the start, so they follow a line beside the path. Put the body at the start of the path.
+- *A split plane of length zero, or not a number.* #raw("invalid input: split plane normal must be non-zero"), or #raw("split plane origin must be finite, got [NaN, 0.0, 0.0]").
+- *Expecting one piece on each side.* A split gives a list for each side; a side can hold several pieces, or none when the plane misses the body. Check the lengths before taking a piece.
 - *Expecting the copies to be joined.* A pattern gives back a list of separate shapes. Cut or join them with `combine` to change your part.

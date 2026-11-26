@@ -131,6 +131,9 @@
     ("Pattern", [Evenly spaced copies of a body, made in one step.]),
     ("Rectangular pattern", [A pattern in a row, or in rows and columns, each copy a set spacing from the last.]),
     ("Circular pattern", [A pattern turned about an axis, spread over a full turn or a set angle.]),
+    ("Path pattern", [A pattern spread at equal distances along a path of lines and arcs, either keeping the body's direction or turning with the path.]),
+    ("Split", [Cutting one body into pieces along a flat plane, with the pieces on each side given back separately.]),
+    ("Split plane", [The flat plane a split cuts along. It has no edges: it reaches as far as the body does.]),
     ("Thumbnail", [The small preview picture of a part kept in its document, `thumbnail.png`.]),
     ("STEP", [An international standard file format (ISO 10303) for exchanging 3D parts.]),
     ("Surface area", [The total area of a solid's faces.]),
@@ -160,6 +163,12 @@
 }
 
 = What's new
+
+== 2026-11-26: patterns along a path, and splitting a body
+
+- *New for developers:* copy a body along a path of lines and arcs, either keeping its direction or turning with the path, such as a row of slots round a bend (@sec-pattern-path).
+- *New for developers:* split a body in two with a plane, such as a clamp block into its jaws, or divide its faces along a plane without cutting it (@sec-split).
+- Chapter 15 now covers splitting too, and is renamed to match (@ch-pattern). Reference: `pattern_path`, `pattern_path_aligned`, `split`, `split_faces`, and two new samples. Help: the path-pattern and split messages, and the known limitations updated. Glossary: path pattern, split, split plane.
 
 == 2026-11-25: mirrors and patterns, and a part's cache from its bodies
 
@@ -374,7 +383,7 @@ These are the next items on the public roadmap. None of them works yet. When one
   [More part features], [Shells with walls of different thicknesses; fillets, chamfers, shells, holes, drafts, lofts, sweeps and work features kept in a part's history.],
   [Threads], [Model real screw threads, outside on a shaft or inside a hole, built on the helical sweep.],
   [Lasting references], [A feature built on a face or an edge keeps finding it when earlier features change.],
-  [More patterns], [Copies along a path, patterns and mirrors of features as well as bodies, and splitting a body in two along a plane.],
+  [More patterns], [Patterns and mirrors of features as well as bodies, and patterns that skip copies.],
   [Part files], [Save a part with its full history in a document file and open it again, with its cache rebuilt from the history when it is stale.],
   [Desktop app], [A window with a 3D view, a model browser, sketch mode and property panels.],
 )
@@ -444,6 +453,7 @@ Later milestones add assemblies, 2D drawings and exploded views. The full plan i
         [`hole`], [drill any kind of hole],
         [`metric_coarse`], [thread size by name],
         [`mirror` · `pattern_…`], [copies of a body],
+        [`split` · `split_faces`], [cut / divide by a plane],
         [`draft`], [tilt faces for a mold],
         [`loft` · `sweep`], [blend / follow a path],
         [`helical_sweep`], [spring, coil],
