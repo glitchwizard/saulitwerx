@@ -34,6 +34,7 @@
 #include <BRepOffsetAPI_ThruSections.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <BRepPrimAPI_MakeCylinder.hxx>
+#include <BRepPrimAPI_MakeHalfSpace.hxx>
 #include <BRepPrimAPI_MakePrism.hxx>
 #include <BRepPrimAPI_MakeRevol.hxx>
 #include <BRepPrimAPI_MakeSphere.hxx>
@@ -630,6 +631,42 @@ int swx_occt_transform(const SwxShape* s, int kind, const double* p, SwxShape** 
             return -1;
         }
         return emit(maker.Shape(), out);
+    } catch (...) {
+        return -1;
+    }
+}
+
+// The part of `s` on one side of the infinite plane through (ox, oy, oz)
+// with normal (nx, ny, nz): the Boolean common of `s` with the half-space
+// (BRepPrimAPI_MakeHalfSpace on an unbounded planar face, with the
+// reference point one unit along +normal when `side` > 0 and along -normal
+// otherwise). The result may hold several solids, or none when `s` lies
+// wholly on the other side; Rust lists them (`Kernel::bodies`). `s` is
+// unchanged. Rust validates the plane first (pattern.rs); a zero normal
+// still fails safely here (gp_Dir throws).
+int swx_occt_split_half(const SwxShape* s, double ox, double oy, double oz, double nx, double ny,
+                        double nz, int side, SwxShape** out) noexcept {
+    if (s == nullptr || out == nullptr) {
+        return -1;
+    }
+    try {
+        if (s->shape.IsNull()) {
+            return -1;
+        }
+        gp_Pnt origin(ox, oy, oz);
+        gp_Dir normal(nx, ny, nz);
+        BRepBuilderAPI_MakeFace face(gp_Pln(origin, normal));
+        if (!face.IsDone()) {
+            return -1;
+        }
+        double sign = side > 0 ? 1.0 : -1.0;
+        gp_Pnt ref(ox + sign * normal.X(), oy + sign * normal.Y(), oz + sign * normal.Z());
+        BRepPrimAPI_MakeHalfSpace half(face.Face(), ref);
+        BRepAlgoAPI_Common common(s->shape, half.Solid());
+        if (!common.IsDone() || common.HasErrors()) {
+            return -1;
+        }
+        return emit(common.Shape(), out);
     } catch (...) {
         return -1;
     }

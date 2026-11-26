@@ -21,6 +21,7 @@ mod loft;
 mod mesh;
 mod pattern;
 mod profile;
+mod split;
 mod thread;
 mod topo;
 
@@ -410,6 +411,22 @@ pub trait Kernel {
     /// minimum (x, then y, then z). A shape with no solids (a lone face)
     /// gives an empty list. `s` is unchanged.
     fn bodies(&self, s: &Self::Shape) -> Result<Vec<Self::Shape>, KernelError>;
+
+    /// The solids of `s` cut by the infinite plane through `plane.origin`
+    /// with normal `plane.normal` (`plane.x_dir` is not used). The first list
+    /// holds the solids on the normal's side, the second those on the other
+    /// side. Each list is ordered as [`Kernel::bodies`] orders solids: by
+    /// bounding-box minimum (x, then y, then z). A side with nothing on it is
+    /// an empty list. `s` is unchanged.
+    ///
+    /// A non-finite origin, or a zero or non-finite normal, is
+    /// [`KernelError::InvalidInput`], checked before the backend.
+    #[allow(clippy::type_complexity)]
+    fn split(
+        &self,
+        s: &Self::Shape,
+        plane: &Workplane,
+    ) -> Result<(Vec<Self::Shape>, Vec<Self::Shape>), KernelError>;
 
     /// Combines `target` with each of `tools` in turn by `op`: the same
     /// result as `op(op(target, tools[0]), tools[1])…`, in order. The inputs

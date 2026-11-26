@@ -15,6 +15,7 @@ use crate::profile::{
     check_revolve_profile, check_sweep_bends, prepare_face, prepare_path, prepare_revolve,
     profile_reach,
 };
+use crate::split::prepare_split;
 use crate::topo::{
     compose_images, validate_adjacent, validate_edges, validate_edges_on_faces, validate_faces,
     validate_index,
@@ -678,6 +679,21 @@ impl Kernel for OcctKernel {
         Ok(keyed.into_iter().map(|(_, body)| body).collect())
     }
 
+    fn split(
+        &self,
+        s: &OcctShape,
+        plane: &Workplane,
+    ) -> Result<(Vec<OcctShape>, Vec<OcctShape>), KernelError> {
+        let (origin, normal) = prepare_split(plane)?;
+        let side = |positive: bool| {
+            let half = ffi::split_half(&s.0, origin, normal, positive)
+                .map(OcctShape)
+                .ok_or_else(|| backend("split"))?;
+            self.bodies(&half)
+        };
+        Ok((side(true)?, side(false)?))
+    }
+
     fn combine(
         &self,
         op: BooleanOp,
@@ -1085,6 +1101,103 @@ mod tests {
         // The input is unchanged.
         assert_eq!(K.body_count(&u).unwrap(), 2);
         assert_close(K.volume(&u).unwrap(), 2000.0);
+    }
+
+    /// The plane through `origin` with `normal`, as [`Kernel::split`] takes
+    /// it (M6-02a; `x_dir` is not used).
+    fn split_plane(origin: Point3, normal: [f64; 3]) -> Workplane {
+        Workplane {
+            origin,
+            x_dir: [0.0; 3],
+            normal,
+        }
+    }
+
+    fn split_box() -> OcctShape {
+        K.make_box([0.0; 3], [10.0, 5.0, 2.0]).unwrap()
+    }
+
+    #[test]
+    fn split_box_at_x_4_both_ways() {
+        let b = split_box();
+        let (pos, neg) = K
+            .split(&b, &split_plane([4.0, 0.0, 0.0], [1.0, 0.0, 0.0]))
+            .unwrap();
+        assert_eq!((pos.len(), neg.len()), (1, 1));
+        assert_volume(K.volume(&pos[0]).unwrap(), 60.0);
+        let bb = K.bounding_box(&pos[0]).unwrap();
+        assert_point(bb.min, [4.0, 0.0, 0.0]);
+        assert_point(bb.max, [10.0, 5.0, 2.0]);
+        assert_volume(K.volume(&neg[0]).unwrap(), 40.0);
+        let bb = K.bounding_box(&neg[0]).unwrap();
+        assert_point(bb.min, [0.0; 3]);
+        assert_point(bb.max, [4.0, 5.0, 2.0]);
+        // With −X the lists swap.
+        let (pos, neg) = K
+            .split(&b, &split_plane([4.0, 0.0, 0.0], [-1.0, 0.0, 0.0]))
+            .unwrap();
+        assert_eq!((pos.len(), neg.len()), (1, 1));
+        assert_volume(K.volume(&pos[0]).unwrap(), 40.0);
+        assert_volume(K.volume(&neg[0]).unwrap(), 60.0);
+    }
+
+    #[test]
+    fn split_by_a_plane_missing_the_box() {
+        let b = split_box();
+        let x = [1.0, 0.0, 0.0];
+        let (pos, neg) = K.split(&b, &split_plane([20.0, 0.0, 0.0], x)).unwrap();
+        assert!(pos.is_empty());
+        assert_eq!(neg.len(), 1);
+        assert_volume(K.volume(&neg[0]).unwrap(), 100.0);
+        let (pos, neg) = K.split(&b, &split_plane([-5.0, 0.0, 0.0], x)).unwrap();
+        assert_eq!(pos.len(), 1);
+        assert!(neg.is_empty());
+        assert_volume(K.volume(&pos[0]).unwrap(), 100.0);
+    }
+
+    #[test]
+    fn split_u_shape_into_two_prongs_and_a_base() {
+        let block = K.make_box([0.0; 3], [30.0, 10.0, 10.0]).unwrap();
+        let notch = K.make_box([10.0, 0.0, 5.0], [10.0, 10.0, 5.0]).unwrap();
+        let u = K.cut(&block, &notch).unwrap();
+        assert_volume(K.volume(&u).unwrap(), 2500.0);
+        let (pos, neg) = K
+            .split(&u, &split_plane([0.0, 0.0, 7.0], [0.0, 0.0, 1.0]))
+            .unwrap();
+        assert_eq!((pos.len(), neg.len()), (2, 1));
+        for (prong, x) in pos.iter().zip([0.0, 20.0]) {
+            assert_volume(K.volume(prong).unwrap(), 300.0);
+            assert_point(K.bounding_box(prong).unwrap().min, [x, 0.0, 7.0]);
+        }
+        assert_volume(K.volume(&neg[0]).unwrap(), 1900.0);
+        let total: f64 = pos.iter().chain(&neg).map(|p| K.volume(p).unwrap()).sum();
+        assert_volume(total, 2500.0);
+    }
+
+    #[test]
+    fn split_at_the_bottom_face_keeps_the_whole_box() {
+        let b = split_box();
+        let (pos, neg) = K
+            .split(&b, &split_plane([0.0; 3], [0.0, 0.0, 1.0]))
+            .unwrap();
+        assert_eq!(pos.len(), 1);
+        assert!(neg.is_empty());
+        assert_volume(K.volume(&pos[0]).unwrap(), 100.0);
+    }
+
+    #[test]
+    fn split_rejects_a_zero_normal_and_leaves_the_input_unchanged() {
+        let b = split_box();
+        assert!(matches!(
+            K.split(&b, &split_plane([4.0, 0.0, 0.0], [0.0; 3])),
+            Err(KernelError::InvalidInput(_))
+        ));
+        K.split(&b, &split_plane([4.0, 0.0, 0.0], [1.0, 0.0, 0.0]))
+            .unwrap();
+        assert_volume(K.volume(&b).unwrap(), 100.0);
+        let bb = K.bounding_box(&b).unwrap();
+        assert_point(bb.min, [0.0; 3]);
+        assert_point(bb.max, [10.0, 5.0, 2.0]);
     }
 
     #[test]
