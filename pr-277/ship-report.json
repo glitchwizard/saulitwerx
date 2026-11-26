@@ -1,0 +1,117 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(kernel): pattern of bodies along a planar path (M6-01b)",
+      "ref": "910bfbd",
+      "task_id": "gates-273",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt --all --check",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-273",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy --workspace --all-targets -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-273",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test --workspace",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-273",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-kernel --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-273",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-kernel --features occt",
+      "passed": false,
+      "required": true,
+      "task_id": "gates-273",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-kernel --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-273",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-qa --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-273",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-qa --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-273",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`fn pattern_path(&self, s: &Self::Shape, plane: &Workplane, path: &[Segment2], count: usize) -> Result<Vec<Self::Shape>, KernelError>`, documented: `count` copies of `s`. Copy k is `s` translated by `P(sₖ) − P(0)`, where `P(t)` is the 3D point at arc length `t` along the chain (mapped through `plane` as `sweep` maps its path) and `sₖ = k·L/(count − 1)`, `L` being the chain's total length. So copy 0 is `s` unmoved and the last copy sits at the path's end; `count = 1` gives `s` alone. `s` is unchanged.",
+      "Input checks are plain functions in `pattern.rs` (a placement function such as `path_offsets`), called by `OcctKernel` before the backend: `count = 0`, and every path or plane that `sweep`'s path checks reject (empty, contains a `Circle`, segments that don't meet, non-finite numbers, radius ≤ 0, invalid plane) are `InvalidInput`. Unit-tested without OCCT for each case.",
+      "Unit tests without OCCT (1e-9 absolute), on the XY workplane at the origin: 1. Path `Line (0,0)→(30,0)` then `Arc` center (30,10), radius 10, from −π/2 to 0 (ends at (40,10)). `L = 30 + 5π`. With count 3 the offsets are (0,0,0), (L/2, 0, 0), (40,10,0). With count 5, offset 3 is (30 + 10·sin φ, 10 − 10·cos φ, 0) with φ = (3L/4 − 30)/10. 2. Path `Line (0,0)→(30,0)` then `Line (30,20)→(30,0)` (second segment given end-first, so the chain runs (30,0)→(30,20)), count 3: offsets (0,0,0), (25,0,0), (30,20,0).",
+      "With `--features occt` (1e-9 relative on volumes, 1e-6 on coordinates): 1. A 2 × 2 × 2 box at the origin patterned along the line-plus-arc path above with count 3: 3 copies, each of volume 8; their bounding-box minimums are (0,0,0), (L/2,0,0) and (40,10,0). `combine` (union) of the copies has volume 24 and 3 bodies. 2. The same box and path on a workplane with origin (1, 2, 3), x_dir +Y, normal +Z, count 2: copy 1's bounding-box minimum minus copy 0's equals the workplane image of the 2D vector (40, 10) (40 along x_dir plus 10 along the workplane's second in-plane axis, as `make_face` uses it). 3. Count 0 and a path containing a `Circle` each return `InvalidInput` through `OcctKernel`.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and CI's `swx-kernel (occt)` job passes.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-26T08:24:16.795957192+00:00",
+    "constraints": [],
+    "created_at": "2026-11-26T08:23:41.383575994+00:00",
+    "description": "M6-01b: swx-kernel: pattern of bodies along a planar path",
+    "project_id": "saulitwerx",
+    "scope": "crates/swx-kernel",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 8,
+      "estimate": "small",
+      "id": "gates-273",
+      "status": "completed",
+      "title": "Gates for PR #277 (M6-01b path pattern)",
+      "type": "test"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
