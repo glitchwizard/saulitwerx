@@ -1,15 +1,16 @@
 //! Input checks and copy placements for [`Kernel::mirror`],
-//! [`Kernel::pattern_rectangular`], [`Kernel::pattern_circular`] (M6-01a)
-//! and [`Kernel::pattern_path`] (M6-01b). Plain functions, so they are
-//! tested without OCCT; the backend only applies the resulting rigid
-//! transforms.
+//! [`Kernel::pattern_rectangular`], [`Kernel::pattern_circular`] (M6-01a),
+//! [`Kernel::pattern_path`] (M6-01b) and [`Kernel::pattern_path_aligned`]
+//! (M6-01c). Plain functions, so they are tested without OCCT; the backend
+//! only applies the resulting rigid transforms.
 //!
 //! [`Kernel::mirror`]: crate::Kernel::mirror
 //! [`Kernel::pattern_rectangular`]: crate::Kernel::pattern_rectangular
 //! [`Kernel::pattern_circular`]: crate::Kernel::pattern_circular
 //! [`Kernel::pattern_path`]: crate::Kernel::pattern_path
+//! [`Kernel::pattern_path_aligned`]: crate::Kernel::pattern_path_aligned
 
-use std::f64::consts::TAU;
+use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
 use crate::profile::{finite, normalized, prepare_path, Edge2, EdgeKind};
 use crate::{Axis, KernelError, Point3, Segment2, Workplane};
@@ -164,37 +165,100 @@ pub(crate) fn path_offsets(
     path: &[Segment2],
     count: usize,
 ) -> Result<Vec<[f64; 3]>, KernelError> {
+    let (_, _, copies) = path_aligned_placements(plane, path, count)?;
+    Ok(copies.into_iter().map(|(_, offset)| offset).collect())
+}
+
+/// One copy of an aligned path pattern: its rotation angle in radians and
+/// then its translation.
+pub(crate) type AlignedCopy = (f64, [f64; 3]);
+
+/// The placements of a path pattern whose copies turn with the path: the
+/// pivot `P(0)`, the unit plane normal, and per copy the rotation angle
+/// `θ(sₖ) − θ(0)` about the axis through the pivot along the normal
+/// (applied first) and the translation `P(sₖ) − P(0)` (applied second, the
+/// same offsets as [`path_offsets`]).
+///
+/// `θ(t)` is the 2D angle of the path's direction of travel at arc length
+/// `t`, measured from the plane's `x_dir` toward `normal × x_dir`: a line's
+/// direction, or for an arc the radius angle plus ±π/2 (the tangent of a
+/// circle is perpendicular to its radius; e.g. Stewart, *Calculus*, §13.2).
+/// Where two segments meet exactly at `sₖ`, the segment ending there gives
+/// the tangent. Angles are reduced to (−π, π]; a rotation by a multiple of
+/// 2π more is the same placement.
+///
+/// The same inputs are `InvalidInput` as for [`path_offsets`].
+#[cfg_attr(not(feature = "occt"), allow(dead_code))]
+pub(crate) fn path_aligned_placements(
+    plane: &Workplane,
+    path: &[Segment2],
+    count: usize,
+) -> Result<(Point3, [f64; 3], Vec<AlignedCopy>), KernelError> {
     check_count("pattern count", count)?;
     let prepared = prepare_path(plane, path)?;
     let edges = &prepared.loops[0];
     let lengths: Vec<f64> = edges.iter().map(edge_length).collect();
     let total: f64 = lengths.iter().sum();
-    let at = |s: f64| -> [f64; 2] {
+    let last = edges.len() - 1;
+    // The edge index and the arc length into that edge at path length `s`;
+    // a joint belongs to the edge ending there.
+    let locate = |s: f64| -> (usize, f64) {
         let mut rest = s;
-        for (i, (e, &len)) in edges.iter().zip(&lengths).enumerate() {
-            if rest <= len || i + 1 == edges.len() {
-                return point_on_edge(e, len, rest);
+        for (i, &len) in lengths.iter().enumerate() {
+            if rest <= len || i == last {
+                return (i, rest);
             }
             rest -= len;
         }
-        edges[0].from
+        (last, rest)
     };
+    let sample = |i: usize, t: f64| -> ([f64; 2], f64) {
+        let (e, len) = (&edges[i], lengths[i]);
+        (point_on_edge(e, len, t), tangent_on_edge(e, len, t))
+    };
+    let (_, theta0) = sample(0, 0.0);
     let start = prepared.point_3d(edges[0].from);
-    let end = edges[edges.len() - 1].to;
-    let offsets = (0..count)
+    let copies = (0..count)
         .map(|k| {
-            let p = if k == 0 {
-                edges[0].from
+            let (p, theta) = if k == 0 {
+                (edges[0].from, theta0)
             } else if k + 1 == count {
-                end
+                (edges[last].to, sample(last, lengths[last]).1)
             } else {
-                at(k as f64 * total / (count - 1) as f64)
+                let (i, t) = locate(k as f64 * total / (count - 1) as f64);
+                sample(i, t)
             };
             let q = prepared.point_3d(p);
-            [0, 1, 2].map(|i| q[i] - start[i])
+            let offset = [0, 1, 2].map(|i| q[i] - start[i]);
+            (wrap_angle(theta - theta0), offset)
         })
         .collect();
-    Ok(offsets)
+    Ok((start, prepared.normal, copies))
+}
+
+/// `a` reduced to (−π, π].
+fn wrap_angle(a: f64) -> f64 {
+    let r = a.rem_euclid(TAU);
+    if r > PI {
+        r - TAU
+    } else {
+        r
+    }
+}
+
+/// The 2D angle of the direction of travel at arc length `t` (clamped to
+/// `0..=len`) along `e`: the line's direction, or for an arc the radius
+/// angle turned by +π/2 when counterclockwise and −π/2 when clockwise.
+fn tangent_on_edge(e: &Edge2, len: f64, t: f64) -> f64 {
+    match e.kind {
+        EdgeKind::Line => (e.to[1] - e.from[1]).atan2(e.to[0] - e.from[0]),
+        _ => {
+            let [cx, cy] = e.center;
+            let sign = e.sweep().signum();
+            let a0 = (e.from[1] - cy).atan2(e.from[0] - cx);
+            a0 + sign * (t.clamp(0.0, len) / e.radius + FRAC_PI_2)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -437,6 +501,102 @@ mod tests {
                     ..xy
                 },
                 &ok,
+                3,
+            ),
+        ];
+        for (n, r) in bad.into_iter().enumerate() {
+            assert!(is_invalid(r), "case {n}");
+        }
+    }
+
+    fn angles(plane: &Workplane, path: &[Segment2], count: usize) -> Vec<f64> {
+        let (_, _, copies) = path_aligned_placements(plane, path, count).unwrap();
+        copies.into_iter().map(|(a, _)| a).collect()
+    }
+
+    fn assert_angles(actual: &[f64], expected: &[f64]) {
+        assert_eq!(actual.len(), expected.len());
+        for (a, e) in actual.iter().zip(expected) {
+            assert!(
+                (a - e).abs() <= 1e-9,
+                "expected {expected:?}, got {actual:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn aligned_placements_along_a_line_then_an_arc() {
+        let xy = Workplane::XY;
+        let l = 30.0 + 5.0 * PI;
+        let (pivot, normal, copies) = path_aligned_placements(&xy, &line_then_arc(), 3).unwrap();
+        assert_eq!(pivot, [0.0; 3]);
+        assert_eq!(normal, [0.0, 0.0, 1.0]);
+        assert_angles(
+            &copies.iter().map(|c| c.0).collect::<Vec<_>>(),
+            &[0.0, 0.0, FRAC_PI_2],
+        );
+        assert_offset(copies[0].1, [0.0; 3]);
+        assert_offset(copies[1].1, [l / 2.0, 0.0, 0.0]);
+        assert_offset(copies[2].1, [40.0, 10.0, 0.0]);
+        let phi = (3.0 * l / 4.0 - 30.0) / 10.0;
+        assert!((angles(&xy, &line_then_arc(), 5)[3] - phi).abs() <= 1e-9);
+        assert_angles(&angles(&xy, &line_then_arc(), 1), &[0.0]);
+    }
+
+    #[test]
+    fn aligned_placements_turn_at_a_joint_given_end_first() {
+        let path = [
+            line([0.0, 0.0], [30.0, 0.0]),
+            line([30.0, 20.0], [30.0, 0.0]),
+        ];
+        assert_angles(&angles(&Workplane::XY, &path, 3), &[0.0, 0.0, FRAC_PI_2]);
+        // L = 50, so count 6 puts copy 3 exactly on the joint at s = 30:
+        // the segment ending there (along +X) gives the tangent.
+        assert_angles(
+            &angles(&Workplane::XY, &path, 6),
+            &[0.0, 0.0, 0.0, 0.0, FRAC_PI_2, FRAC_PI_2],
+        );
+    }
+
+    #[test]
+    fn aligned_placements_never_turn_on_a_straight_path() {
+        let path = [line([10.0, 0.0], [0.0, 0.0])];
+        assert_angles(&angles(&Workplane::XY, &path, 2), &[0.0, 0.0]);
+    }
+
+    #[test]
+    fn aligned_placements_reject_what_path_offsets_rejects() {
+        let xy = Workplane::XY;
+        let circle = Segment2::Circle {
+            center: [0.0, 0.0],
+            radius: 5.0,
+        };
+        let bad = [
+            path_aligned_placements(&xy, &line_then_arc(), 0),
+            path_aligned_placements(&xy, &[], 3),
+            path_aligned_placements(&xy, &[circle], 3),
+            path_aligned_placements(
+                &xy,
+                &[line([0.0, 0.0], [1.0, 0.0]), line([5.0, 5.0], [6.0, 5.0])],
+                3,
+            ),
+            path_aligned_placements(&xy, &[line([f64::NAN, 0.0], [1.0, 0.0])], 3),
+            path_aligned_placements(
+                &xy,
+                &[Segment2::Arc {
+                    center: [0.0, 0.0],
+                    radius: 0.0,
+                    start_angle: 0.0,
+                    end_angle: 1.0,
+                }],
+                3,
+            ),
+            path_aligned_placements(
+                &Workplane {
+                    normal: [0.0; 3],
+                    ..xy
+                },
+                &line_then_arc(),
                 3,
             ),
         ];

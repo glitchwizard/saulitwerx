@@ -523,6 +523,25 @@ pub trait Kernel {
         count: usize,
     ) -> Result<Vec<Self::Shape>, KernelError>;
 
+    /// As [`Kernel::pattern_path`] (same path, `sₖ = k·L/(count − 1)`, copy
+    /// 0 is `s`, a count of 1 gives `s` alone), but each copy also turns
+    /// with the path's direction of travel. With `θ(t)` the 2D angle of that
+    /// direction at arc length `t`, measured on `plane` from `x_dir` toward
+    /// `normal × x_dir`, copy k is `s` rotated about the axis through `P(0)`
+    /// along `plane.normal` by `θ(sₖ) − θ(0)`, then translated by
+    /// `P(sₖ) − P(0)`. Where two segments meet exactly at a copy's position,
+    /// the tangent of the segment ending there is used. `s` is unchanged.
+    ///
+    /// Inputs are checked as for [`Kernel::pattern_path`]: the same cases are
+    /// [`KernelError::InvalidInput`], before the backend.
+    fn pattern_path_aligned(
+        &self,
+        s: &Self::Shape,
+        plane: &Workplane,
+        path: &[Segment2],
+        count: usize,
+    ) -> Result<Vec<Self::Shape>, KernelError>;
+
     /// Enclosed volume.
     fn volume(&self, s: &Self::Shape) -> Result<f64, KernelError>;
     /// Total area of all faces.

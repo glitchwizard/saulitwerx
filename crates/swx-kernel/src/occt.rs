@@ -10,7 +10,9 @@ use crate::ffi::{
 use crate::helix::{check_helix_profile, cross, prepare_helix};
 use crate::hole::{perpendicular, prepare_hole, HoleCylinder};
 use crate::loft::check_section_count;
-use crate::pattern::{circular_angles, path_offsets, prepare_mirror, rectangular_offsets};
+use crate::pattern::{
+    circular_angles, path_aligned_placements, path_offsets, prepare_mirror, rectangular_offsets,
+};
 use crate::profile::{
     check_revolve_profile, check_sweep_bends, prepare_face, prepare_path, prepare_revolve,
     profile_reach,
@@ -808,6 +810,26 @@ impl Kernel for OcctKernel {
                 ffi::transform(&s.0, Transform::Translate { offset })
                     .map(OcctShape)
                     .ok_or_else(|| backend("pattern_path"))
+            })
+            .collect()
+    }
+
+    fn pattern_path_aligned(
+        &self,
+        s: &OcctShape,
+        plane: &Workplane,
+        path: &[Segment2],
+        count: usize,
+    ) -> Result<Vec<OcctShape>, KernelError> {
+        let (origin, dir, copies) = path_aligned_placements(plane, path, count)?;
+        copies
+            .into_iter()
+            .map(|(angle, offset)| {
+                let turned = ffi::transform(&s.0, Transform::Rotate { origin, dir, angle })
+                    .ok_or_else(|| backend("pattern_path_aligned"))?;
+                ffi::transform(&turned, Transform::Translate { offset })
+                    .map(OcctShape)
+                    .ok_or_else(|| backend("pattern_path_aligned"))
             })
             .collect()
     }
@@ -4260,5 +4282,69 @@ mod tests {
             radius: 5.0,
         }];
         assert!(invalid(K.pattern_path(&b, &Workplane::XY, &circle, 3)));
+    }
+
+    #[test]
+    fn aligned_path_pattern_turns_copies_with_the_path() {
+        let b = K.make_box([0.0; 3], [2.0, 2.0, 2.0]).unwrap();
+        let copies = K
+            .pattern_path_aligned(&b, &Workplane::XY, &line_then_arc_path(), 3)
+            .unwrap();
+        assert_eq!(copies.len(), 3);
+        for c in &copies {
+            assert_volume(K.volume(c).unwrap(), 8.0);
+        }
+        let l = 30.0 + 5.0 * PI;
+        assert_point(K.bounding_box(&copies[0]).unwrap().min, [0.0; 3]);
+        assert_point(K.bounding_box(&copies[1]).unwrap().min, [l / 2.0, 0.0, 0.0]);
+        // Turned 90° about +Z through the origin ([−2, 0] × [0, 2]), then
+        // moved by (40, 10).
+        assert_point(K.bounding_box(&copies[2]).unwrap().min, [38.0, 10.0, 0.0]);
+        assert_point(K.bounding_box(&copies[2]).unwrap().max, [40.0, 12.0, 2.0]);
+        // The input is unchanged.
+        assert_point(K.bounding_box(&b).unwrap().min, [0.0; 3]);
+    }
+
+    #[test]
+    fn aligned_path_pattern_on_a_moved_workplane() {
+        let b = K.make_box([0.0; 3], [2.0, 2.0, 2.0]).unwrap();
+        // Second in-plane axis normal × x_dir = −X. Copy 1 turns 90° about
+        // +Z through P(0) = (1, 2, 3), so [0, 2]² becomes [1, 3]², then moves
+        // by (−10, 40, 0).
+        let plane = Workplane {
+            origin: [1.0, 2.0, 3.0],
+            x_dir: [0.0, 1.0, 0.0],
+            normal: [0.0, 0.0, 1.0],
+        };
+        let copies = K
+            .pattern_path_aligned(&b, &plane, &line_then_arc_path(), 2)
+            .unwrap();
+        assert_eq!(copies.len(), 2);
+        let bb = K.bounding_box(&copies[1]).unwrap();
+        assert_point(bb.min, [-9.0, 41.0, 0.0]);
+        assert_point(bb.max, [-7.0, 43.0, 2.0]);
+    }
+
+    #[test]
+    fn aligned_path_pattern_rejects_bad_inputs() {
+        let b = box_10x5x2();
+        let invalid =
+            |r: Result<Vec<OcctShape>, KernelError>| matches!(r, Err(KernelError::InvalidInput(_)));
+        assert!(invalid(K.pattern_path_aligned(
+            &b,
+            &Workplane::XY,
+            &line_then_arc_path(),
+            0
+        )));
+        let circle = [Segment2::Circle {
+            center: [0.0, 0.0],
+            radius: 5.0,
+        }];
+        assert!(invalid(K.pattern_path_aligned(
+            &b,
+            &Workplane::XY,
+            &circle,
+            3
+        )));
     }
 }
