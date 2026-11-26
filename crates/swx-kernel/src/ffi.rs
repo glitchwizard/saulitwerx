@@ -62,6 +62,18 @@ extern "C" {
         params: *const c_double,
         out: *mut *mut RawShape,
     ) -> c_int;
+    #[allow(clippy::too_many_arguments)]
+    fn swx_occt_split_half(
+        s: *const RawShape,
+        ox: c_double,
+        oy: c_double,
+        oz: c_double,
+        nx: c_double,
+        ny: c_double,
+        nz: c_double,
+        side: c_int,
+        out: *mut *mut RawShape,
+    ) -> c_int;
     fn swx_occt_solid_count(s: *const RawShape, out: *mut usize) -> c_int;
     fn swx_occt_solid(s: *const RawShape, index: usize, out: *mut *mut RawShape) -> c_int;
     #[allow(clippy::too_many_arguments)]
@@ -547,6 +559,36 @@ pub(crate) fn transform(s: &ShapeHandle, t: Transform) -> Option<ShapeHandle> {
     // doubles from it (indices 0..=6) during the call only; `raw` is a valid
     // out-pointer that receives a new, independently owned handle on success.
     let status = unsafe { swx_occt_transform(s.0.as_ptr(), kind, p.as_ptr(), &mut raw) };
+    take(status, raw)
+}
+
+/// The part of `s` on one side of the infinite plane through `origin` with
+/// unit `normal` (validated by the caller, `pattern.rs`): the normal's side
+/// when `positive`, the other side otherwise. It may hold several solids or
+/// none. `s` is unchanged.
+pub(crate) fn split_half(
+    s: &ShapeHandle,
+    origin: [f64; 3],
+    normal: [f64; 3],
+    positive: bool,
+) -> Option<ShapeHandle> {
+    let mut raw = ptr::null_mut();
+    // SAFETY: `s` is a live handle read-only for the call and not retained;
+    // every other input is passed by value; `raw` is a valid out-pointer that
+    // receives a new, independently owned handle on success.
+    let status = unsafe {
+        swx_occt_split_half(
+            s.0.as_ptr(),
+            origin[0],
+            origin[1],
+            origin[2],
+            normal[0],
+            normal[1],
+            normal[2],
+            if positive { 1 } else { -1 },
+            &mut raw,
+        )
+    };
     take(status, raw)
 }
 
