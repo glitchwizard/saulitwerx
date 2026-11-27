@@ -79,6 +79,7 @@
 #include <gp_Lin2d.hxx>
 #include <gp_Pnt2d.hxx>
 #include <gp_Lin.hxx>
+#include <gp_Mat.hxx>
 #include <gp_Pln.hxx>
 #include <gp_Pnt.hxx>
 #include <gp_Trsf.hxx>
@@ -1371,6 +1372,36 @@ int swx_occt_volume(const SwxShape* s, double* out) noexcept {
         GProp_GProps props;
         BRepGProp::VolumeProperties(s->shape, props);
         *out = props.Mass();
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+// Volume properties at unit density (OCCT reference documentation, GProp
+// package: BRepGProp::VolumeProperties, GProp_GProps::Mass, CentreOfMass and
+// MatrixOfInertia). MatrixOfInertia is about the center of mass, in axes
+// parallel to the global ones. Writes the volume, the center (3) and the
+// tensor (9, row-major) to out[0..13]. Returns 0 on success, -1 on a null
+// input or any exception.
+int swx_occt_mass_properties(const SwxShape* s, double* out) noexcept {
+    if (s == nullptr || out == nullptr) {
+        return -1;
+    }
+    try {
+        GProp_GProps props;
+        BRepGProp::VolumeProperties(s->shape, props);
+        const gp_Pnt c = props.CentreOfMass();
+        const gp_Mat m = props.MatrixOfInertia();
+        out[0] = props.Mass();
+        out[1] = c.X();
+        out[2] = c.Y();
+        out[3] = c.Z();
+        for (int i = 0; i < 3; ++i) {
+            for (int j = 0; j < 3; ++j) {
+                out[4 + 3 * i + j] = m.Value(i + 1, j + 1);
+            }
+        }
         return 0;
     } catch (...) {
         return -1;
