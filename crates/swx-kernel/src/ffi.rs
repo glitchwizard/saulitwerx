@@ -231,6 +231,15 @@ extern "C" {
         index: usize,
         out: *mut c_double,
     ) -> c_int;
+    fn swx_occt_min_distance(
+        a: *const RawShape,
+        a_kind: c_int,
+        a_index: usize,
+        b: *const RawShape,
+        b_kind: c_int,
+        b_index: usize,
+        out: *mut c_double,
+    ) -> c_int;
     fn swx_occt_shape_free(s: *mut RawShape);
     fn swx_occt_face_count(s: *const RawShape, out: *mut usize) -> c_int;
     fn swx_occt_sub_shape_count(s: *const RawShape, kind: c_int, out: *mut usize) -> c_int;
@@ -964,6 +973,37 @@ pub(crate) fn sub_shape_bounding_box(s: &ShapeHandle, kind: i32, index: usize) -
     // writable array of exactly the 6 doubles the shim writes.
     let status =
         unsafe { swx_occt_sub_shape_bounding_box(s.0.as_ptr(), kind, index, out.as_mut_ptr()) };
+    (status == 0).then_some(out)
+}
+
+/// Minimum distance `[value, a.x, a.y, a.z, b.x, b.y, b.z]` between `a` and
+/// `b`, each the whole shape when its `(kind, index)` is `None`, else its
+/// sub-shape `index` of shim kind code `kind`. `None` on any failure,
+/// including an index out of range.
+pub(crate) fn min_distance(
+    a: &ShapeHandle,
+    a_sub: Option<(i32, usize)>,
+    b: &ShapeHandle,
+    b_sub: Option<(i32, usize)>,
+) -> Option<[f64; 7]> {
+    let (a_kind, a_index) = a_sub.unwrap_or((-1, 0));
+    let (b_kind, b_index) = b_sub.unwrap_or((-1, 0));
+    let mut out = [0.0 as c_double; 7];
+    // SAFETY: `a` and `b` are live handles, read-only for the call and not
+    // retained (they may be the same handle; the shim only reads both);
+    // `out` is a writable array of exactly the 7 doubles the shim writes,
+    // on our stack, and it outlives the call.
+    let status = unsafe {
+        swx_occt_min_distance(
+            a.0.as_ptr(),
+            a_kind,
+            a_index,
+            b.0.as_ptr(),
+            b_kind,
+            b_index,
+            out.as_mut_ptr(),
+        )
+    };
     (status == 0).then_some(out)
 }
 
