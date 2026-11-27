@@ -606,23 +606,37 @@ impl PreparedFace {
     }
 }
 
-/// Validates [`Kernel::sweep`](crate::Kernel::sweep) path inputs and returns
-/// the path as one open chain (`loops[0]`) in the caller's order, starting at
-/// the first segment's start, with each shared endpoint snapped to the
-/// midpoint of the two it joins. Later segments may run either way.
+/// The [`prepare_path`] label for [`Kernel::sweep`](crate::Kernel::sweep).
+#[cfg_attr(not(feature = "occt"), allow(dead_code))]
+pub(crate) const SWEEP_PATH: &str = "sweep path";
+
+/// The [`prepare_path`] label for the path patterns
+/// ([`Kernel::pattern_path`](crate::Kernel::pattern_path) and
+/// [`Kernel::pattern_path_aligned`](crate::Kernel::pattern_path_aligned)).
+pub(crate) const PATTERN_PATH: &str = "pattern path";
+
+/// Validates [`Kernel::sweep`](crate::Kernel::sweep) and path-pattern path
+/// inputs and returns the path as one open chain (`loops[0]`) in the caller's
+/// order, starting at the first segment's start, with each shared endpoint
+/// snapped to the midpoint of the two it joins. Later segments may run either
+/// way.
+///
+/// `label` names the path in error messages ([`SWEEP_PATH`],
+/// [`PATTERN_PATH`]), so a caller reads about the operation it asked for.
 #[cfg_attr(not(feature = "occt"), allow(dead_code))]
 pub(crate) fn prepare_path(
     plane: &Workplane,
     path: &[Segment2],
+    label: &str,
 ) -> Result<PreparedFace, KernelError> {
     let mut prepared = prepare_face_plane(plane)?;
     if path.is_empty() {
-        return Err(invalid("sweep path is empty".to_string()));
+        return Err(invalid(format!("{label} is empty")));
     }
     if path.iter().any(|s| matches!(s, Segment2::Circle { .. })) {
-        return Err(invalid(
-            "sweep path: circles (closed paths) are not supported".to_string(),
-        ));
+        return Err(invalid(format!(
+            "{label}: circles (closed paths) are not supported"
+        )));
     }
     let edges = path.iter().map(edge).collect::<Result<Vec<_>, _>>()?;
     let mut out = vec![edges[0]];
@@ -634,7 +648,7 @@ pub(crate) fn prepare_path(
             e.reversed()
         } else {
             return Err(invalid(format!(
-                "sweep path: segment {i} doesn't meet segment {} within {LOOP_GAP_TOLERANCE}",
+                "{label}: segment {i} doesn't meet segment {} within {LOOP_GAP_TOLERANCE}",
                 i - 1
             )));
         };
@@ -1100,7 +1114,7 @@ mod tests {
             line([0.0, 0.0], [0.0, -10.0]),
             arc([20.0, -10.0], 20.0, PI, 1.5 * PI),
         ];
-        let p = prepare_path(&Workplane::XZ, &path).unwrap();
+        let p = prepare_path(&Workplane::XZ, &path, SWEEP_PATH).unwrap();
         let e = &p.loops[0];
         assert_eq!(e.len(), 2);
         assert_eq!(e[0].from, [0.0, 0.0]);
@@ -1110,13 +1124,13 @@ mod tests {
         assert_eq!(e[1].kind, EdgeKind::ArcCcw);
         // A second segment given backwards is reversed.
         let back = [line([0.0, 0.0], [5.0, 0.0]), line([9.0, 3.0], [5.0, 0.0])];
-        let p = prepare_path(&Workplane::XY, &back).unwrap();
+        let p = prepare_path(&Workplane::XY, &back, SWEEP_PATH).unwrap();
         assert_eq!(p.loops[0][1].from, [5.0, 0.0]);
         assert_eq!(p.loops[0][1].to, [9.0, 3.0]);
         // Workplane::XZ maps (u, v) to (u, 0, v).
         let q = p.point_3d([2.0, 3.0]);
         assert_eq!(
-            prepare_path(&Workplane::XZ, &back)
+            prepare_path(&Workplane::XZ, &back, SWEEP_PATH)
                 .unwrap()
                 .point_3d([2.0, 3.0]),
             [2.0, 0.0, 3.0]
@@ -1129,7 +1143,10 @@ mod tests {
         let ok = line([0.0, 0.0], [0.0, 30.0]);
         let bad = |plane: &Workplane, path: &[Segment2]| {
             assert!(
-                matches!(prepare_path(plane, path), Err(KernelError::InvalidInput(_))),
+                matches!(
+                    prepare_path(plane, path, SWEEP_PATH),
+                    Err(KernelError::InvalidInput(_))
+                ),
                 "expected InvalidInput for {path:?} on {plane:?}"
             );
         };
@@ -1153,7 +1170,27 @@ mod tests {
         };
         bad(&skew, &[ok]);
         // A gap within the tolerance is accepted.
-        assert!(prepare_path(xz, &[ok, line([0.0, 30.0 + 5e-8], [5.0, 40.0])]).is_ok());
+        assert!(prepare_path(xz, &[ok, line([0.0, 30.0 + 5e-8], [5.0, 40.0])], SWEEP_PATH).is_ok());
+    }
+
+    #[test]
+    fn sweep_path_errors_name_the_sweep_path() {
+        let message = |path: &[Segment2]| match prepare_path(&Workplane::XZ, path, SWEEP_PATH) {
+            Err(KernelError::InvalidInput(m)) => m,
+            other => panic!("expected InvalidInput, got {other:?}"),
+        };
+        assert_eq!(message(&[]), "sweep path is empty");
+        assert_eq!(
+            message(&[circle([0.0, 0.0], 5.0).segments[0]]),
+            "sweep path: circles (closed paths) are not supported"
+        );
+        assert_eq!(
+            message(&[
+                line([0.0, 0.0], [0.0, 30.0]),
+                line([0.0, 30.1], [5.0, 40.0])
+            ]),
+            "sweep path: segment 1 doesn't meet segment 0 within 0.0000001"
+        );
     }
 
     #[test]

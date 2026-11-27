@@ -12,7 +12,7 @@
 
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
-use crate::profile::{finite, normalized, prepare_path, Edge2, EdgeKind};
+use crate::profile::{finite, normalized, prepare_path, Edge2, EdgeKind, PATTERN_PATH};
 use crate::{Axis, KernelError, Point3, Segment2, Workplane};
 
 /// Largest amount a circular pattern's total angle may differ from 2π and
@@ -195,7 +195,7 @@ pub(crate) fn path_aligned_placements(
     count: usize,
 ) -> Result<(Point3, [f64; 3], Vec<AlignedCopy>), KernelError> {
     check_count("pattern count", count)?;
-    let prepared = prepare_path(plane, path)?;
+    let prepared = prepare_path(plane, path, PATTERN_PATH)?;
     let edges = &prepared.loops[0];
     let lengths: Vec<f64> = edges.iter().map(edge_length).collect();
     let total: f64 = lengths.iter().sum();
@@ -602,6 +602,34 @@ mod tests {
         ];
         for (n, r) in bad.into_iter().enumerate() {
             assert!(is_invalid(r), "case {n}");
+        }
+    }
+
+    /// The message of an `InvalidInput` error; panics on anything else.
+    fn message<T: std::fmt::Debug>(r: Result<T, KernelError>) -> String {
+        match r {
+            Err(KernelError::InvalidInput(m)) => m,
+            other => panic!("expected InvalidInput, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn path_pattern_errors_name_the_pattern_path() {
+        let xy = Workplane::XY;
+        let circle = Segment2::Circle {
+            center: [0.0, 0.0],
+            radius: 5.0,
+        };
+        let gap = [line([0.0, 0.0], [1.0, 0.0]), line([5.0, 5.0], [6.0, 5.0])];
+        let expected = [
+            "pattern path is empty".to_string(),
+            "pattern path: segment 1 doesn't meet segment 0 within 0.0000001".to_string(),
+            "pattern path: circles (closed paths) are not supported".to_string(),
+        ];
+        let paths: [&[Segment2]; 3] = [&[], &gap, &[circle]];
+        for (path, want) in paths.iter().zip(&expected) {
+            assert_eq!(&message(path_offsets(&xy, path, 3)), want);
+            assert_eq!(&message(path_aligned_placements(&xy, path, 3)), want);
         }
     }
 }
