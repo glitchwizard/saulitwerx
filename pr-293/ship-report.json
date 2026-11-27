@@ -1,0 +1,78 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(core): delete a user parameter and change a parameter's unit",
+      "ref": "fa91809",
+      "task_id": "m6-03a",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-03a",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-03a",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-03a",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`Document::delete_param(&mut self, name: &str) -> Result<(), ModelError>` removes a `ParamKind::User` parameter. An unknown name is `UnknownParameter`. A `ParamKind::Model` parameter is a new error `ModelError::ModelParameter(name)` (it belongs to its dimension). A parameter named by another parameter's expression or by a feature in the history (`FeatureKind::params`) is a new error `ModelError::ParameterInUse { param, used_by }`, where `used_by` lists the parameter names in table order and then the feature names in history order. On any error the document is unchanged.",
+      "`Document::set_param_unit(&mut self, name: &str, unit: &str) -> Result<(), ModelError>` changes the unit and keeps the physical quantity. A plain value is converted: 25.4 with `mm` set to `in` gives 1.0; 90 with `deg` set to `rad` gives π/2 (1e-12 relative). A parameter with an expression keeps the expression and is re-evaluated in the new unit. Dependent parameters keep their values (the d1/d2 example in Context).",
+      "`unit` must be empty or a suffix that `Unit::from_suffix` accepts, otherwise a new error `ModelError::InvalidUnit(unit)`. A unit of another dimension (for example `mm` to `deg`, or `mm` to empty) is `ModelError::ParameterDimension` with the old and new dimensions. An unknown name is `UnknownParameter`. On any error the document is unchanged.",
+      "Each new error variant has a `Display` message that names the parameter (and, for `ParameterInUse`, its users).",
+      "Unit tests in `swx-core` cover every case above, including: deleting an unused user parameter; refusing a model parameter; refusing one used by an expression and by a feature, with the exact `used_by` list; the three conversions in Context; `InvalidUnit` for `furlong`; `ParameterDimension` for `mm` to `deg`; and an unchanged document after each error (compare `parameters()` before and after).",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-27T10:22:30.955672052+00:00",
+    "constraints": [],
+    "created_at": "2026-11-27T10:22:11.076024547+00:00",
+    "description": "M6-03a: swx-core: delete a user parameter and change a parameter's unit",
+    "project_id": "saulitwerx",
+    "scope": "crates/swx-core/src/lib.rs (issue #291, PR #293)",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 3,
+      "estimate": "small",
+      "id": "m6-03a",
+      "status": "completed",
+      "title": "Implement and verify delete_param and set_param_unit (#291)",
+      "type": "implement"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
