@@ -69,6 +69,8 @@ Every message starts with `swx-qa: `. No picture is written when there is an err
   [`invalid input: <name> must be finite and > 0, got <v>`], [A size, radius or height is zero, negative or not a number.],
   [`invalid input: <name> must have finite coordinates, got …`], [A position contains an infinite value or not-a-number.],
   [`invalid input: no such file: f`], [The STEP file to read doesn't exist.],
+  [`invalid input: density must be finite and > 0, got 0`], [`mass_properties` was given a density of zero, below zero or not a number (@sec-measure).],
+  [`invalid input: mass properties need a solid; the shape has none`], [The shape is a flat face or holds no solid body, so it has no volume to weigh.],
   [`invalid input: adjacent needs two different kinds, got edge and edge`], [`adjacent` was asked for the same kind it starts from. Ask for another kind: the faces or vertices of an edge (@sec-topology).],
   [`invalid input: face index 7 is out of range: the shape has 7 faces`], [The index is past the last sub-shape of its kind. Indices start at 0, so the last is the count minus 1. An index from another shape, or from before a change, can also be out of range (@sec-topology).],
   [`kernel failure: <operation> failed`], [OpenCascade couldn't complete the operation. For a cut, check that the tool solid overlaps the part (@ch-solids). For a `fillet` or a `chamfer`, the size is too large for the faces next to the edges: make it smaller (@sec-fillet-mistakes). For a `shell`, the walls are too thick for the part: keep them under half its narrowest width (@sec-shell-mistakes). For a `draft`, a face can't be tilted, such as one parallel to the neutral plane (@sec-draft-mistakes). For a `loft`, two sections may be in the same place (@sec-loft-mistakes).],
@@ -121,7 +123,7 @@ Every message starts with `swx-qa: `. No picture is written when there is an err
   [`invalid input: mirror plane normal must be non-zero`, `pattern direction 1 must be non-zero` (or `2`), `pattern axis direction must be non-zero`], [A mirror plane, pattern direction or pattern axis of length zero. Give a direction that points somewhere.],
   [`invalid input: pattern spacing 1 must be finite, got [NaN]`, `mirror plane origin must be finite, got …`, `pattern axis origin must be finite, got …`], [A mirror or a pattern was given an infinite value or NaN.],
   [`invalid input: pattern total angle must be in (0, 2π] radians, got <v>`], [A circular pattern's total angle is 0 or less, more than a full turn, not a number, or given in degrees. Give radians: 2π for a full turn (@sec-pattern-circ).],
-  [`invalid input: pattern count must be at least 1` from a path pattern, or `sweep path is empty`, `sweep path: segment 1 doesn't meet segment 0 within 0.0000001`, `sweep path: circles (closed paths) are not supported`], [A path pattern was asked for no copies, or its path is empty, has a gap or is a circle. A path pattern checks its path as a sweep does, so the message says "sweep path" (@sec-pattern-path).],
+  [`invalid input: pattern count must be at least 1` from a path pattern, or `pattern path is empty`, `pattern path: segment 1 doesn't meet segment 0 within 0.0000001`, `pattern path: circles (closed paths) are not supported`], [A path pattern was asked for no copies, or its path is empty, has a gap or is a circle. Join the pieces end to end, and use an arc instead of a whole circle (@sec-pattern-path).],
   [`invalid input: split plane normal must be non-zero`, `split plane origin must be finite, got …`], [A split plane of length zero, or with an infinite value or NaN (@sec-split).],
   [`kernel failure: mirror failed`, `pattern_rectangular failed`, `pattern_circular failed`, `pattern_path failed`, `pattern_path_aligned failed`], [The geometry engine couldn't move a copy. The original is unchanged.],
   [`kernel failure: split failed`, `split_faces failed`], [The geometry engine couldn't cut the body or divide its faces, or, for `split_faces`, the shape holds no solid. The original is unchanged.],
@@ -214,6 +216,10 @@ Any sketch message above can also come from profiles, when the sketch itself is 
   [#raw("expression for `p`: …")], [The formula for `p` doesn't parse, names an unknown parameter, or can't be worked out. The rest is an expression message, below.],
   [#raw("parameter expressions form a cycle: a -> b -> a")], [The formulas would depend on each other in a loop, traced in the message. Make one of them a plain number (@sec-param-formulas).],
   [#raw("expression for `p` gives length^2, but its unit expects length")], [The formula's result is the wrong kind of quantity for the parameter's unit, here an area for a length. A parameter with no unit, or a unit outside the seven, expects `unitless`.],
+  [#raw("expression for `p` gives angle, but its unit expects length")], [From `set_param_unit`, even for a plain number: the new unit is a different kind of quantity from the old one, here an angle for a length. Pick a unit of the same kind (@sec-param-tidy).],
+  [#raw("`d0` is a model parameter: it belongs to its dimension and can't be deleted")], [Only user parameters can be deleted. A model parameter goes with its dimension.],
+  [#raw("parameter `p` is still used by `q`, `Extrude1`")], [Formulas and features, listed, still read `p`. Change them first, then delete (@sec-param-tidy).],
+  [#raw("unknown unit `u`: use mm, cm, m, in, ft, deg, rad, or no unit")], [`set_param_unit` takes only these seven units, or an empty one.],
 )
 
 === From expressions
@@ -379,6 +385,8 @@ Every message starts `sltwx: `. Any document-file message above can follow it, w
 - Inference needs a program: there is no drawing with the mouse yet, so nothing is inferred as you move the pointer (@sec-infer).
 - Renaming a parameter doesn't update the sketches bound to it by itself; call `rename_bound` too (@sec-drive-sketch).
 - There are no angle dimensions and no point-to-line distance yet.
+- A part can be weighed with one density for all its bodies, and the distance between shapes or sub-shapes measured, but angles can't be measured yet (@sec-measure).
+- Changing a parameter to a unit of another kind gives a message about an expression, even for a plain number (@sec-param-tidy).
 - Profiles don't split pieces where they cross; crossing pieces are an error.
 - Only built on and tested on Ubuntu Linux.
 - An imported STEP file becomes one shape, and one body however many solids it holds. Its sizes can't be edited, it can't be moved or turned as it comes in, and its faces and edges can't be picked. It can't be linked to the original file, or its file replaced (@sec-files-import).

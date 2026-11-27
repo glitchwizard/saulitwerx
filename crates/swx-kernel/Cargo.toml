@@ -142,3 +142,7 @@ required-features = ["occt"]
 [[example]]
 name = "split_body"
 required-features = ["occt"]
+
+[[example]]
+name = "measure_part"
+required-features = ["occt"]
