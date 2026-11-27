@@ -1,0 +1,109 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(kernel): minimum distance between shapes and sub-shapes",
+      "ref": "f6690ca",
+      "task_id": "m6-04b",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-04b",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-04b",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-04b",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-04b",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-04b",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-04b",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-04b",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`pub struct Distance { pub value: f64, pub on_a: Point3, pub on_b: Point3 }` (derive `Debug, Clone, Copy, PartialEq`) and `fn min_distance(&self, a: &Self::Shape, a_sub: Option<SubShape>, b: &Self::Shape, b_sub: Option<SubShape>) -> Result<Distance, KernelError>`, documented: the minimum distance between `a` (or its sub-shape `a_sub`) and `b` (or `b_sub`), with one pair of closest points, `on_a` on the first and `on_b` on the second, so that |on_a − on_b| = value. When several pairs are equally close, which pair is returned is unspecified. Touching or overlapping inputs give 0. The inputs are unchanged.",
+      "A sub-shape index out of range for its kind is `InvalidInput`, checked before the backend, as for `sub_shape_bounding_box`.",
+      "With `--features occt` (1e-9 absolute on distances, 1e-6 on points):\n  1. Boxes [0,2]³ and [5,7] × [0,2] × [0,2], whole shapes: value 3, on_a x = 2, on_b x = 5, and |on_a − on_b| = value.\n  2. Boxes [0,2]³ and [2,4] × [0,2] × [0,2] (touching), and [0,2]³ with [1,3]³ (overlapping): value 0 for both.\n  3. Sphere radius 1 at the origin and box [3,4] × [−1,1] × [−1,1]: value 2, on_a (1, 0, 0), on_b (3, 0, 0).\n  4. Box 10 × 5 × 2 at the origin, its face at x = 0 and its face at x = 10 (the same shape passed as `a` and `b`; find the faces with `face_plane` or `sub_shape_bounding_box`, not hard-coded indices): value 10.\n  5. Same box, its vertex at (10, 5, 2) and its edge from (0,0,0) to (10,0,0): value √29, on_a (10, 5, 2), on_b (10, 0, 0).\n  6. A face index equal to `sub_shape_count(.., Face)` returns `InvalidInput` through `OcctKernel`.",
+      "Every `unsafe` block added in `swx-kernel::ffi` is documented; the shim function is `noexcept` and catches all C++ exceptions (ADR 2026-10-13).",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and CI's `swx-kernel (occt)` job passes.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-27T10:30:02.752785661+00:00",
+    "constraints": [],
+    "created_at": "2026-11-27T10:29:44.438964024+00:00",
+    "description": "M6-04b: swx-kernel: minimum distance between shapes, faces, edges and vertices",
+    "project_id": "saulitwerx",
+    "scope": "crates/swx-kernel (issue #285, PR #294)",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 7,
+      "estimate": "small",
+      "id": "m6-04b",
+      "status": "completed",
+      "title": "Implement and verify Kernel::min_distance (#285)",
+      "type": "implement"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
