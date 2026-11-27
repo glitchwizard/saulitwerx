@@ -1,0 +1,110 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "feat(kernel): mass properties",
+      "ref": "ba88ac0",
+      "task_id": "m6-04a",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-04a",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-04a",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-04a",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "clippy swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-04a",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "test swx-kernel occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-04a",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "clippy swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-04a",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "test swx-qa occt",
+      "passed": true,
+      "required": true,
+      "task_id": "m6-04a",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`pub struct MassProperties { pub volume: f64, pub area: f64, pub mass: f64, pub center: Point3, pub inertia: [[f64; 3]; 3], pub principal: [f64; 3] }` (derive `Debug, Clone, Copy, PartialEq`) and `fn mass_properties(&self, s: &Self::Shape, density: f64) -> Result<MassProperties, KernelError>`, documented with the conventions above. `principal` holds the eigenvalues of `inertia`, ascending. `s` is unchanged.",
+      "A density that is not finite or is ≤ 0 is `InvalidInput`, checked by a plain function before the backend. A shape with no solid (`body_count` 0) is `InvalidInput`.",
+      "`principal_moments(&[[f64; 3]; 3]) -> [f64; 3]`, a plain function using the cyclic Jacobi eigenvalue method for symmetric matrices (Golub & Van Loan, *Matrix Computations*, §8.5, cited in its doc comment). Unit tests without OCCT (1e-9 relative): a diagonal matrix diag(3, 1, 2) gives [1, 2, 3]; [[410.6̅, −400, 0], [−400, 410.6̅, 0], [0, 0, 810.6̅]] (exactly 1232/3, −400, 2432/3) gives [32/3, 2432/3, 2432/3].",
+      "With `--features occt` (1e-9 relative on volume, area, mass and the diagonal; 1e-9 absolute on center coordinates; off-diagonal entries within 1e-9 × the largest diagonal entry): cases 1–5 (box, density scaling, cylinder, two bodies, invalid inputs).",
+      "Every `unsafe` block added in `swx-kernel::ffi` is documented; the shim function is `noexcept` and catches all C++ exceptions (ADR 2026-10-13).",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and CI's `swx-kernel (occt)` job passes.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-27T08:31:15.210304415+00:00",
+    "constraints": [],
+    "created_at": "2026-11-27T08:30:49.864414496+00:00",
+    "description": "M6-04a: swx-kernel: mass properties (mass, center of mass, inertia tensor, principal moments)",
+    "project_id": "saulitwerx",
+    "scope": "crates/swx-kernel; issue #284, PR #290",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 7,
+      "estimate": "medium",
+      "id": "m6-04a",
+      "status": "completed",
+      "title": "Kernel::mass_properties, OCCT shim, principal_moments (cyclic Jacobi)",
+      "type": "implement"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
