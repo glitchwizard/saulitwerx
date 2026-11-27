@@ -10,6 +10,7 @@ use crate::ffi::{
 use crate::helix::{check_helix_profile, cross, prepare_helix};
 use crate::hole::{perpendicular, prepare_hole, HoleCylinder};
 use crate::loft::check_section_count;
+use crate::mass::{check_density, scaled};
 use crate::pattern::{
     circular_angles, path_aligned_placements, path_offsets, prepare_mirror, rectangular_offsets,
 };
@@ -25,8 +26,8 @@ use crate::topo::{
 use crate::{
     input_file_cstring, path_to_cstring, validate_point, validate_size, Axis, BooleanOp,
     BoundingBox, ChamferSize, CombineHistory, EdgeOnFace, Extent, ExtrudeHistory, HoleDepth,
-    HoleKind, Kernel, KernelError, Mesh, OpHistory, Operand, Point3, ProfileLoop, Segment2,
-    SubShape, TopoKind, Workplane, EMPTY_VOLUME_TOLERANCE, LOOP_GAP_TOLERANCE,
+    HoleKind, Kernel, KernelError, MassProperties, Mesh, OpHistory, Operand, Point3, ProfileLoop,
+    Segment2, SubShape, TopoKind, Workplane, EMPTY_VOLUME_TOLERANCE, LOOP_GAP_TOLERANCE,
 };
 
 /// [`Kernel`] backed by the system OpenCascade libraries.
@@ -847,6 +848,17 @@ impl Kernel for OcctKernel {
 
     fn surface_area(&self, s: &OcctShape) -> Result<f64, KernelError> {
         ffi::surface_area(&s.0).ok_or_else(|| backend("surface_area"))
+    }
+
+    fn mass_properties(&self, s: &OcctShape, density: f64) -> Result<MassProperties, KernelError> {
+        check_density(density)?;
+        if self.body_count(s)? == 0 {
+            return Err(KernelError::InvalidInput(
+                "mass properties need a solid; the shape has none".to_string(),
+            ));
+        }
+        let unit = ffi::mass_properties(&s.0).ok_or_else(|| backend("mass_properties"))?;
+        Ok(scaled(&unit, self.surface_area(s)?, density))
     }
 
     fn bounding_box(&self, s: &OcctShape) -> Result<BoundingBox, KernelError> {
@@ -4436,5 +4448,110 @@ mod tests {
             &circle,
             3
         )));
+    }
+
+    /// Checks `p` against expected values with the M6-04a tolerances: 1e-9
+    /// relative on volume, area, mass and the diagonal; 1e-9 absolute on the
+    /// center; off-diagonal entries within 1e-9 × the largest diagonal entry.
+    fn assert_mass(
+        p: &MassProperties,
+        mass: f64,
+        center: Point3,
+        diag: [f64; 3],
+        off: [f64; 3], // Ixy, Ixz, Iyz
+    ) {
+        let rel = |a: f64, e: f64, what: &str| {
+            assert!(
+                (a - e).abs() <= 1e-9 * e.abs(),
+                "{what}: expected {e}, got {a}"
+            );
+        };
+        rel(p.mass, mass, "mass");
+        for k in 0..3 {
+            assert!(
+                (p.center[k] - center[k]).abs() <= 1e-9,
+                "center: expected {center:?}, got {:?}",
+                p.center
+            );
+            rel(p.inertia[k][k], diag[k], "inertia diagonal");
+        }
+        let big = diag.iter().fold(0.0_f64, |m, d| m.max(d.abs()));
+        for ((i, j), e) in [(0, 1), (0, 2), (1, 2)].into_iter().zip(off) {
+            for v in [p.inertia[i][j], p.inertia[j][i]] {
+                assert!(
+                    (v - e).abs() <= 1e-9 * big,
+                    "inertia[{i}][{j}]: expected {e}, got {v}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn mass_properties_of_a_box() {
+        let b = K.make_box([0.0; 3], [10.0, 5.0, 2.0]).unwrap();
+        let diag = [2900.0 / 12.0, 10400.0 / 12.0, 12500.0 / 12.0];
+        let p = K.mass_properties(&b, 1.0).unwrap();
+        assert!((p.volume - 100.0).abs() <= 1e-9 * 100.0, "{p:?}");
+        assert!((p.area - 160.0).abs() <= 1e-9 * 160.0, "{p:?}");
+        assert_mass(&p, 100.0, [5.0, 2.5, 1.0], diag, [0.0; 3]);
+        for (got, want) in p.principal.iter().zip(diag) {
+            assert!((got - want).abs() <= 1e-9 * want, "{p:?}");
+        }
+        // Density 7.85e-6 scales mass and inertia, not the center.
+        let rho = 7.85e-6;
+        let q = K.mass_properties(&b, rho).unwrap();
+        assert_eq!(q.volume, p.volume);
+        assert_mass(
+            &q,
+            7.85e-4,
+            [5.0, 2.5, 1.0],
+            diag.map(|d| rho * d),
+            [0.0; 3],
+        );
+        // The input is unchanged.
+        assert_close(K.volume(&b).unwrap(), 100.0);
+    }
+
+    #[test]
+    fn mass_properties_of_a_cylinder() {
+        let c = K.make_cylinder([0.0; 3], 5.0, 10.0).unwrap();
+        let m = 250.0 * PI;
+        let ixx = m * (3.0 * 25.0 + 100.0) / 12.0;
+        let p = K.mass_properties(&c, 1.0).unwrap();
+        assert_mass(&p, m, [0.0, 0.0, 5.0], [ixx, ixx, m * 25.0 / 2.0], [0.0; 3]);
+    }
+
+    #[test]
+    fn mass_properties_of_two_bodies() {
+        let a = K.make_box([0.0; 3], [2.0, 2.0, 2.0]).unwrap();
+        let b = K.make_box([10.0, 10.0, 0.0], [2.0, 2.0, 2.0]).unwrap();
+        let u = K.union(&a, &b).unwrap();
+        assert_eq!(K.body_count(&u).unwrap(), 2);
+        let p = K.mass_properties(&u, 1.0).unwrap();
+        let (ixx, izz) = (1232.0 / 3.0, 2432.0 / 3.0);
+        assert_mass(
+            &p,
+            16.0,
+            [6.0, 6.0, 1.0],
+            [ixx, ixx, izz],
+            [-400.0, 0.0, 0.0],
+        );
+        let want = [32.0 / 3.0, izz, izz];
+        for (got, w) in p.principal.iter().zip(want) {
+            assert!((got - w).abs() <= 1e-9 * w, "{p:?}");
+        }
+    }
+
+    #[test]
+    fn mass_properties_reject_bad_density_and_shapes_without_a_solid() {
+        let b = K.make_box([0.0; 3], [10.0, 5.0, 2.0]).unwrap();
+        let face = K.make_face(&Workplane::XY, &rect(10.0, 5.0), &[]).unwrap();
+        for r in [
+            K.mass_properties(&b, 0.0),
+            K.mass_properties(&b, f64::NAN),
+            K.mass_properties(&face, 1.0),
+        ] {
+            assert!(matches!(r, Err(KernelError::InvalidInput(_))), "{r:?}");
+        }
     }
 }

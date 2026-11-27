@@ -214,6 +214,7 @@ extern "C" {
         out: *mut *mut RawShape,
     ) -> c_int;
     fn swx_occt_volume(s: *const RawShape, out: *mut c_double) -> c_int;
+    fn swx_occt_mass_properties(s: *const RawShape, out: *mut c_double) -> c_int;
     fn swx_occt_is_valid(s: *const RawShape) -> c_int;
     fn swx_occt_planar_face_wires(s: *const RawShape, out: *mut usize) -> c_int;
     fn swx_occt_loft(
@@ -797,6 +798,17 @@ pub(crate) fn volume(s: &ShapeHandle) -> Option<f64> {
     // SAFETY: `s` is a live handle read-only for the call; `out` is a valid
     // writable `f64` on our stack that outlives the call.
     let status = unsafe { swx_occt_volume(s.0.as_ptr(), &mut out) };
+    (status == 0).then_some(out)
+}
+
+/// Unit-density volume properties of `s`: the volume, the center of mass
+/// (3) and the inertia tensor about it (9, row-major). `None` on any failure.
+pub(crate) fn mass_properties(s: &ShapeHandle) -> Option<[f64; 13]> {
+    let mut out = [0.0 as c_double; 13];
+    // SAFETY: `s` is a live handle read-only for the call and not retained;
+    // `out` is a writable array of 13 `f64` on our stack, exactly the 13
+    // values the shim writes, and it outlives the call.
+    let status = unsafe { swx_occt_mass_properties(s.0.as_ptr(), out.as_mut_ptr()) };
     (status == 0).then_some(out)
 }
 

@@ -18,6 +18,7 @@ mod feature;
 mod helix;
 mod hole;
 mod loft;
+mod mass;
 mod mesh;
 mod pattern;
 mod profile;
@@ -37,6 +38,7 @@ pub use feature::{
 };
 pub use hole::{HoleDepth, HoleKind};
 pub use loft::MIN_LOFT_SECTIONS;
+pub use mass::{principal_moments, MassProperties};
 pub use mesh::Mesh;
 #[cfg(feature = "occt")]
 pub use occt::{OcctKernel, OcctShape};
@@ -559,6 +561,16 @@ pub trait Kernel {
     fn volume(&self, s: &Self::Shape) -> Result<f64, KernelError>;
     /// Total area of all faces.
     fn surface_area(&self, s: &Self::Shape) -> Result<f64, KernelError>;
+    /// Mass properties of the solids of `s` at the uniform `density`: volume,
+    /// area, mass, center of mass, the inertia tensor about the center of
+    /// mass and its principal moments, with the conventions of
+    /// [`MassProperties`]. `s` is unchanged.
+    ///
+    /// A density that is not finite or is ≤ 0 is
+    /// [`KernelError::InvalidInput`], checked before the backend, and so is a
+    /// shape with no solid ([`Kernel::body_count`] 0).
+    fn mass_properties(&self, s: &Self::Shape, density: f64)
+        -> Result<MassProperties, KernelError>;
     /// Tight axis-aligned bounding box.
     fn bounding_box(&self, s: &Self::Shape) -> Result<BoundingBox, KernelError>;
 
