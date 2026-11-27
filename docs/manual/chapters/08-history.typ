@@ -273,6 +273,51 @@ Each `Parameter` has an `expr` field holding the formula as typed, or `None` for
 
 #tip(title: [When a change can't be worked out])[If a new value would break a formula that depends on it, such as a count of 0 under `10 mm / n`, the value is still stored, but the formulas that depend on it keep their old results without an error. Check the values after such a change.]
 
+== Tidy the parameter table <sec-param-tidy>
+
+#idx("delete a parameter")#idx("parameter unit")
+As a part grows, its parameter table collects names you no longer need, and sizes shown in a unit that doesn't suit you. Two calls tidy it:
+
+- `delete_param` removes a user parameter that nothing uses any more. Saulitwerx refuses to delete a parameter that a formula or a feature still reads, and tells you which ones read it, so a delete never breaks the part. Model parameters (`d0`, `d1`, …) belong to their dimensions and can't be deleted on their own.
+- `set_param_unit` shows a parameter in another unit and converts its number, so the size it stands for stays the same: 50.8 mm becomes 2 in. You can change a length only to another length, and an angle to another angle.
+
+#task-intro(
+  goal: [Show a plate's width in inches and an angle in radians, delete a spare parameter, and see the four ways a delete or a unit change is refused.],
+  needs: [Saulitwerx built (@ch-install).],
+  time: [5 minutes.],
+)
+
+#steps(
+  [Run the sample:
+  #term-block("cargo run -p swx-core --example parameter_cleanup")
+  The table starts with the plate's width `d0` = 50.8 mm, its depth, a formula `half` = `d0 / 2`, a `spare` that nothing uses, and an angle `tilt` = 90°. The extrude `Extrude1` reads `depth`.
+  #term-block(label: "Output", "start:\n  name    value     unit  formula\n  d0       50.8000  mm\n  depth     6.0000  mm\n  half     25.4000  mm    d0 / 2\n  spare     3.0000  mm\n  tilt     90.0000  deg\nafter the unit changes:\n  name    value     unit  formula\n  d0        2.0000  in\n  depth     6.0000  mm\n  half      2.5400  cm    d0 / 2\n  spare     3.0000  mm\n  tilt      1.5708  rad\nafter deleting spare:\n  name    value     unit  formula\n  d0        2.0000  in\n  depth     6.0000  mm\n  half      2.5400  cm    d0 / 2\n  tilt      1.5708  rad\ndelete d0 -> error: `d0` is a model parameter: it belongs to its dimension\n    and can't be deleted\ndelete depth -> error: parameter `depth` is still used by `Extrude1`\ndepth in furlong -> error: unknown unit `furlong`: use mm, cm, m, in, ft,\n    deg, rad, or no unit\ndepth in deg -> error: expression for `depth` gives angle, but its unit\n    expects length")
+  Four long lines are wrapped here to fit the page.],
+  [Read the table after the unit changes. `d0` is now 2 in, which is the same 50.8 mm. `tilt` is 1.5708 rad, which is the same 90°.],
+  [Look at `half`. It keeps its formula, `d0 / 2`, and is worked out again in its new unit: half of 2 in is 1 in, which is 2.54 cm. Changing `d0`'s unit didn't change `half` either, because the width it stands for is the same.],
+  [Read the table after deleting `spare`. It is gone, and nothing else changed.],
+  [Read the four errors. `d0` is a model parameter, so it stays with its dimension. `depth` is still read by `Extrude1`; the message lists every formula and feature that reads it, including rolled-back features. `furlong` isn't a unit Saulitwerx knows. And `depth` is a length, so it can't be shown in degrees. Each time, the table is left exactly as it was.],
+)
+
+#result[A table with only the parameters the part uses, each shown in the unit you want.]
+
+=== How the sample is built
+
+The program is `crates/swx-core/examples/parameter_cleanup.rs`:
+
+```rust
+doc.set_param_unit(&width, "in")?;   // 50.8 mm -> 2 in
+doc.set_param_unit("tilt", "rad")?;  // 90 deg -> 1.5708 rad
+doc.set_param_unit("half", "cm")?;   // keeps d0 / 2, now 2.54 cm
+doc.delete_param("spare")?;          // nothing reads it
+```
+
+A unit must be one of the seven in @sec-ref-expr, or empty for a plain number. @sec-ref-params lists every call.
+
+#tip(title: [To delete a parameter that is in use])[Read the list in the message. Give each formula on it a new formula or a plain number, and point each feature on it at another parameter. Then delete. A parameter used only by another unused parameter goes once that one is gone.]
+
+#caution(title: [The unit-change message talks about an expression])[Changing a length to an angle gives #raw("expression for `depth` gives angle, but its unit expects length"), even when `depth` is a plain number with no formula. It means: the new unit is a different kind of quantity from the old one. Pick a unit of the same kind.]
+
 == Common mistakes
 
 - *Using a parameter before it exists.* Call `set_param` first; otherwise `add_feature` fails with `unknown parameter`.
@@ -284,4 +329,6 @@ Each `Parameter` has an `expr` field holding the formula as typed, or `None` for
 - *Replacing a formula by accident.* `set_param` drops the formula (@sec-param-formulas).
 - *Using a feature that comes later.* A feature may use only features already in the history and above the end-of-part marker. Otherwise `add_feature` fails with `feature N references feature M which is not earlier in the history`. If `M` is rolled back, roll forward first, or insert the new feature after it.
 - *Using a feature's number as its place.* Once a feature has been inserted above others, numbers and places differ (@sec-roll-back). Search `history()` for the number.
+- *Deleting a parameter that is still used.* #raw("parameter `depth` is still used by `Extrude1`"). Change the formulas and features listed first (@sec-param-tidy).
+- *Typing the converted number as well as the new unit.* `set_param_unit` converts the number for you. Use `set_param` only to change the size itself.
 - *Moving the marker past the end.* `end-of-part position 9 is past the end of the history (6 features)`. The end is `history().len()`.

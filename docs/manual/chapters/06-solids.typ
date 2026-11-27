@@ -249,6 +249,84 @@ The program is `crates/swx-kernel/examples/multi_body.rs`. It does three things.
 
 *In Saulitwerx today:* the bodies of a shape can be counted, taken apart and combined, but not named, moved or picked, and a part's history doesn't keep them. `bodies` orders them by the lowest corner of each one's bounding box, so the order follows where they are, not how they were made.
 
+== Measure a part <sec-measure>
+
+#idx("measure")
+Before you make a part, you often want to know some numbers about it. How heavy will it be? Where does it balance? Will it clear the part next to it? Is the metal between a hole and the edge thick enough? Saulitwerx works these out from the solid itself, so they are exact for the shape you modeled and stay right when you change it.
+
+Two calls do the measuring:
+
+- `mass_properties` weighs the part. You give it a #term[density], how heavy the material is for its size, and it tells you the part's #term[mass], its #term[center of mass] (the point where it would balance), and its #term[moments of inertia] (how hard it is to spin about each axis).
+- `min_distance` gives the shortest distance between two shapes, or between two of their faces, edges or corners, with the two points where that distance is found. When it measures the space between two parts that mustn't touch, it is called the #term[clearance].
+
+A small example. A steel bracket of 22 089 mm³ (about 22 cm³), at 7.85 g per cm³, weighs about 22 × 7.85 = 173 g. In aluminium, at 2.70 g per cm³, the same shape weighs only 60 g.
+
+#task-intro(
+  goal: [Weigh an angle bracket in aluminium and in steel, find its center of mass, and measure the gap to a block beside it and the wall between its hole and its end.],
+  needs: [Saulitwerx built with OpenCascade, and `swx-qa` built with it too (@ch-install).],
+  time: [5 minutes.],
+)
+
+#steps(
+  [#block(breakable: false)[Run the sample program, and tell it to save its part in a folder called `measure`:
+  #term-block("cargo run -p swx-kernel --features occt --example measure_part -- measure")]
+  It prints the bracket's mass properties for two materials, three distances, three errors on purpose, and the file it wrote:
+  #term-block(label: "Output", "aluminium (0.0027 g/mm³):\n  volume 22088.76 mm³, area 9159.42 mm²\n  mass 59.64 g\n  center of mass (19.71, 20.00, 10.39)\n  Ixx 15906.07  Iyy 28969.44  Izz 29290.66 g·mm²\n  Ixy 0.00  Ixz 7361.19  Iyz 0.00 g·mm²\n  principal 12649.80, 28969.44, 32546.93 g·mm²\nsteel (0.00785 g/mm³):\n  volume 22088.76 mm³, area 9159.42 mm²\n  mass 173.40 g\n  center of mass (19.71, 20.00, 10.39)\n  Ixx 46245.44  Iyy 84225.95  Izz 85159.88 g·mm²\n  Ixy 0.00  Ixz 21401.99  Iyz 0.00 g·mm²\n  principal 36778.12, 84225.95, 94627.19 g·mm²\nbracket to block: 10.00 mm, from (60.00, 0.00, 0.00) to (70.00, 0.00, 0.00)\nhole wall (face 10) to end (face 5): 10.00 mm, from (50.00, 20.00, 6.00)\n    to (60.00, 20.00, 6.00)\nfoot to upright: 0.00 mm\ndensity 0 -> error: invalid input: density must be finite and > 0, got 0\nflat disc -> error: invalid input: mass properties need a solid; the shape\n    has none\nface 99 -> error: invalid input: face index 99 is out of range: the shape\n    has 12 faces\n(the bracket has 12 faces)\n…  (the geometry engine's file report)\nwrote measure/bracket-and-block.step")
+  Three long lines are wrapped here to fit the page.],
+  [Read the volume. The bracket is a 60 × 40 × 6 mm foot (14 400 mm³) and a 6 × 40 × 34 mm upright (8 160 mm³), less a hole 10 mm across through the foot (π × 5² × 6 = 471.24 mm³): 22 088.76 mm³. The volume and the area are the same whatever the material.],
+  [Read the two masses. Mass is density × volume. The sample gives densities in grams per mm³, so the masses come out in grams: 0.0027 × 22 088.76 = 59.64 g, and 0.00785 × 22 088.76 = 173.40 g.],
+  [Read the center of mass. It is the same for both materials, because the whole part is made of one. It sits at x = 19.71 mm, well toward the upright, and at z = 10.39 mm, above the foot, because the upright adds weight high up on that side. It is at y = 20 mm, the middle, because the bracket is the same front and back.],
+  [Read the `I` lines, the moments of inertia about the center of mass. The bigger the number, the harder the part is to start or stop spinning about that axis. Steel's are 7.85 ÷ 2.70 times aluminium's, like the masses. `Ixz` isn't 0 because the upright stands at one end of the foot and on top of it, so the part's weight is lopsided in x and z together. `principal` gives the three moments about the part's own best-balanced axes, smallest first.],
+  [Read `bracket to block`. The block stands 10 mm from the end of the foot, and the two closest points are on the foot's end and the block's near side.],
+  [Read `hole wall … to end`. The hole's wall and the end of the foot are two faces of the same bracket, found by their numbers. Between them is 10 mm of metal: the hole's center is 15 mm from the end, less its 5 mm radius.],
+  [Read `foot to upright`. The two boxes the bracket was made from share a face, so the distance between them is 0. A distance of 0 means the shapes touch or overlap.],
+  [Read the errors. A density must be a positive number. A flat face has no volume, so it can't be weighed. A face number must be one the shape has.],
+  [#block(breakable: false)[Draw the bracket and the block:
+  #term-block("target/release/swx-qa render --step measure/bracket-and-block.step -o measure.png")
+  Open `measure.png`. You should see the bracket and the block of @fig-measure.]],
+)
+
+#result[The bracket's weight in two materials, where it balances, the gap to its neighbor and the thickness of metal by its hole, all from the model.]
+
+// cargo run -p swx-kernel --features occt --example measure_part -- measure
+// swx-qa render --step measure/bracket-and-block.step --size 900x700 -o docs/manual/img/measure-bracket.png
+#shot(
+  "img/measure-bracket.png",
+  width: 65%,
+  alt: "An L-shaped bracket with a round hole in its foot, and a separate rectangular block standing a short gap from the end of the foot",
+  caption: [The angle bracket and the block beside it. The gap between them is the clearance, 10 mm; the metal between the hole and the end of the foot is also 10 mm thick.],
+  marks: ((49.5%, 73%, [10 mm gap]), (52%, 61%, [10 mm wall])),
+) <fig-measure>
+
+#block(breakable: false)[
+=== How the sample is built
+
+The program is `crates/swx-kernel/examples/measure_part.rs`.
+
+#steps(
+  [*Weigh.* Give the density in the mass unit you want back, per mm³. The sample uses grams, so aluminium is 2.70 g/cm³ = 0.0027 g/mm³:
+  ```rust
+  let m = k.mass_properties(&bracket, 0.0027)?;
+  // m.volume, m.area, m.mass, m.center,
+  // m.inertia (3 × 3, about m.center), m.principal (smallest first)
+  ```],
+  [*Measure between two shapes,* or between one face, edge or corner of each. `None` means the whole shape:
+  ```rust
+  let gap = k.min_distance(&bracket, None, &block, None)?;
+  let wall = k.min_distance(&bracket, Some(hole_wall), &bracket, Some(end))?;
+  // gap.value, and the closest points gap.on_a and gap.on_b
+  ```],
+)
+]
+
+The sample finds the hole's wall and the end face by their bounding boxes (`sub_shape_bounding_box`, @sec-topology), because faces can't be picked yet.
+
+#tip(title: [Pick the mass unit with the density])[The mass comes out in whatever unit the density is in, per mm³. 2.70 g/cm³ is 0.0027 g/mm³ for grams, or 0.0000027 kg/mm³ for kilograms. Moments of inertia come out in that mass unit times mm².]
+
+#caution(title: [One material for the whole shape])[`mass_properties` uses one density for every body of the shape. To weigh a part made of two materials, weigh each body on its own (`bodies`, @sec-bodies) and add the masses.]
+
+*In Saulitwerx today:* parts can be weighed and distances measured from a program. There is no angle measure yet, and only one closest pair of points is given when several are equally close.
+
 == Open a STEP file from another program
 
 `import_step` reads any STEP file, and `swx-qa render --step` draws one (@ch-pictures). Everything in the file comes in as one shape, in millimeters whatever unit the file was written in. To keep the file with a part, bring it in as a feature: @sec-files-import. An imported shape can be built on, but its own sizes can't be changed.

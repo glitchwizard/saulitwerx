@@ -6,6 +6,12 @@
 #{
   let g = (
     ("Adjacent", [Said of two sub-shapes when one bounds the other, such as a face and one of its edges.]),
+    ("Center of mass", [The point where a part would balance: the average position of all its material, weighted by mass.]),
+    ("Clearance", [The space between two parts that mustn't touch: the shortest distance between them.]),
+    ("Density", [How heavy a material is for its size: mass per volume, such as 7.85 g per cm³ for steel.]),
+    ("Mass", [How much material a part holds, the amount a scale weighs: density × volume.]),
+    ("Moment of inertia", [How hard a part is to start or stop spinning about an axis. It grows with the mass and with how far the mass is from the axis.]),
+    ("Principal moments", [The moments of inertia about a part's own three best-balanced axes through its center of mass.]),
     ("Binding", [The link between a sketch dimension and the parameter that drives it.]),
     ("Axis of revolution", [The line a revolve turns its outline around.]),
     ("Blind hole", [A hole that stops at a set depth, with a flat bottom.]),
@@ -163,6 +169,13 @@
 }
 
 = What's new
+
+== 2026-11-27: measure a part, and tidy the parameter table
+
+- *New for developers:* weigh a part in any material: its mass, center of mass and moments of inertia; and measure the shortest distance between two parts, or between two faces, edges or corners, with the points it runs between (@sec-measure).
+- *New for developers:* delete a parameter nothing uses any more, and show a parameter in another unit without changing the size it stands for (@sec-param-tidy).
+- *Changed:* a path pattern's errors now say "pattern path" instead of "sweep path" (@sec-pattern-path).
+- Reference: `mass_properties`, `min_distance`, `MassProperties`, `Distance`, `principal_moments`, `delete_param`, `set_param_unit`, and two new samples. Help: the new measuring and parameter messages, and the known limitations updated. Glossary: center of mass, clearance, density, mass, moment of inertia, principal moments.
 
 == 2026-11-26: patterns along a path, and splitting a body
 
@@ -384,13 +397,14 @@ These are the next items on the public roadmap. None of them works yet. When one
   [Threads], [Model real screw threads, outside on a shaft or inside a hole, built on the helical sweep.],
   [Lasting references], [A feature built on a face or an edge keeps finding it when earlier features change.],
   [More patterns], [Patterns and mirrors of features as well as bodies, and patterns that skip copies.],
+  [Measure angles], [The angle between two faces, two edges or two cylinders' axes.],
   [Part files], [Save a part with its full history in a document file and open it again, with its cache rebuilt from the history when it is stale.],
   [Desktop app], [A window with a 3D view, a model browser, sketch mode and property panels.],
 )
 
 Later milestones add assemblies, 2D drawings and exploded views. The full plan is in `docs/ROADMAP.md` in the source code.
 
-#page(header: none)[
+#page(header: none, margin: (inside: 0.95in, outside: 0.85in, top: 0.7in, bottom: 0.8in))[
   #set par(first-line-indent: 0pt, justify: false)
   #set text(size: 8.6pt)
   #text(font: sans, size: 18pt, weight: "bold", "Quick reference")
@@ -454,13 +468,14 @@ Later milestones add assemblies, 2D drawings and exploded views. The full plan i
         [`metric_coarse`], [thread size by name],
         [`mirror` · `pattern_…`], [copies of a body],
         [`split` · `split_faces`], [cut / divide by a plane],
+        [`mass_properties`], [weigh a part],
+        [`min_distance`], [gap between shapes],
         [`draft`], [tilt faces for a mold],
         [`loft` · `sweep`], [blend / follow a path],
         [`helical_sweep`], [spring, coil],
         [`offset` · `midplane`], [work planes],
         [`work_plane_on_face`], [plane on a flat face],
         [`work_axis_on`], [axis on edge, cylinder],
-        [`boolean_tracked`], [Boolean + face history],
         [`export_step` · `import_step`], [STEP file out / in],
         [`export_stl`], [STL file for printing],
       )
