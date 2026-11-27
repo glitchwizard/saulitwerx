@@ -99,6 +99,19 @@ pub enum ModelError {
         pos: usize,
         len: usize,
     },
+    /// [`Document::delete_param`] was asked to delete a
+    /// [`ParamKind::Model`] parameter, which belongs to its dimension.
+    ModelParameter(String),
+    /// [`Document::delete_param`] was asked to delete a parameter that is
+    /// still read. `used_by` lists the parameters whose expressions name it,
+    /// in table order, then the features that read it, in history order.
+    ParameterInUse {
+        param: String,
+        used_by: Vec<String>,
+    },
+    /// [`Document::set_param_unit`] got a unit that is neither empty nor a
+    /// suffix [`Unit::from_suffix`] accepts.
+    InvalidUnit(String),
 }
 
 impl fmt::Display for ModelError {
@@ -141,6 +154,23 @@ impl fmt::Display for ModelError {
             ModelError::MarkerOutOfRange { pos, len } => write!(
                 f,
                 "end-of-part position {pos} is past the end of the history ({len} features)"
+            ),
+            ModelError::ModelParameter(p) => write!(
+                f,
+                "`{p}` is a model parameter: it belongs to its dimension and can't be deleted"
+            ),
+            ModelError::ParameterInUse { param, used_by } => write!(
+                f,
+                "parameter `{param}` is still used by {}",
+                used_by
+                    .iter()
+                    .map(|n| format!("`{n}`"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            ModelError::InvalidUnit(u) => write!(
+                f,
+                "unknown unit `{u}`: use mm, cm, m, in, ft, deg, rad, or no unit"
             ),
         }
     }
@@ -330,6 +360,83 @@ impl Document {
             .find_mut(name)
             .ok_or_else(|| ModelError::UnknownParameter(name.to_owned()))?;
         p.comment = comment.to_owned();
+        Ok(())
+    }
+
+    /// Delete the [`ParamKind::User`] parameter `name`.
+    ///
+    /// A model parameter is [`ModelError::ModelParameter`]. A parameter still
+    /// named by another parameter's expression, or read by any feature in the
+    /// history (active or rolled back), is [`ModelError::ParameterInUse`]. On
+    /// any error the document doesn't change.
+    pub fn delete_param(&mut self, name: &str) -> Result<(), ModelError> {
+        let i = self
+            .params
+            .iter()
+            .position(|p| p.name == name)
+            .ok_or_else(|| ModelError::UnknownParameter(name.to_owned()))?;
+        if self.params[i].kind == ParamKind::Model {
+            return Err(ModelError::ModelParameter(name.to_owned()));
+        }
+        let by_params = self.params.iter().filter(|p| {
+            p.expr
+                .as_deref()
+                .and_then(|src| expr::parse(src).ok())
+                .is_some_and(|e| e.names().iter().any(|n| n == name))
+        });
+        let by_features = self
+            .history
+            .iter()
+            .filter(|f| f.kind.params().contains(&name));
+        let used_by: Vec<String> = by_params
+            .map(|p| p.name.clone())
+            .chain(by_features.map(|f| f.name.clone()))
+            .collect();
+        if !used_by.is_empty() {
+            return Err(ModelError::ParameterInUse {
+                param: name.to_owned(),
+                used_by,
+            });
+        }
+        self.params.remove(i);
+        Ok(())
+    }
+
+    /// Change the unit of parameter `name`, keeping the quantity it stands for.
+    ///
+    /// A plain value is converted (25.4 `mm` becomes 1 `in`). A parameter
+    /// with an expression keeps it and is re-evaluated in the new unit; the
+    /// rest of the table is re-evaluated too, so dependents keep their
+    /// values. `unit` must be empty or a suffix [`Unit::from_suffix`] accepts
+    /// ([`ModelError::InvalidUnit`]), and of the same dimension as the old
+    /// unit ([`ModelError::ParameterDimension`], with the old dimension as
+    /// `expected` and the new one as `found`). On any error the document
+    /// doesn't change.
+    pub fn set_param_unit(&mut self, name: &str, unit: &str) -> Result<(), ModelError> {
+        let i = self
+            .params
+            .iter()
+            .position(|p| p.name == name)
+            .ok_or_else(|| ModelError::UnknownParameter(name.to_owned()))?;
+        if !unit.is_empty() && Unit::from_suffix(unit).is_none() {
+            return Err(ModelError::InvalidUnit(unit.to_owned()));
+        }
+        let mut params = self.params.clone();
+        let (old_dim, old_factor) = unit_dim(&params[i]);
+        params[i].unit = unit.to_owned();
+        let (new_dim, new_factor) = unit_dim(&params[i]);
+        if new_dim != old_dim {
+            return Err(ModelError::ParameterDimension {
+                param: name.to_owned(),
+                expected: old_dim,
+                found: new_dim,
+            });
+        }
+        if params[i].expr.is_none() {
+            params[i].value = params[i].value * old_factor / new_factor;
+        }
+        evaluate(&mut params)?;
+        self.params = params;
         Ok(())
     }
 
@@ -1169,5 +1276,156 @@ mod tests {
             .unwrap();
         assert_eq!(d.set_end_of_part(4), Ok(vec![e1, s2]));
         assert_eq!(d.dirty_after_feature_edit(s0), Ok(vec![s0, e, e1]));
+    }
+
+    /// Model parameter `d0`; user parameters `depth`, `half = depth / 2`,
+    /// `twice = depth * 2` and `spare`; `Extrude1` and `Extrude2` read
+    /// `depth`, and `Extrude2` is rolled back.
+    fn table_in_use() -> Document {
+        let mut d = Document::new();
+        d.add_model_param(10.0, "mm");
+        d.add_user_param("depth", 5.0, "mm").unwrap();
+        d.add_user_param("half", 0.0, "mm").unwrap();
+        d.set_param_expr("half", "depth / 2").unwrap();
+        d.add_user_param("twice", 0.0, "mm").unwrap();
+        d.set_param_expr("twice", "depth * 2").unwrap();
+        d.add_user_param("spare", 3.0, "mm").unwrap();
+        let s = d.add_feature("Sketch1", FeatureKind::Sketch).unwrap();
+        for name in ["Extrude1", "Extrude2"] {
+            let kind = FeatureKind::Extrude {
+                profile: s,
+                depth: "depth".into(),
+            };
+            d.add_feature(name, kind).unwrap();
+        }
+        d.set_end_of_part(2).unwrap();
+        d
+    }
+
+    fn param_names(d: &Document) -> Vec<&str> {
+        d.parameters().iter().map(|p| p.name.as_str()).collect()
+    }
+
+    #[test]
+    fn delete_unused_user_parameter() {
+        let mut d = table_in_use();
+        assert_eq!(d.delete_param("spare"), Ok(()));
+        assert_eq!(param_names(&d), ["d0", "depth", "half", "twice"]);
+        assert_eq!(d.param("spare"), None);
+    }
+
+    #[test]
+    fn delete_refuses_model_and_unknown_parameters() {
+        let mut d = table_in_use();
+        let before = d.parameters().to_vec();
+        let err = d.delete_param("d0").unwrap_err();
+        assert_eq!(err, ModelError::ModelParameter("d0".into()));
+        assert_eq!(
+            err.to_string(),
+            "`d0` is a model parameter: it belongs to its dimension and can't be deleted"
+        );
+        assert_eq!(
+            d.delete_param("nope"),
+            Err(ModelError::UnknownParameter("nope".into()))
+        );
+        assert_eq!(d.parameters(), &before[..]);
+    }
+
+    #[test]
+    fn delete_refuses_parameter_in_use() {
+        let mut d = table_in_use();
+        let before = d.parameters().to_vec();
+        let history = d.history().to_vec();
+        let err = d.delete_param("depth").unwrap_err();
+        assert_eq!(
+            err,
+            ModelError::ParameterInUse {
+                param: "depth".into(),
+                used_by: vec![
+                    "half".into(),
+                    "twice".into(),
+                    "Extrude1".into(),
+                    "Extrude2".into()
+                ],
+            }
+        );
+        assert_eq!(
+            err.to_string(),
+            "parameter `depth` is still used by `half`, `twice`, `Extrude1`, `Extrude2`"
+        );
+        assert_eq!(d.parameters(), &before[..]);
+        assert_eq!(d.history(), &history[..]);
+        // Once its readers are gone, `half` itself can go.
+        assert_eq!(d.delete_param("half"), Ok(()));
+    }
+
+    #[test]
+    fn unit_change_converts_plain_values() {
+        let mut d = Document::new();
+        d.add_user_param("len", 25.4, "mm").unwrap();
+        d.add_user_param("ang", 90.0, "deg").unwrap();
+        d.set_param_unit("len", "in").unwrap();
+        assert_eq!(d.param("len"), Some(1.0));
+        assert_eq!(d.parameters()[0].unit, "in");
+        d.set_param_unit("ang", "rad").unwrap();
+        let rad = d.param("ang").unwrap();
+        let half_pi = std::f64::consts::FRAC_PI_2;
+        assert!((rad - half_pi).abs() <= 1e-12 * half_pi, "{rad}");
+        assert_eq!(d.parameters()[1].unit, "rad");
+    }
+
+    #[test]
+    fn unit_change_keeps_expressions_and_dependents() {
+        let mut d = Document::new();
+        d.add_user_param("d1", 10.0, "mm").unwrap();
+        d.add_user_param("d2", 0.0, "mm").unwrap();
+        d.set_param_expr("d2", "d1 * 2").unwrap();
+        assert_eq!(d.param("d2"), Some(20.0));
+
+        d.set_param_unit("d1", "cm").unwrap();
+        assert_eq!(d.param("d1"), Some(1.0));
+        assert_eq!(d.param("d2"), Some(20.0));
+
+        d.set_param_unit("d2", "in").unwrap();
+        assert_eq!(d.parameters()[1].expr.as_deref(), Some("d1 * 2"));
+        let v = d.param("d2").unwrap();
+        assert!((v - 20.0 / 25.4).abs() <= 1e-12, "{v}");
+        assert!((v - 0.787_401_574_8).abs() < 1e-10, "{v}");
+    }
+
+    #[test]
+    fn unit_change_errors_leave_document_unchanged() {
+        let mut d = table_in_use();
+        let before = d.parameters().to_vec();
+
+        let err = d.set_param_unit("depth", "furlong").unwrap_err();
+        assert_eq!(err, ModelError::InvalidUnit("furlong".into()));
+        assert_eq!(
+            err.to_string(),
+            "unknown unit `furlong`: use mm, cm, m, in, ft, deg, rad, or no unit"
+        );
+
+        let err = d.set_param_unit("depth", "deg").unwrap_err();
+        assert_eq!(
+            err,
+            ModelError::ParameterDimension {
+                param: "depth".into(),
+                expected: Dim::LENGTH,
+                found: Dim::ANGLE,
+            }
+        );
+        assert_eq!(
+            d.set_param_unit("depth", ""),
+            Err(ModelError::ParameterDimension {
+                param: "depth".into(),
+                expected: Dim::LENGTH,
+                found: Dim::NONE,
+            })
+        );
+        assert_eq!(
+            d.set_param_unit("nope", "mm"),
+            Err(ModelError::UnknownParameter("nope".into()))
+        );
+        assert_eq!(d.parameters(), &before[..]);
     }
 }
