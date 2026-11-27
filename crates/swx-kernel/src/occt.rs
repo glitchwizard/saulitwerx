@@ -15,7 +15,7 @@ use crate::pattern::{
 };
 use crate::profile::{
     check_revolve_profile, check_sweep_bends, prepare_face, prepare_path, prepare_revolve,
-    profile_reach,
+    profile_reach, SWEEP_PATH,
 };
 use crate::split::prepare_split;
 use crate::topo::{
@@ -232,7 +232,7 @@ impl Kernel for OcctKernel {
         plane: &Workplane,
         path: &[Segment2],
     ) -> Result<OcctShape, KernelError> {
-        let prepared = prepare_path(plane, path)?;
+        let prepared = prepare_path(plane, path, SWEEP_PATH)?;
         let (point, normal, wires) = ffi::sweep_profile(&profile.0).ok_or_else(|| {
             KernelError::InvalidInput("sweep profile is not a single planar face".to_string())
         })?;
