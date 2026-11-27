@@ -19,6 +19,7 @@ mod helix;
 mod hole;
 mod loft;
 mod mass;
+mod measure;
 mod mesh;
 mod pattern;
 mod profile;
@@ -39,6 +40,7 @@ pub use feature::{
 pub use hole::{HoleDepth, HoleKind};
 pub use loft::MIN_LOFT_SECTIONS;
 pub use mass::{principal_moments, MassProperties};
+pub use measure::Distance;
 pub use mesh::Mesh;
 #[cfg(feature = "occt")]
 pub use occt::{OcctKernel, OcctShape};
@@ -665,6 +667,24 @@ pub trait Kernel {
         s: &Self::Shape,
         of: SubShape,
     ) -> Result<BoundingBox, KernelError>;
+
+    /// The minimum distance between `a` (or its sub-shape `a_sub`) and `b`
+    /// (or its sub-shape `b_sub`), with one pair of closest points: `on_a`
+    /// on the first and `on_b` on the second, so that |`on_a` − `on_b`| =
+    /// `value` (see [`Distance`]). When several pairs are equally close,
+    /// which pair is returned is unspecified. Touching or overlapping inputs
+    /// give 0. `a` and `b` may be the same shape, and both are unchanged.
+    ///
+    /// A sub-shape index out of range for its kind is
+    /// [`KernelError::InvalidInput`], checked before anything reaches the
+    /// backend, as for [`Kernel::sub_shape_bounding_box`].
+    fn min_distance(
+        &self,
+        a: &Self::Shape,
+        a_sub: Option<SubShape>,
+        b: &Self::Shape,
+        b_sub: Option<SubShape>,
+    ) -> Result<Distance, KernelError>;
 
     /// Writes `s` to a STEP (ISO 10303-21) file at `path`, replacing any
     /// existing file. Lengths are written in millimetres.

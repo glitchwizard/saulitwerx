@@ -25,9 +25,10 @@ use crate::topo::{
 };
 use crate::{
     input_file_cstring, path_to_cstring, validate_point, validate_size, Axis, BooleanOp,
-    BoundingBox, ChamferSize, CombineHistory, EdgeOnFace, Extent, ExtrudeHistory, HoleDepth,
-    HoleKind, Kernel, KernelError, MassProperties, Mesh, OpHistory, Operand, Point3, ProfileLoop,
-    Segment2, SubShape, TopoKind, Workplane, EMPTY_VOLUME_TOLERANCE, LOOP_GAP_TOLERANCE,
+    BoundingBox, ChamferSize, CombineHistory, Distance, EdgeOnFace, Extent, ExtrudeHistory,
+    HoleDepth, HoleKind, Kernel, KernelError, MassProperties, Mesh, OpHistory, Operand, Point3,
+    ProfileLoop, Segment2, SubShape, TopoKind, Workplane, EMPTY_VOLUME_TOLERANCE,
+    LOOP_GAP_TOLERANCE,
 };
 
 /// [`Kernel`] backed by the system OpenCascade libraries.
@@ -876,6 +877,28 @@ impl Kernel for OcctKernel {
         ffi::sub_shape_bounding_box(&s.0, of.kind.code(), of.index)
             .map(bbox)
             .ok_or_else(|| backend("sub_shape_bounding_box"))
+    }
+
+    fn min_distance(
+        &self,
+        a: &OcctShape,
+        a_sub: Option<SubShape>,
+        b: &OcctShape,
+        b_sub: Option<SubShape>,
+    ) -> Result<Distance, KernelError> {
+        for (s, sub) in [(a, a_sub), (b, b_sub)] {
+            if let Some(of) = sub {
+                validate_index(of, self.sub_shape_count(s, of.kind)?)?;
+            }
+        }
+        let code = |sub: Option<SubShape>| sub.map(|of| (of.kind.code(), of.index));
+        let r = ffi::min_distance(&a.0, code(a_sub), &b.0, code(b_sub))
+            .ok_or_else(|| backend("min_distance"))?;
+        Ok(Distance {
+            value: r[0],
+            on_a: [r[1], r[2], r[3]],
+            on_b: [r[4], r[5], r[6]],
+        })
     }
 
     fn tessellate(&self, s: &OcctShape, deflection: f64) -> Result<Mesh, KernelError> {
@@ -4550,6 +4573,109 @@ mod tests {
             K.mass_properties(&b, 0.0),
             K.mass_properties(&b, f64::NAN),
             K.mass_properties(&face, 1.0),
+        ] {
+            assert!(matches!(r, Err(KernelError::InvalidInput(_))), "{r:?}");
+        }
+    }
+
+    /// Checks `d` against the expected value (1e-9) and, when given, points
+    /// (1e-6), and that |on_a − on_b| = value.
+    fn assert_distance(d: &Distance, value: f64, on_a: Option<Point3>, on_b: Option<Point3>) {
+        assert!((d.value - value).abs() <= 1e-9, "{d:?}");
+        let gap = (0..3)
+            .map(|i| (d.on_a[i] - d.on_b[i]).powi(2))
+            .sum::<f64>()
+            .sqrt();
+        assert!((gap - d.value).abs() <= 1e-9, "{d:?}");
+        for (got, want) in [(d.on_a, on_a), (d.on_b, on_b)] {
+            if let Some(w) = want {
+                for i in 0..3 {
+                    assert!((got[i] - w[i]).abs() <= 1e-6, "{d:?}");
+                }
+            }
+        }
+    }
+
+    /// The only sub-shape of `kind` in `s` whose bounding box is `[min, max]`
+    /// (1e-6).
+    fn sub_with_box(s: &OcctShape, kind: TopoKind, min: Point3, max: Point3) -> SubShape {
+        let near = |a: Point3, b: Point3| (0..3).all(|i| (a[i] - b[i]).abs() <= 1e-6);
+        let found: Vec<SubShape> = (0..K.sub_shape_count(s, kind).unwrap())
+            .map(|i| sub(kind, i))
+            .filter(|&of| {
+                let b = K.sub_shape_bounding_box(s, of).unwrap();
+                near(b.min, min) && near(b.max, max)
+            })
+            .collect();
+        assert_eq!(found.len(), 1, "{kind:?} {min:?} {max:?}");
+        found[0]
+    }
+
+    #[test]
+    fn min_distance_between_separate_boxes() {
+        let a = K.make_box([0.0; 3], [2.0; 3]).unwrap();
+        let b = K.make_box([5.0, 0.0, 0.0], [2.0; 3]).unwrap();
+        let d = K.min_distance(&a, None, &b, None).unwrap();
+        assert_distance(&d, 3.0, None, None);
+        assert!((d.on_a[0] - 2.0).abs() <= 1e-6, "{d:?}");
+        assert!((d.on_b[0] - 5.0).abs() <= 1e-6, "{d:?}");
+        // The inputs are unchanged.
+        assert_close(K.volume(&a).unwrap(), 8.0);
+        assert_close(K.volume(&b).unwrap(), 8.0);
+    }
+
+    #[test]
+    fn min_distance_is_zero_for_touching_and_overlapping_boxes() {
+        let a = K.make_box([0.0; 3], [2.0; 3]).unwrap();
+        let touching = K.make_box([2.0, 0.0, 0.0], [2.0; 3]).unwrap();
+        let overlapping = K.make_box([1.0; 3], [2.0; 3]).unwrap();
+        for b in [&touching, &overlapping] {
+            let d = K.min_distance(&a, None, b, None).unwrap();
+            assert_distance(&d, 0.0, None, None);
+        }
+    }
+
+    #[test]
+    fn min_distance_between_sphere_and_box() {
+        let s = K.make_sphere([0.0; 3], 1.0).unwrap();
+        let b = K.make_box([3.0, -1.0, -1.0], [1.0, 2.0, 2.0]).unwrap();
+        let d = K.min_distance(&s, None, &b, None).unwrap();
+        assert_distance(&d, 2.0, Some([1.0, 0.0, 0.0]), Some([3.0, 0.0, 0.0]));
+    }
+
+    #[test]
+    fn min_distance_between_sub_shapes_of_one_box() {
+        let s = K.make_box([0.0; 3], [10.0, 5.0, 2.0]).unwrap();
+        let x0 = sub_with_box(&s, TopoKind::Face, [0.0; 3], [0.0, 5.0, 2.0]);
+        let x10 = sub_with_box(&s, TopoKind::Face, [10.0, 0.0, 0.0], [10.0, 5.0, 2.0]);
+        let d = K.min_distance(&s, Some(x0), &s, Some(x10)).unwrap();
+        assert_distance(&d, 10.0, None, None);
+        assert!(
+            d.on_a[0].abs() <= 1e-6 && (d.on_b[0] - 10.0).abs() <= 1e-6,
+            "{d:?}"
+        );
+
+        let corner = sub_with_box(&s, TopoKind::Vertex, [10.0, 5.0, 2.0], [10.0, 5.0, 2.0]);
+        let edge = sub_with_box(&s, TopoKind::Edge, [0.0; 3], [10.0, 0.0, 0.0]);
+        let d = K.min_distance(&s, Some(corner), &s, Some(edge)).unwrap();
+        assert_distance(
+            &d,
+            29f64.sqrt(),
+            Some([10.0, 5.0, 2.0]),
+            Some([10.0, 0.0, 0.0]),
+        );
+    }
+
+    #[test]
+    fn min_distance_rejects_an_index_out_of_range() {
+        let s = K.make_box([0.0; 3], [10.0, 5.0, 2.0]).unwrap();
+        let faces = K.sub_shape_count(&s, TopoKind::Face).unwrap();
+        let bad = sub(TopoKind::Face, faces);
+        let ok = sub(TopoKind::Face, 0);
+        for r in [
+            K.min_distance(&s, Some(bad), &s, None),
+            K.min_distance(&s, None, &s, Some(bad)),
+            K.min_distance(&s, Some(ok), &s, Some(bad)),
         ] {
             assert!(matches!(r, Err(KernelError::InvalidInput(_))), "{r:?}");
         }

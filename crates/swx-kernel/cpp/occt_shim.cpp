@@ -23,6 +23,7 @@
 #include <BRepBuilderAPI_MakeWire.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
 #include <BRepCheck_Analyzer.hxx>
+#include <BRepExtrema_DistShapeShape.hxx>
 #include <BRepFilletAPI_MakeChamfer.hxx>
 #include <BRepFilletAPI_MakeFillet.hxx>
 #include <BRepGProp.hxx>
@@ -1476,6 +1477,65 @@ int swx_occt_sub_shape_bounding_box(const SwxShape* s, int kind, size_t index,
             return -1;
         }
         box.Get(out[0], out[1], out[2], out[3], out[4], out[5]);
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+namespace {
+
+// `s` itself when `kind` is -1, else its sub-shape `index` (0-based,
+// TopExp::MapShapes order) of kind code `kind`. False when out of range.
+bool pick_shape(const SwxShape* s, int kind, size_t index, TopoDS_Shape* out) {
+    if (kind == -1) {
+        *out = s->shape;
+        return true;
+    }
+    TopAbs_ShapeEnum type;
+    if (!topo_kind(kind, &type)) {
+        return false;
+    }
+    TopTools_IndexedMapOfShape map;
+    TopExp::MapShapes(s->shape, type, map);
+    if (index >= static_cast<size_t>(map.Extent())) {
+        return false;
+    }
+    *out = map.FindKey(static_cast<int>(index) + 1);
+    return true;
+}
+
+}  // namespace
+
+// Minimum distance between `a` (or its sub-shape `a_index` of kind code
+// `a_kind`; -1 means the whole shape) and `b` (likewise), with
+// BRepExtrema_DistShapeShape (OCCT reference documentation, BRepExtrema
+// package). Writes [value, a.x, a.y, a.z, b.x, b.y, b.z] from the first
+// solution. Touching or intersecting inputs give 0.
+int swx_occt_min_distance(const SwxShape* a, int a_kind, size_t a_index, const SwxShape* b,
+                          int b_kind, size_t b_index, double* out) noexcept {
+    if (a == nullptr || b == nullptr || out == nullptr) {
+        return -1;
+    }
+    try {
+        TopoDS_Shape sa;
+        TopoDS_Shape sb;
+        if (!pick_shape(a, a_kind, a_index, &sa) || !pick_shape(b, b_kind, b_index, &sb)) {
+            return -1;
+        }
+        BRepExtrema_DistShapeShape dist(sa, sb);
+        if (!dist.IsDone() || dist.NbSolution() < 1) {
+            return -1;
+        }
+        const gp_Pnt pa = dist.PointOnShape1(1);
+        const gp_Pnt pb = dist.PointOnShape2(1);
+        out[0] = dist.Value();
+        out[1] = pa.X();
+        out[2] = pa.Y();
+        out[3] = pa.Z();
+        out[4] = pb.X();
+        out[5] = pb.Y();
+        out[6] = pb.Z();
         return 0;
     } catch (...) {
         return -1;
