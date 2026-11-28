@@ -40,7 +40,7 @@ pub use feature::{
 pub use hole::{HoleDepth, HoleKind};
 pub use loft::MIN_LOFT_SECTIONS;
 pub use mass::{principal_moments, MassProperties};
-pub use measure::Distance;
+pub use measure::{Circle, Distance};
 pub use mesh::Mesh;
 #[cfg(feature = "occt")]
 pub use occt::{OcctKernel, OcctShape};
@@ -711,6 +711,19 @@ pub trait Kernel {
         let db = angle_direction(self, b, b_sub)?;
         Ok(measure::angle_between(da, db))
     }
+
+    /// The circle of the sub-shape `sub` of `s` (see [`Circle`]):
+    ///
+    /// - a circular edge (a full circle or an arc) gives its circle's
+    ///   center, the unit normal of its plane (either sign) and its radius;
+    /// - a cylindrical face gives the unit axis direction (either sign), its
+    ///   radius, and as center the point on the axis nearest the center of
+    ///   the face's bounding box ([`Kernel::sub_shape_bounding_box`]).
+    ///
+    /// `s` is unchanged. A vertex, a straight or other non-circular edge, a
+    /// face that isn't cylindrical, and an index out of range are
+    /// [`KernelError::InvalidInput`].
+    fn circle_of(&self, s: &Self::Shape, sub: SubShape) -> Result<Circle, KernelError>;
 
     /// Writes `s` to a STEP (ISO 10303-21) file at `path`, replacing any
     /// existing file. Lengths are written in millimetres.

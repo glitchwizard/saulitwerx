@@ -1,6 +1,7 @@
 //! Measurement results: the minimum distance between two shapes or
 //! sub-shapes (roadmap M6-04b), and the angle math behind
-//! [`Kernel::angle`](crate::Kernel::angle) (M6-04c).
+//! [`Kernel::angle`](crate::Kernel::angle) (M6-04c), and the circle of a
+//! circular edge or cylindrical face (M6-04e).
 
 use crate::Point3;
 
@@ -18,6 +19,44 @@ pub struct Distance {
     pub on_a: Point3,
     /// A closest point on the second input.
     pub on_b: Point3,
+}
+
+/// The circle of a circular edge or a cylindrical face, from
+/// [`Kernel::circle_of`](crate::Kernel::circle_of) (roadmap M6-04e).
+///
+/// For a circular edge (a full circle or an arc): its circle's center, the
+/// unit normal of its plane and its radius. For a cylindrical face: the
+/// point on the axis nearest the center of the face's bounding box, the
+/// unit axis direction and the radius. Lengths are in model units (mm).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Circle {
+    /// The center (see above).
+    pub center: Point3,
+    /// A unit vector along the circle's or cylinder's axis, of either sign.
+    pub axis: Point3,
+    /// The radius, > 0. The diameter is twice it.
+    pub radius: f64,
+}
+
+/// `v` scaled to unit length, or `None` when its length is 0 or not finite.
+#[cfg_attr(not(feature = "occt"), allow(dead_code))]
+pub(crate) fn unit(v: [f64; 3]) -> Option<[f64; 3]> {
+    let len = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
+    (len.is_finite() && len > 0.0).then(|| [v[0] / len, v[1] / len, v[2] / len])
+}
+
+/// The point of the line through `origin` with unit direction `dir` nearest
+/// to `p`: `origin + ((p − origin)·dir) dir`, the orthogonal projection of a
+/// point onto a line (e.g. Weisstein, *MathWorld*, "Point-Line Distance --
+/// 3-Dimensional").
+#[cfg_attr(not(feature = "occt"), allow(dead_code))]
+pub(crate) fn nearest_on_line(origin: Point3, dir: [f64; 3], p: Point3) -> Point3 {
+    let t = (0..3).map(|i| (p[i] - origin[i]) * dir[i]).sum::<f64>();
+    [
+        origin[0] + t * dir[0],
+        origin[1] + t * dir[1],
+        origin[2] + t * dir[2],
+    ]
 }
 
 /// The direction a sub-shape contributes to [`Kernel::angle`](crate::Kernel::angle).
@@ -55,7 +94,32 @@ pub(crate) fn angle_between(a: Direction, b: Direction) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{angle_between, Direction};
+    use super::{angle_between, nearest_on_line, unit, Direction};
+
+    #[test]
+    fn unit_scales_and_rejects_zero_or_non_finite() {
+        assert_eq!(unit([0.0, 0.0, -4.0]), Some([0.0, 0.0, -1.0]));
+        let u = unit([3.0, 4.0, 0.0]).unwrap();
+        close(u[0], 0.6);
+        close(u[1], 0.8);
+        assert_eq!(unit([0.0; 3]), None);
+        assert_eq!(unit([f64::NAN, 0.0, 1.0]), None);
+        assert_eq!(unit([f64::INFINITY, 0.0, 0.0]), None);
+    }
+
+    #[test]
+    fn nearest_on_line_projects_onto_the_axis() {
+        // Axis along X through (−7, 4, 1), as the fillet in M6-04e.
+        let p = nearest_on_line([-7.0, 4.0, 1.0], [1.0, 0.0, 0.0], [5.0, 4.5, 1.5]);
+        for (got, want) in p.iter().zip([5.0, 4.0, 1.0]) {
+            close(*got, want);
+        }
+        // The sign of the direction doesn't matter.
+        let q = nearest_on_line([0.0; 3], [0.0, 0.0, -1.0], [3.0, -2.0, 5.0]);
+        for (got, want) in q.iter().zip([0.0, 0.0, 5.0]) {
+            close(*got, want);
+        }
+    }
     use std::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_2, FRAC_PI_4, PI};
 
     const TOL: f64 = 1e-12;

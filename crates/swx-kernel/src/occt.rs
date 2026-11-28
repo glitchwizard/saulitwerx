@@ -5,12 +5,14 @@ use std::path::Path;
 
 use crate::datum::{axis_nearest_origin, plane_nearest_origin, plane_tangent_to_cylinder};
 use crate::ffi::{
-    self, ChamferMode, EdgeOp, FaceCylinder, FacePlane, ShapeHandle, SubShapeAxis, Transform,
+    self, ChamferMode, EdgeCircle, EdgeOp, FaceCylinder, FacePlane, ShapeHandle, SubShapeAxis,
+    Transform,
 };
 use crate::helix::{check_helix_profile, cross, prepare_helix};
 use crate::hole::{perpendicular, prepare_hole, HoleCylinder};
 use crate::loft::check_section_count;
 use crate::mass::{check_density, scaled};
+use crate::measure::{nearest_on_line, unit};
 use crate::pattern::{
     circular_angles, path_aligned_placements, path_offsets, prepare_mirror, rectangular_offsets,
 };
@@ -25,7 +27,7 @@ use crate::topo::{
 };
 use crate::{
     input_file_cstring, path_to_cstring, validate_point, validate_size, Axis, BooleanOp,
-    BoundingBox, ChamferSize, CombineHistory, Distance, EdgeOnFace, Extent, ExtrudeHistory,
+    BoundingBox, ChamferSize, Circle, CombineHistory, Distance, EdgeOnFace, Extent, ExtrudeHistory,
     HoleDepth, HoleKind, Kernel, KernelError, MassProperties, Mesh, OpHistory, Operand, Point3,
     ProfileLoop, Segment2, SubShape, TopoKind, Workplane, EMPTY_VOLUME_TOLERANCE,
     LOOP_GAP_TOLERANCE,
@@ -898,6 +900,48 @@ impl Kernel for OcctKernel {
             value: r[0],
             on_a: [r[1], r[2], r[3]],
             on_b: [r[4], r[5], r[6]],
+        })
+    }
+
+    fn circle_of(&self, s: &OcctShape, sub: SubShape) -> Result<Circle, KernelError> {
+        validate_index(sub, self.sub_shape_count(s, sub.kind)?)?;
+        let (center, axis, radius) = match sub.kind {
+            TopoKind::Vertex => {
+                return Err(KernelError::InvalidInput(
+                    "circle_of needs an edge or a face, got a vertex".to_string(),
+                ))
+            }
+            TopoKind::Edge => match ffi::edge_circle(&s.0, sub.index) {
+                Some(EdgeCircle::Circle(center, normal, radius)) => (center, normal, radius),
+                Some(EdgeCircle::NotCircular) => {
+                    return Err(KernelError::InvalidInput(format!(
+                        "edge {} is not circular",
+                        sub.index
+                    )))
+                }
+                None => return Err(backend("circle_of")),
+            },
+            TopoKind::Face => match ffi::face_cylinder(&s.0, sub.index) {
+                Some(FaceCylinder::Cylinder(point, dir, radius)) => {
+                    let dir = unit(dir).ok_or_else(|| backend("circle_of"))?;
+                    let b = self.sub_shape_bounding_box(s, sub)?;
+                    let mid = [0, 1, 2].map(|i| 0.5 * (b.min[i] + b.max[i]));
+                    (nearest_on_line(point, dir, mid), dir, radius)
+                }
+                Some(FaceCylinder::NotCylindrical) => {
+                    return Err(KernelError::InvalidInput(format!(
+                        "face {} is not cylindrical",
+                        sub.index
+                    )))
+                }
+                None => return Err(backend("circle_of")),
+            },
+        };
+        let axis = unit(axis).ok_or_else(|| backend("circle_of"))?;
+        Ok(Circle {
+            center,
+            axis,
+            radius,
         })
     }
 
@@ -4764,6 +4808,66 @@ mod tests {
             K.angle(&b, top, &sp, ball),
             K.angle(&b, sub(TopoKind::Face, faces), &b, top),
             K.angle(&b, top, &b, sub(TopoKind::Edge, edges)),
+        ] {
+            assert!(matches!(r, Err(KernelError::InvalidInput(_))), "{r:?}");
+        }
+    }
+
+    /// `c` has the given center (1e-9), an axis of ±`axis` (1e-9) and the
+    /// given radius (1e-9), and its axis is a unit vector.
+    fn assert_circle(c: Circle, center: Point3, axis: Point3, radius: f64) {
+        let close = |a: Point3, b: Point3| (0..3).all(|i| (a[i] - b[i]).abs() <= 1e-9);
+        let minus = axis.map(|x| -x);
+        assert!(close(c.center, center), "{c:?}");
+        assert!(close(c.axis, axis) || close(c.axis, minus), "{c:?}");
+        let len = c.axis.iter().map(|x| x * x).sum::<f64>().sqrt();
+        assert!((len - 1.0).abs() <= 1e-12, "{c:?}");
+        assert!((c.radius - radius).abs() <= 1e-9, "{c:?}");
+    }
+
+    #[test]
+    fn circle_of_cylinder_edges_and_face() {
+        let c = K.make_cylinder([0.0; 3], 5.0, 10.0).unwrap();
+        let top = sub_with_bbox(&c, TopoKind::Edge, [-5.0, -5.0, 10.0], [5.0, 5.0, 10.0]);
+        let bottom = sub_with_bbox(&c, TopoKind::Edge, [-5.0, -5.0, 0.0], [5.0, 5.0, 0.0]);
+        let side = sub_with_bbox(&c, TopoKind::Face, [-5.0, -5.0, 0.0], [5.0, 5.0, 10.0]);
+        let z = [0.0, 0.0, 1.0];
+        assert_circle(K.circle_of(&c, top).unwrap(), [0.0, 0.0, 10.0], z, 5.0);
+        assert_circle(K.circle_of(&c, bottom).unwrap(), [0.0; 3], z, 5.0);
+        assert_circle(K.circle_of(&c, side).unwrap(), [0.0, 0.0, 5.0], z, 5.0);
+        // The input is unchanged.
+        assert_close(K.volume(&c).unwrap(), 250.0 * std::f64::consts::PI);
+    }
+
+    #[test]
+    fn circle_of_fillet_face_and_arc_edge() {
+        let b = K.make_box([0.0; 3], [10.0, 5.0, 2.0]).unwrap();
+        let edge = sub_with_box(&b, TopoKind::Edge, [0.0, 5.0, 2.0], [10.0, 5.0, 2.0]);
+        let s = K.fillet(&b, &[edge], 1.0).unwrap();
+        let x = [1.0, 0.0, 0.0];
+        let face = sub_with_bbox(&s, TopoKind::Face, [0.0, 4.0, 1.0], [10.0, 5.0, 2.0]);
+        assert_circle(K.circle_of(&s, face).unwrap(), [5.0, 4.0, 1.0], x, 1.0);
+        let arc = sub_with_bbox(&s, TopoKind::Edge, [0.0, 4.0, 1.0], [0.0, 5.0, 2.0]);
+        assert_circle(K.circle_of(&s, arc).unwrap(), [0.0, 4.0, 1.0], x, 1.0);
+    }
+
+    #[test]
+    fn circle_of_rejects_lines_planes_vertices_spheres_and_indices() {
+        let b = K.make_box([0.0; 3], [10.0, 5.0, 2.0]).unwrap();
+        let edge = sub_with_box(&b, TopoKind::Edge, [0.0; 3], [10.0, 0.0, 0.0]);
+        let face = face_with_normal(&b, [0.0, 0.0, 1.0]);
+        let corner = sub_with_box(&b, TopoKind::Vertex, [10.0, 5.0, 2.0], [10.0, 5.0, 2.0]);
+        let sp = K.make_sphere([0.0; 3], 3.0).unwrap();
+        assert_eq!(K.sub_shape_count(&sp, TopoKind::Face).unwrap(), 1);
+        let edges = K.sub_shape_count(&b, TopoKind::Edge).unwrap();
+        let faces = K.sub_shape_count(&b, TopoKind::Face).unwrap();
+        for r in [
+            K.circle_of(&b, edge),
+            K.circle_of(&b, face),
+            K.circle_of(&b, corner),
+            K.circle_of(&sp, sub(TopoKind::Face, 0)),
+            K.circle_of(&b, sub(TopoKind::Edge, edges)),
+            K.circle_of(&b, sub(TopoKind::Face, faces)),
         ] {
             assert!(matches!(r, Err(KernelError::InvalidInput(_))), "{r:?}");
         }
