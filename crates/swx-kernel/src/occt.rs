@@ -4680,4 +4680,92 @@ mod tests {
             assert!(matches!(r, Err(KernelError::InvalidInput(_))), "{r:?}");
         }
     }
+
+    fn assert_angle(got: Result<f64, KernelError>, want: f64) {
+        let got = got.unwrap();
+        assert!((got - want).abs() <= 1e-9, "got {got}, want {want}");
+    }
+
+    #[test]
+    fn angle_between_box_faces_and_edges() {
+        use std::f64::consts::{FRAC_PI_2, PI};
+        let s = K.make_box([0.0; 3], [10.0, 5.0, 2.0]).unwrap();
+        let x0 = face_with_normal(&s, [-1.0, 0.0, 0.0]);
+        let x10 = face_with_normal(&s, [1.0, 0.0, 0.0]);
+        let z2 = face_with_normal(&s, [0.0, 0.0, 1.0]);
+        // 1. Faces: opposite normals give π, perpendicular faces π/2.
+        assert_angle(K.angle(&s, x0, &s, x10), PI);
+        assert_angle(K.angle(&s, x10, &s, z2), FRAC_PI_2);
+
+        // 2. Edges: X vs Y is π/2, two parallel X edges 0.
+        let ex = sub_with_box(&s, TopoKind::Edge, [0.0; 3], [10.0, 0.0, 0.0]);
+        let ex_top = sub_with_box(&s, TopoKind::Edge, [0.0, 5.0, 2.0], [10.0, 5.0, 2.0]);
+        let ey = sub_with_box(&s, TopoKind::Edge, [0.0; 3], [0.0, 5.0, 0.0]);
+        assert_angle(K.angle(&s, ex, &s, ey), FRAC_PI_2);
+        assert_angle(K.angle(&s, ex, &s, ex_top), 0.0);
+
+        // 3. Edge and face: parallel is 0, perpendicular π/2 in both orders.
+        assert_angle(K.angle(&s, ex, &s, z2), 0.0);
+        assert_angle(K.angle(&s, ex, &s, x10), FRAC_PI_2);
+        assert_angle(K.angle(&s, x10, &s, ex), FRAC_PI_2);
+
+        // The input is unchanged.
+        assert_close(K.volume(&s).unwrap(), 100.0);
+    }
+
+    #[test]
+    fn angle_between_chamfer_face_and_box_faces() {
+        use std::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_4};
+        let b = K.make_box([0.0; 3], [10.0, 5.0, 2.0]).unwrap();
+        let edge = sub_with_box(&b, TopoKind::Edge, [0.0, 5.0, 2.0], [10.0, 5.0, 2.0]);
+        let s = K.chamfer(&b, &[edge], 1.0).unwrap();
+        let chamfer = face_with_normal(&s, [0.0, FRAC_1_SQRT_2, FRAC_1_SQRT_2]);
+        let top = face_with_normal(&s, [0.0, 0.0, 1.0]);
+        let front = face_with_normal(&s, [0.0, -1.0, 0.0]);
+        assert_angle(K.angle(&s, chamfer, &s, top), FRAC_PI_4);
+        assert_angle(K.angle(&s, chamfer, &s, front), 3.0 * FRAC_PI_4);
+    }
+
+    #[test]
+    fn angle_between_cylinder_axis_and_planes_or_edges() {
+        use std::f64::consts::FRAC_PI_2;
+        let c = K.make_cylinder([0.0; 3], 5.0, 10.0).unwrap();
+        let faces = K.sub_shape_count(&c, TopoKind::Face).unwrap();
+        let side = (0..faces)
+            .map(|i| sub(TopoKind::Face, i))
+            .find(|&f| K.face_plane(&c, f).is_err())
+            .expect("cylindrical face");
+        let top = face_with_normal(&c, [0.0, 0.0, 1.0]);
+        assert_angle(K.angle(&c, side, &c, top), FRAC_PI_2);
+
+        let b = K.make_box([0.0; 3], [10.0, 5.0, 2.0]).unwrap();
+        let ez = sub_with_box(&b, TopoKind::Edge, [0.0; 3], [0.0, 0.0, 2.0]);
+        assert_angle(K.angle(&c, side, &b, ez), 0.0);
+        assert_angle(K.angle(&b, ez, &c, side), 0.0);
+    }
+
+    #[test]
+    fn angle_rejects_vertices_curves_and_other_surfaces() {
+        let b = K.make_box([0.0; 3], [10.0, 5.0, 2.0]).unwrap();
+        let top = face_with_normal(&b, [0.0, 0.0, 1.0]);
+        let corner = sub_with_box(&b, TopoKind::Vertex, [10.0, 5.0, 2.0], [10.0, 5.0, 2.0]);
+        let c = K.make_cylinder([0.0; 3], 5.0, 10.0).unwrap();
+        let circle = sub_with_bbox(&c, TopoKind::Edge, [-5.0, -5.0, 10.0], [5.0, 5.0, 10.0]);
+        let sp = K.make_sphere([0.0; 3], 3.0).unwrap();
+        assert_eq!(K.sub_shape_count(&sp, TopoKind::Face).unwrap(), 1);
+        let ball = sub(TopoKind::Face, 0);
+        let faces = K.sub_shape_count(&b, TopoKind::Face).unwrap();
+        let edges = K.sub_shape_count(&b, TopoKind::Edge).unwrap();
+        for r in [
+            K.angle(&b, corner, &b, top),
+            K.angle(&b, top, &b, corner),
+            K.angle(&c, circle, &b, top),
+            K.angle(&sp, ball, &b, top),
+            K.angle(&b, top, &sp, ball),
+            K.angle(&b, sub(TopoKind::Face, faces), &b, top),
+            K.angle(&b, top, &b, sub(TopoKind::Edge, edges)),
+        ] {
+            assert!(matches!(r, Err(KernelError::InvalidInput(_))), "{r:?}");
+        }
+    }
 }
