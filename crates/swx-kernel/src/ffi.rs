@@ -258,6 +258,7 @@ extern "C" {
     ) -> c_int;
     fn swx_occt_vertex_point(s: *const RawShape, index: usize, out: *mut c_double) -> c_int;
     fn swx_occt_face_cylinder(s: *const RawShape, index: usize, out: *mut c_double) -> c_int;
+    fn swx_occt_edge_circle(s: *const RawShape, index: usize, out: *mut c_double) -> c_int;
     fn swx_occt_edge_midpoint(s: *const RawShape, index: usize, out: *mut c_double) -> c_int;
     fn swx_occt_adjacent(
         s: *const RawShape,
@@ -1133,6 +1134,34 @@ pub(crate) fn face_cylinder(s: &ShapeHandle, index: usize) -> Option<FaceCylinde
             out[6],
         )),
         1 => Some(FaceCylinder::NotCylindrical),
+        _ => None,
+    }
+}
+
+/// What `swx_occt_edge_circle` reports about one edge.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum EdgeCircle {
+    /// The circle's center, the unit normal of its plane, and the radius.
+    Circle([f64; 3], [f64; 3], f64),
+    /// The edge's curve is not a circle.
+    NotCircular,
+}
+
+/// Circle of edge `index` (0-based) of `s`. `None` on any failure,
+/// including an index out of range.
+pub(crate) fn edge_circle(s: &ShapeHandle, index: usize) -> Option<EdgeCircle> {
+    let mut out = [0.0 as c_double; 7];
+    // SAFETY: `s` is a live handle read-only for the call and not retained;
+    // `index` is a plain `usize` (`size_t` layout) by value; `out` is a valid
+    // writable array of exactly the 7 doubles the shim writes.
+    let status = unsafe { swx_occt_edge_circle(s.0.as_ptr(), index, out.as_mut_ptr()) };
+    match status {
+        0 => Some(EdgeCircle::Circle(
+            [out[0], out[1], out[2]],
+            [out[3], out[4], out[5]],
+            out[6],
+        )),
+        1 => Some(EdgeCircle::NotCircular),
         _ => None,
     }
 }
