@@ -1483,6 +1483,35 @@ int swx_occt_sub_shape_bounding_box(const SwxShape* s, int kind, size_t index,
     }
 }
 
+// Area of face `index` (kind code 0) or length of edge `index` (kind code 1),
+// 0-based in TopExp::MapShapes order, by OCCT mass-properties integration
+// (BRepGProp::SurfaceProperties / LinearProperties). Other kinds fail.
+int swx_occt_sub_shape_measure(const SwxShape* s, int kind, size_t index,
+                               double* out) noexcept {
+    TopAbs_ShapeEnum type;
+    if (s == nullptr || out == nullptr || (kind != 0 && kind != 1) || !topo_kind(kind, &type)) {
+        return -1;
+    }
+    try {
+        TopTools_IndexedMapOfShape map;
+        TopExp::MapShapes(s->shape, type, map);
+        if (index >= static_cast<size_t>(map.Extent())) {
+            return -1;
+        }
+        const TopoDS_Shape& sub = map.FindKey(static_cast<int>(index) + 1);
+        GProp_GProps props;
+        if (kind == 0) {
+            BRepGProp::SurfaceProperties(sub, props);
+        } else {
+            BRepGProp::LinearProperties(sub, props);
+        }
+        *out = props.Mass();
+        return 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
 namespace {
 
 // `s` itself when `kind` is -1, else its sub-shape `index` (0-based,
