@@ -1,0 +1,117 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "PR #304 head",
+      "ref": "8ad664f",
+      "task_id": "gates-301",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt --all --check",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-301",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy --workspace --all-targets -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-301",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test --workspace",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-301",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-kernel --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-301",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-kernel --features occt",
+      "passed": false,
+      "required": true,
+      "task_id": "gates-301",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-kernel --features occt (re-run)",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-301",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-qa --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-301",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-qa --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-301",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`fn edge_length(&self, s: &Self::Shape, edge: SubShape) -> Result<f64, KernelError>` and `fn face_area(&self, s: &Self::Shape, face: SubShape) -> Result<f64, KernelError>` on `Kernel`, documented. `s` is unchanged.",
+      "A sub-shape of the wrong kind (a vertex or face for `edge_length`, a vertex or edge for `face_area`) and an index out of range are `KernelError::InvalidInput`, checked before the backend.",
+      "With `--features occt`, relative tolerance 1e-9 (sub-shapes found by `face_plane`, `sub_shape_bounding_box` or `work_axis_on`, not hard-coded indices): 1. Box [0,10]×[0,5]×[0,2]: edges along X, Y and Z give 10, 5 and 2; faces z = 2, y = 0 and x = 0 give 50, 20 and 10. The 6 face areas sum to `surface_area` of the box. 2. Cylinder r 5, h 10: the top circular edge gives 10π, the cylindrical face 100π, the top face 25π. 3. Sphere r 3: its one face gives 36π. 4. The box with its edge (0,5,2)–(10,5,2) chamfered 1 mm (`Kernel::chamfer`): the chamfer face gives 10√2. 5. Wrong kinds and an out-of-range index give `InvalidInput`.",
+      "Any new shim function catches all C++ exceptions, as the others do; any new `unsafe` is in `swx-kernel::ffi` with a comment.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and CI's `swx-kernel (occt)` job passes.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-28T10:24:07.879354821+00:00",
+    "constraints": [],
+    "created_at": "2026-11-28T10:23:38.192709055+00:00",
+    "description": "M6-04d: swx-kernel: length of an edge and area of a face",
+    "project_id": "saulitwerx",
+    "scope": "crates/swx-kernel; PR #304",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 8,
+      "estimate": "small",
+      "id": "gates-301",
+      "status": "completed",
+      "title": "Run the §3 step 7 gates and the swx-kernel (occt) job commands on PR #304 head 8ad664f",
+      "type": "test"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
