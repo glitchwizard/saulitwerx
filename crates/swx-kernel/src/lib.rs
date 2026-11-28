@@ -659,6 +659,19 @@ pub trait Kernel {
     /// range are [`KernelError::InvalidInput`].
     fn edge_midpoint(&self, s: &Self::Shape, edge: SubShape) -> Result<Point3, KernelError>;
 
+    /// The length of the edge `edge` of `s` (its arc length, in model
+    /// units). `s` is unchanged.
+    ///
+    /// An `edge` whose kind isn't [`TopoKind::Edge`] and an index out of
+    /// range are [`KernelError::InvalidInput`], checked before the backend.
+    fn edge_length(&self, s: &Self::Shape, edge: SubShape) -> Result<f64, KernelError>;
+
+    /// The area of the face `face` of `s`. `s` is unchanged.
+    ///
+    /// A `face` whose kind isn't [`TopoKind::Face`] and an index out of
+    /// range are [`KernelError::InvalidInput`], checked before the backend.
+    fn face_area(&self, s: &Self::Shape, face: SubShape) -> Result<f64, KernelError>;
+
     /// Tight axis-aligned bounding box of one sub-shape of `s`. An index out
     /// of range for `of.kind` is [`KernelError::InvalidInput`], checked
     /// before anything reaches the backend.
