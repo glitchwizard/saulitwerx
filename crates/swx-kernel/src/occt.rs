@@ -115,7 +115,7 @@ impl OcctKernel {
     ) -> Result<f64, KernelError> {
         if of.kind != kind {
             return Err(KernelError::InvalidInput(format!(
-                "{op} needs a {kind:?} sub-shape, got a {:?} sub-shape",
+                "{op} needs a sub-shape of kind {kind:?}, got {:?}",
                 of.kind
             )));
         }
