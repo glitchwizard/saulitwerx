@@ -112,6 +112,22 @@ pub enum ModelError {
     /// [`Document::set_param_unit`] got a unit that is neither empty nor a
     /// suffix [`Unit::from_suffix`] accepts.
     InvalidUnit(String),
+    /// [`Document::set_param_unit`] got a unit of another dimension than the
+    /// parameter's current one. `from` and `to` are the old and new unit
+    /// strings as stored (empty for no unit).
+    UnitDimension {
+        param: String,
+        from: String,
+        to: String,
+    },
+}
+
+/// A unit string with its dimension for messages: `deg (angle)`, or
+/// `no unit (unitless)` for an empty unit.
+fn unit_label(unit: &str) -> String {
+    let dim = Unit::from_suffix(unit).map_or(Dim::NONE, |u| u.dim());
+    let name = if unit.is_empty() { "no unit" } else { unit };
+    format!("{name} ({dim})")
 }
 
 impl fmt::Display for ModelError {
@@ -171,6 +187,12 @@ impl fmt::Display for ModelError {
             ModelError::InvalidUnit(u) => write!(
                 f,
                 "unknown unit `{u}`: use mm, cm, m, in, ft, deg, rad, or no unit"
+            ),
+            ModelError::UnitDimension { param, from, to } => write!(
+                f,
+                "can't change the unit of `{param}` from {} to {}: they measure different things",
+                unit_label(from),
+                unit_label(to)
             ),
         }
     }
@@ -409,8 +431,7 @@ impl Document {
     /// rest of the table is re-evaluated too, so dependents keep their
     /// values. `unit` must be empty or a suffix [`Unit::from_suffix`] accepts
     /// ([`ModelError::InvalidUnit`]), and of the same dimension as the old
-    /// unit ([`ModelError::ParameterDimension`], with the old dimension as
-    /// `expected` and the new one as `found`). On any error the document
+    /// unit ([`ModelError::UnitDimension`]). On any error the document
     /// doesn't change.
     pub fn set_param_unit(&mut self, name: &str, unit: &str) -> Result<(), ModelError> {
         let i = self
@@ -423,13 +444,13 @@ impl Document {
         }
         let mut params = self.params.clone();
         let (old_dim, old_factor) = unit_dim(&params[i]);
-        params[i].unit = unit.to_owned();
+        let old_unit = std::mem::replace(&mut params[i].unit, unit.to_owned());
         let (new_dim, new_factor) = unit_dim(&params[i]);
         if new_dim != old_dim {
-            return Err(ModelError::ParameterDimension {
+            return Err(ModelError::UnitDimension {
                 param: name.to_owned(),
-                expected: old_dim,
-                found: new_dim,
+                from: old_unit,
+                to: unit.to_owned(),
             });
         }
         if params[i].expr.is_none() {
@@ -1408,23 +1429,80 @@ mod tests {
         let err = d.set_param_unit("depth", "deg").unwrap_err();
         assert_eq!(
             err,
-            ModelError::ParameterDimension {
+            ModelError::UnitDimension {
                 param: "depth".into(),
-                expected: Dim::LENGTH,
-                found: Dim::ANGLE,
+                from: "mm".into(),
+                to: "deg".into(),
             }
         );
         assert_eq!(
             d.set_param_unit("depth", ""),
-            Err(ModelError::ParameterDimension {
+            Err(ModelError::UnitDimension {
                 param: "depth".into(),
-                expected: Dim::LENGTH,
-                found: Dim::NONE,
+                from: "mm".into(),
+                to: String::new(),
             })
         );
         assert_eq!(
             d.set_param_unit("nope", "mm"),
             Err(ModelError::UnknownParameter("nope".into()))
+        );
+        assert_eq!(d.parameters(), &before[..]);
+    }
+
+    #[test]
+    fn unit_change_across_dimensions_has_own_error() {
+        let mut d = Document::new();
+        d.add_user_param("tilt", 30.0, "deg").unwrap();
+        d.add_user_param("width", 40.0, "mm").unwrap();
+        d.add_user_param("ratio", 2.0, "").unwrap();
+        let before = d.parameters().to_vec();
+
+        let err = d.set_param_unit("tilt", "mm").unwrap_err();
+        assert_eq!(
+            err,
+            ModelError::UnitDimension {
+                param: "tilt".into(),
+                from: "deg".into(),
+                to: "mm".into(),
+            }
+        );
+        assert_eq!(
+            err.to_string(),
+            "can't change the unit of `tilt` from deg (angle) to mm (length): \
+             they measure different things"
+        );
+        assert_eq!(d.parameters(), &before[..]);
+
+        let err = d.set_param_unit("width", "").unwrap_err();
+        assert_eq!(
+            err,
+            ModelError::UnitDimension {
+                param: "width".into(),
+                from: "mm".into(),
+                to: String::new(),
+            }
+        );
+        assert_eq!(
+            err.to_string(),
+            "can't change the unit of `width` from mm (length) to no unit (unitless): \
+             they measure different things"
+        );
+        assert_eq!(d.parameters(), &before[..]);
+
+        let err = d.set_param_unit("ratio", "mm").unwrap_err();
+        assert_eq!(
+            err,
+            ModelError::UnitDimension {
+                param: "ratio".into(),
+                from: String::new(),
+                to: "mm".into(),
+            }
+        );
+        assert_eq!(
+            err.to_string(),
+            "can't change the unit of `ratio` from no unit (unitless) to mm (length): \
+             they measure different things"
         );
         assert_eq!(d.parameters(), &before[..]);
     }
