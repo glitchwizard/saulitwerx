@@ -105,6 +105,25 @@ impl OcctKernel {
         }
         Ok(r)
     }
+
+    /// [`Kernel::edge_length`] and [`Kernel::face_area`]: checks that `of`
+    /// is of `kind` and in range, before the backend, then integrates it.
+    fn sub_shape_measure(
+        &self,
+        s: &OcctShape,
+        of: SubShape,
+        kind: TopoKind,
+        op: &str,
+    ) -> Result<f64, KernelError> {
+        if of.kind != kind {
+            return Err(KernelError::InvalidInput(format!(
+                "{op} needs a sub-shape of kind {kind:?}, got {:?}",
+                of.kind
+            )));
+        }
+        validate_index(of, self.sub_shape_count(s, kind)?)?;
+        ffi::sub_shape_measure(&s.0, kind.code(), of.index).ok_or_else(|| backend(op))
+    }
 }
 
 impl Kernel for OcctKernel {
@@ -1067,6 +1086,14 @@ impl Kernel for OcctKernel {
         }
         validate_index(edge, self.sub_shape_count(s, TopoKind::Edge)?)?;
         ffi::edge_midpoint(&s.0, edge.index).ok_or_else(|| backend("edge_midpoint"))
+    }
+
+    fn edge_length(&self, s: &OcctShape, edge: SubShape) -> Result<f64, KernelError> {
+        self.sub_shape_measure(s, edge, TopoKind::Edge, "edge_length")
+    }
+
+    fn face_area(&self, s: &OcctShape, face: SubShape) -> Result<f64, KernelError> {
+        self.sub_shape_measure(s, face, TopoKind::Face, "face_area")
     }
 
     fn export_step(&self, s: &OcctShape, path: &Path) -> Result<(), KernelError> {
@@ -4808,6 +4835,95 @@ mod tests {
             K.angle(&b, top, &sp, ball),
             K.angle(&b, sub(TopoKind::Face, faces), &b, top),
             K.angle(&b, top, &b, sub(TopoKind::Edge, edges)),
+        ] {
+            assert!(matches!(r, Err(KernelError::InvalidInput(_))), "{r:?}");
+        }
+    }
+
+    /// `got` is within relative 1e-9 of `want`.
+    fn assert_measure(got: Result<f64, KernelError>, want: f64) {
+        let got = got.unwrap();
+        assert!(
+            (got - want).abs() <= 1e-9 * want.abs(),
+            "got {got}, want {want}"
+        );
+    }
+
+    #[test]
+    fn edge_length_and_face_area_of_a_box() {
+        let s = K.make_box([0.0; 3], [10.0, 5.0, 2.0]).unwrap();
+        let ex = sub_with_box(&s, TopoKind::Edge, [0.0; 3], [10.0, 0.0, 0.0]);
+        let ey = sub_with_box(&s, TopoKind::Edge, [0.0; 3], [0.0, 5.0, 0.0]);
+        let ez = sub_with_box(&s, TopoKind::Edge, [0.0; 3], [0.0, 0.0, 2.0]);
+        assert_measure(K.edge_length(&s, ex), 10.0);
+        assert_measure(K.edge_length(&s, ey), 5.0);
+        assert_measure(K.edge_length(&s, ez), 2.0);
+
+        assert_measure(K.face_area(&s, face_with_normal(&s, [0.0, 0.0, 1.0])), 50.0);
+        assert_measure(
+            K.face_area(&s, face_with_normal(&s, [0.0, -1.0, 0.0])),
+            20.0,
+        );
+        assert_measure(
+            K.face_area(&s, face_with_normal(&s, [-1.0, 0.0, 0.0])),
+            10.0,
+        );
+
+        let faces = K.sub_shape_count(&s, TopoKind::Face).unwrap();
+        let sum: f64 = (0..faces)
+            .map(|i| K.face_area(&s, sub(TopoKind::Face, i)).unwrap())
+            .sum();
+        assert_measure(Ok(sum), K.surface_area(&s).unwrap());
+
+        // The input is unchanged.
+        assert_close(K.volume(&s).unwrap(), 100.0);
+    }
+
+    #[test]
+    fn edge_length_and_face_area_of_a_cylinder_and_a_sphere() {
+        use std::f64::consts::PI;
+        let c = K.make_cylinder([0.0; 3], 5.0, 10.0).unwrap();
+        let circle = sub_with_bbox(&c, TopoKind::Edge, [-5.0, -5.0, 10.0], [5.0, 5.0, 10.0]);
+        assert_measure(K.edge_length(&c, circle), 10.0 * PI);
+        let faces = K.sub_shape_count(&c, TopoKind::Face).unwrap();
+        let side = (0..faces)
+            .map(|i| sub(TopoKind::Face, i))
+            .find(|&f| K.face_plane(&c, f).is_err())
+            .expect("cylindrical face");
+        assert_measure(K.face_area(&c, side), 100.0 * PI);
+        assert_measure(
+            K.face_area(&c, face_with_normal(&c, [0.0, 0.0, 1.0])),
+            25.0 * PI,
+        );
+
+        let sp = K.make_sphere([0.0; 3], 3.0).unwrap();
+        assert_eq!(K.sub_shape_count(&sp, TopoKind::Face).unwrap(), 1);
+        assert_measure(K.face_area(&sp, sub(TopoKind::Face, 0)), 36.0 * PI);
+    }
+
+    #[test]
+    fn face_area_of_a_chamfer_face() {
+        use std::f64::consts::FRAC_1_SQRT_2;
+        let b = K.make_box([0.0; 3], [10.0, 5.0, 2.0]).unwrap();
+        let edge = sub_with_box(&b, TopoKind::Edge, [0.0, 5.0, 2.0], [10.0, 5.0, 2.0]);
+        let s = K.chamfer(&b, &[edge], 1.0).unwrap();
+        let chamfer = face_with_normal(&s, [0.0, FRAC_1_SQRT_2, FRAC_1_SQRT_2]);
+        assert_measure(K.face_area(&s, chamfer), 10.0 * 2f64.sqrt());
+    }
+
+    #[test]
+    fn edge_length_and_face_area_reject_wrong_kinds_and_indices() {
+        let b = K.make_box([0.0; 3], [10.0, 5.0, 2.0]).unwrap();
+        let faces = K.sub_shape_count(&b, TopoKind::Face).unwrap();
+        let edges = K.sub_shape_count(&b, TopoKind::Edge).unwrap();
+        let vertex = sub(TopoKind::Vertex, 0);
+        for r in [
+            K.edge_length(&b, vertex),
+            K.edge_length(&b, sub(TopoKind::Face, 0)),
+            K.edge_length(&b, sub(TopoKind::Edge, edges)),
+            K.face_area(&b, vertex),
+            K.face_area(&b, sub(TopoKind::Edge, 0)),
+            K.face_area(&b, sub(TopoKind::Face, faces)),
         ] {
             assert!(matches!(r, Err(KernelError::InvalidInput(_))), "{r:?}");
         }

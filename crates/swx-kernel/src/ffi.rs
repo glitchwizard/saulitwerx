@@ -231,6 +231,12 @@ extern "C" {
         index: usize,
         out: *mut c_double,
     ) -> c_int;
+    fn swx_occt_sub_shape_measure(
+        s: *const RawShape,
+        kind: c_int,
+        index: usize,
+        out: *mut c_double,
+    ) -> c_int;
     fn swx_occt_min_distance(
         a: *const RawShape,
         a_kind: c_int,
@@ -974,6 +980,18 @@ pub(crate) fn sub_shape_bounding_box(s: &ShapeHandle, kind: i32, index: usize) -
     // writable array of exactly the 6 doubles the shim writes.
     let status =
         unsafe { swx_occt_sub_shape_bounding_box(s.0.as_ptr(), kind, index, out.as_mut_ptr()) };
+    (status == 0).then_some(out)
+}
+
+/// Area of face `index` (shim kind code 0) or length of edge `index` (kind
+/// code 1) of `s`. `None` for any other kind, an index out of range, or any
+/// failure.
+pub(crate) fn sub_shape_measure(s: &ShapeHandle, kind: i32, index: usize) -> Option<f64> {
+    let mut out: c_double = 0.0;
+    // SAFETY: `s` is a live handle read-only for the call and not retained;
+    // `kind` and `index` are plain values; `out` is a valid out-pointer to
+    // the one double the shim writes.
+    let status = unsafe { swx_occt_sub_shape_measure(s.0.as_ptr(), kind, index, &mut out) };
     (status == 0).then_some(out)
 }
 
