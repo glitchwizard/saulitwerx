@@ -686,6 +686,32 @@ pub trait Kernel {
         b_sub: Option<SubShape>,
     ) -> Result<Distance, KernelError>;
 
+    /// The angle in radians between the sub-shape `a_sub` of `a` and the
+    /// sub-shape `b_sub` of `b`. A planar face gives its outward normal (as
+    /// [`Kernel::face_plane`]); a straight edge or a cylindrical face gives a
+    /// line direction of either sign (as [`Kernel::work_axis_on`]).
+    ///
+    /// - face–face: the angle between the two outward normals, in [0, π];
+    /// - line–line: the angle between the two lines, in [0, π/2];
+    /// - face–line (either order): the angle between the line and the
+    ///   plane, in [0, π/2]: 0 when the line is parallel to the plane, π/2
+    ///   when it is perpendicular.
+    ///
+    /// `a` and `b` may be the same shape, and both are unchanged. A vertex,
+    /// a curved edge, a face that is neither planar nor cylindrical, and an
+    /// index out of range are [`KernelError::InvalidInput`].
+    fn angle(
+        &self,
+        a: &Self::Shape,
+        a_sub: SubShape,
+        b: &Self::Shape,
+        b_sub: SubShape,
+    ) -> Result<f64, KernelError> {
+        let da = angle_direction(self, a, a_sub)?;
+        let db = angle_direction(self, b, b_sub)?;
+        Ok(measure::angle_between(da, db))
+    }
+
     /// Writes `s` to a STEP (ISO 10303-21) file at `path`, replacing any
     /// existing file. Lengths are written in millimetres.
     fn export_step(&self, s: &Self::Shape, path: &Path) -> Result<(), KernelError>;
@@ -719,6 +745,29 @@ pub trait Kernel {
     ///
     /// Text that isn't BRep, or yields no shape, is an error.
     fn read_brep(&self, text: &str) -> Result<Self::Shape, KernelError>;
+}
+
+/// The direction [`Kernel::angle`] uses for `sub` of `s`: a planar face's
+/// outward normal, or the line of a straight edge or cylindrical face.
+fn angle_direction<K: Kernel + ?Sized>(
+    k: &K,
+    s: &K::Shape,
+    sub: SubShape,
+) -> Result<measure::Direction, KernelError> {
+    match sub.kind {
+        TopoKind::Vertex => Err(KernelError::InvalidInput(format!(
+            "vertex {} has no direction to measure an angle with",
+            sub.index
+        ))),
+        TopoKind::Edge => Ok(measure::Direction::Line(k.work_axis_on(s, sub)?.dir)),
+        TopoKind::Face => match k.face_plane(s, sub) {
+            Ok((_, normal)) => Ok(measure::Direction::Normal(normal)),
+            Err(KernelError::InvalidInput(_)) => {
+                Ok(measure::Direction::Line(k.work_axis_on(s, sub)?.dir))
+            }
+            Err(e) => Err(e),
+        },
+    }
 }
 
 /// Rejects a size that is not finite or not strictly positive.

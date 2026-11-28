@@ -1698,6 +1698,12 @@ int swx_occt_face_plane(const SwxShape* s, size_t index, double* out) noexcept {
         const gp_Pln plane = surface.Plane();
         const gp_Pnt p = plane.Location();
         gp_Dir n = plane.Axis().Direction();
+        // The surface normal is XDir x YDir, which is opposite to the main
+        // direction when the plane's frame is left-handed (OCCT reference
+        // documentation: gp_Ax3::Direct). Chamfer faces can have such frames.
+        if (!plane.Position().Direct()) {
+            n.Reverse();
+        }
         if (face.Orientation() == TopAbs_REVERSED) {
             n.Reverse();
         }
