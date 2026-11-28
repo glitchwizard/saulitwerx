@@ -1,0 +1,109 @@
+{
+  "active_task": null,
+  "artifacts": [
+    {
+      "description": "PR #305 head",
+      "ref": "595a725",
+      "task_id": "gates-302",
+      "type": "commit"
+    }
+  ],
+  "checks": [
+    {
+      "name": "cargo fmt --all --check",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-302",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy --workspace --all-targets -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-302",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test --workspace",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-302",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-kernel --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-302",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-kernel --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-302",
+      "type": "test",
+      "verified": true
+    },
+    {
+      "name": "cargo clippy -p swx-qa --all-targets --features occt -- -D warnings",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-302",
+      "type": "lint",
+      "verified": true
+    },
+    {
+      "name": "cargo test -p swx-qa --features occt",
+      "passed": true,
+      "required": true,
+      "task_id": "gates-302",
+      "type": "test",
+      "verified": true
+    }
+  ],
+  "objective": {
+    "acceptance_criteria": [
+      "`pub struct Circle { pub center: Point3, pub axis: Point3, pub radius: f64 }` and `fn circle_of(&self, s: &Self::Shape, sub: SubShape) -> Result<Circle, KernelError>` on `Kernel`, documented with the definitions above. `axis` is a unit vector. `s` is unchanged.",
+      "A vertex, a straight or other non-circular edge, a face that isn't cylindrical, and an index out of range are `KernelError::InvalidInput`.",
+      "With `--features occt`, tolerance 1e-9 (sub-shapes found by `face_plane`, `sub_shape_bounding_box` or `work_axis_on`, not hard-coded indices; `axis` compared up to sign): 1. Cylinder r 5, h 10: its top circular edge gives center (0,0,10), axis ±Z, radius 5; its bottom edge center (0,0,0); its cylindrical face center (0,0,5), axis ±Z, radius 5. 2. The box above filleted at radius 1 (`Kernel::fillet`): the fillet face gives center (5,4,1), axis ±X, radius 1; its arc edge at x = 0 gives center (0,4,1), axis ±X, radius 1. 3. A box edge, a box face, a box vertex, a sphere's face and an out-of-range index give `InvalidInput`.",
+      "Any new shim function catches all C++ exceptions, as the others do; any new `unsafe` is in `swx-kernel::ffi` with a comment.",
+      "`cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` pass, and CI's `swx-kernel (occt)` job passes.",
+      "QA report (FACTORY §6b) posted on the PR."
+    ],
+    "completed_at": "2026-11-28T10:30:08.314574529+00:00",
+    "constraints": [],
+    "created_at": "2026-11-28T10:29:45.630373666+00:00",
+    "description": "M6-04e: swx-kernel: radius, center and axis of a circular edge or cylindrical face",
+    "project_id": "saulitwerx",
+    "scope": "crates/swx-kernel; PR #305",
+    "status": "completed"
+  },
+  "project_id": "saulitwerx",
+  "recent_actions": [],
+  "task_list": [
+    {
+      "actions_count": 0,
+      "artifacts_count": 1,
+      "checks_count": 7,
+      "estimate": "small",
+      "id": "gates-302",
+      "status": "completed",
+      "title": "Run the §3 step 7 gates and the swx-kernel (occt) job commands on PR #305 head 595a725",
+      "type": "test"
+    }
+  ],
+  "tasks": {
+    "active": 0,
+    "blocked": 0,
+    "completed": 1,
+    "planned": 0,
+    "skipped": 0,
+    "total": 1
+  },
+  "think_refs": []
+}
